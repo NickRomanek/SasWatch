@@ -30,14 +30,17 @@
                 <div class="upload-card">
                 <div class="upload-header">
                     <div class="upload-info">
-                        <h2>📁 Import Adobe User List</h2>
-                        <% if (users && users.length > 0) { %>
-                            <div class="upload-status-inline">
-                                <span class="status-badge status-success">✓ Imported</span>
-                                <span class="upload-count"><strong><%= users.length %></strong> users loaded</span>
-                            </div>
-                        <% } else { %>
-                            <p>Upload your Adobe Admin Console user export to begin tracking license usage.</p>
+                        <h2>
+                            <span style="white-space: nowrap;">📁 Import Adobe User List</span>
+                            <% if (users && users.length > 0) { %>
+                                <div class="upload-status-inline">
+                                    <span class="status-badge status-success">✓ Imported</span>
+                                    <span class="upload-count"><strong><%= users.length %></strong> users loaded</span>
+                                </div>
+                            <% } %>
+                        </h2>
+                        <% if (!users || users.length === 0) { %>
+                            <p style="margin-top: 0.25rem; font-size: 0.875rem; color: var(--text-secondary);">Upload your Adobe Admin Console user export to begin tracking license usage.</p>
                         <% } %>
                     </div>
                     <% if (users && users.length > 0) { %>

@@ -206,10 +206,12 @@ function renderLicenses(licenses) {
     if (!licenses || licenses.length === 0) {
         return '<span class="license-badge license-none">No License</span>';
     }
-    
+
     return licenses.map(license => {
-        const className = getLicenseClass(license);
-        return `<span class="license-badge ${className}">${license}</span>`;
+        // Clean up license name by removing (DIRECT - ...) suffix
+        const cleanLicense = license.replace(/\s*\(DIRECT\s*-\s*[A-Z0-9]+\)/gi, '').trim();
+        const className = getLicenseClass(cleanLicense);
+        return `<span class="license-badge ${className}">${cleanLicense}</span>`;
     }).join(' ');
 }
 
@@ -251,7 +253,7 @@ function renderStatusBadge(user) {
     const badges = {
         'active': '<span class="status-badge status-active">✓ Active</span>',
         'inactive': '<span class="status-badge status-inactive">⚠ Inactive</span>',
-        'unused': '<span class="status-badge status-unused">✗ Unused</span>',
+        'unused': '<span class="status-badge status-unused">Unused</span>',
         'no-license': '<span class="status-badge status-no-license">○ No License</span>'
     };
     return badges[status] || '';
