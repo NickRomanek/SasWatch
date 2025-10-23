@@ -224,13 +224,19 @@ function setupScriptRoutes(app) {
             const inferredBaseUrl = `${req.protocol}://${req.get('host')}`;
             const apiUrl = process.env.API_URL || inferredBaseUrl;
 
-            const script = generateMonitorScript(account.apiKey, apiUrl);
+            let script = generateMonitorScript(account.apiKey, apiUrl);
 
-            // Ensure proper Windows/PowerShell encoding and line endings
-            const scriptBuffer = Buffer.from(script.replace(/\n/g, '\r\n'), 'utf8');
+            // Normalize all line endings to Windows format (CRLF)
+            // First normalize to LF, then convert to CRLF
+            script = script.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, '\r\n');
 
-            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            // Create buffer with UTF-8 BOM for Windows compatibility
+            const bom = Buffer.from([0xEF, 0xBB, 0xBF]);
+            const scriptBuffer = Buffer.concat([bom, Buffer.from(script, 'utf8')]);
+
+            res.setHeader('Content-Type', 'application/octet-stream');
             res.setHeader('Content-Disposition', 'attachment; filename=Monitor-AdobeUsage.ps1');
+            res.setHeader('Content-Length', scriptBuffer.length);
             res.send(scriptBuffer);
         } catch (error) {
             console.error('Script download error:', error);
