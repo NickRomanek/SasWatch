@@ -6,121 +6,186 @@
     <title>Login - SubTracker</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
-        .auth-container {
-            max-width: 400px;
-            margin: 80px auto;
-            padding: 40px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
         }
-        
+
+        .auth-container {
+            max-width: 440px;
+            width: 100%;
+            margin: 20px;
+            padding: 48px;
+            background: var(--bg-card);
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-color);
+            animation: slideUp 0.4s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         .auth-header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 32px;
         }
-        
+
+        .auth-logo {
+            font-size: 3.5rem;
+            margin-bottom: 16px;
+            display: block;
+        }
+
         .auth-header h1 {
-            margin-bottom: 10px;
-            color: #333;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-size: 1.75rem;
+            font-weight: 700;
         }
-        
+
         .auth-header p {
-            color: #666;
-            font-size: 14px;
+            color: var(--text-secondary);
+            font-size: 0.938rem;
         }
-        
+
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
-        
+
         .form-group label {
             display: block;
-            margin-bottom: 5px;
-            color: #333;
+            margin-bottom: 8px;
+            color: var(--text-primary);
             font-weight: 500;
+            font-size: 0.875rem;
         }
-        
+
         .form-group input {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.938rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: all 0.2s;
         }
-        
+
         .form-group input:focus {
             outline: none;
-            border-color: #007bff;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-light);
         }
-        
+
         .btn-primary {
             width: 100%;
-            padding: 12px;
-            background: #007bff;
+            padding: 14px;
+            background: var(--accent-primary);
             color: white;
             border: none;
-            border-radius: 4px;
-            font-size: 16px;
+            border-radius: 8px;
+            font-size: 1rem;
             cursor: pointer;
-            font-weight: 500;
+            font-weight: 600;
+            transition: all 0.2s;
+            margin-top: 8px;
         }
-        
+
         .btn-primary:hover {
-            background: #0056b3;
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
-        
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
         .auth-footer {
             text-align: center;
-            margin-top: 20px;
-            color: #666;
-            font-size: 14px;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.875rem;
         }
-        
+
         .auth-footer a {
-            color: #007bff;
+            color: var(--accent-primary);
             text-decoration: none;
+            font-weight: 500;
         }
-        
+
         .auth-footer a:hover {
             text-decoration: underline;
         }
-        
+
         .error-message {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            font-size: 14px;
+            background: var(--danger-light);
+            color: var(--danger);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 0.875rem;
+            border: 1px solid var(--danger);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
+
+        [data-theme="dark"] .error-message {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
         .success-message {
-            background: #d4edda;
-            color: #155724;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            font-size: 14px;
+            background: var(--success-light);
+            color: var(--success);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 0.875rem;
+            border: 1px solid var(--success);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        [data-theme="dark"] .success-message {
+            background: rgba(16, 185, 129, 0.1);
         }
     </style>
 </head>
-<body>
+<body data-theme="dark">
     <div class="auth-container">
         <div class="auth-header">
-            <h1>📊 SubTracker</h1>
+            <span class="auth-logo">📊</span>
+            <h1>SubTracker</h1>
             <p>Sign in to your account</p>
         </div>
-        
+
         <% if (typeof error !== 'undefined' && error) { %>
             <div class="error-message">
-                ⚠️ <%= error %>
+                <span>⚠️</span>
+                <span><%= error %></span>
             </div>
         <% } %>
-        
+
         <% if (typeof message !== 'undefined' && message) { %>
             <div class="success-message">
-                ✓ <%= message %>
+                <span>✓</span>
+                <span><%= message %></span>
             </div>
         <% } %>
         

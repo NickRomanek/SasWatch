@@ -73,6 +73,35 @@ body {
     padding: 20px;
     color: var(--text-primary);
     transition: background-color 0.3s ease, color 0.3s ease;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Better scrollbar styling for all scrollable elements */
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 5px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 5px;
+    transition: background 0.2s;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--border-hover);
+}
+
+/* Firefox scrollbar styling */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--bg-secondary);
 }
 
 .container {
@@ -449,16 +478,31 @@ nav a {
     text-decoration: none;
     color: var(--text-secondary);
     transition: all 0.2s;
+    font-weight: 500;
 }
 
 nav a:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+nav a:active {
+    transform: translateY(0);
 }
 
 nav a.active {
     background: var(--accent-primary);
     color: white;
+    box-shadow: var(--shadow-sm);
+}
+
+.nav-logout {
+    color: var(--danger) !important;
+}
+
+.nav-logout:hover {
+    background: var(--danger-light) !important;
 }
 
 /* Alert Banner */
@@ -745,6 +789,13 @@ nav a.active {
     color: var(--text-primary);
     font-size: 0.875rem;
     min-width: 200px;
+    transition: all 0.2s;
+}
+
+.search-box:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-light);
 }
 
 .filter-select {
@@ -754,6 +805,18 @@ nav a.active {
     background: var(--bg-primary);
     color: var(--text-primary);
     font-size: 0.875rem;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.filter-select:hover {
+    border-color: var(--border-hover);
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-light);
 }
 
 /* Users Table */
@@ -777,23 +840,35 @@ nav a.active {
     text-transform: uppercase;
     cursor: pointer;
     user-select: none;
+    transition: all 0.2s;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
 .users-table th:hover {
     background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 .sort-icon {
     margin-left: 0.25rem;
     opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.users-table th:hover .sort-icon {
+    opacity: 1;
 }
 
 .users-table tbody tr {
-    transition: background 0.2s;
+    transition: all 0.2s;
 }
 
 .users-table tbody tr:hover {
     background: var(--bg-hover);
+    transform: scale(1.002);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 /* License Badges */

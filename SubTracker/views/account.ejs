@@ -7,161 +7,352 @@
     <link rel="stylesheet" href="/css/style.css">
     <style>
         .account-container {
-            max-width: 800px;
-            margin: 40px auto;
+            max-width: 900px;
+            margin: 0 auto;
             padding: 20px;
         }
-        
+
         .account-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 2px solid var(--border-color);
         }
-        
+
         .account-header h1 {
             margin: 0;
+            color: var(--text-primary);
+            font-size: 2rem;
+            font-weight: 700;
         }
-        
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn-back {
+            padding: 10px 20px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-back:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-hover);
+        }
+
         .btn-logout {
-            padding: 8px 16px;
-            background: #dc3545;
+            padding: 10px 20px;
+            background: var(--danger);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
             text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
         }
-        
+
+        .btn-logout:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
         .account-section {
-            background: white;
-            padding: 30px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: var(--bg-card);
+            padding: 32px;
+            margin-bottom: 24px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
         }
-        
+
+        .account-section:hover {
+            box-shadow: var(--shadow-md);
+        }
+
         .account-section h2 {
             margin-top: 0;
-            margin-bottom: 20px;
-            color: #333;
-        }
-        
-        .info-row {
-            display: flex;
-            margin-bottom: 15px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .info-row:last-child {
-            border-bottom: none;
-        }
-        
-        .info-label {
-            width: 200px;
+            margin-bottom: 24px;
+            color: var(--text-primary);
+            font-size: 1.5rem;
             font-weight: 600;
-            color: #666;
-        }
-        
-        .info-value {
-            flex: 1;
-            color: #333;
-        }
-        
-        .api-key-display {
             display: flex;
             align-items: center;
             gap: 10px;
         }
-        
+
+        .section-description {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .info-label {
+            width: 180px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .info-value {
+            flex: 1;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .subscription-badge {
+            background: var(--success);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .api-key-display {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
         .api-key-display input {
             flex: 1;
-            padding: 8px;
-            font-family: monospace;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: #f8f9fa;
+            min-width: 300px;
+            padding: 12px 16px;
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            font-size: 0.875rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
         }
-        
+
         .btn-copy {
-            padding: 8px 16px;
-            background: #007bff;
+            padding: 10px 20px;
+            background: var(--accent-primary);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
-        
+
         .btn-copy:hover {
-            background: #0056b3;
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
-        
+
         .btn-regenerate {
-            padding: 8px 16px;
-            background: #ffc107;
-            color: #000;
+            padding: 10px 20px;
+            background: var(--warning);
+            color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
-        
+
         .btn-regenerate:hover {
-            background: #e0a800;
+            background: #d97706;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
-        
+
         .btn-download {
             padding: 12px 24px;
-            background: #28a745;
+            background: var(--success);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 0.938rem;
             text-decoration: none;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            transition: all 0.2s;
         }
-        
+
         .btn-download:hover {
-            background: #218838;
+            background: #059669;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
-        
+
         .warning-box {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            padding: 15px;
-            border-radius: 4px;
+            background: var(--warning-light);
+            border: 1px solid var(--warning);
+            padding: 16px 20px;
+            border-radius: 8px;
             margin-top: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
         }
-        
+
+        [data-theme="dark"] .warning-box {
+            background: rgba(245, 158, 11, 0.1);
+        }
+
         .warning-box strong {
-            color: #856404;
+            color: var(--warning);
         }
-        
+
+        .warning-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .download-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-top: 24px;
+        }
+
+        .download-card {
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            transition: all 0.2s;
+        }
+
+        .download-card:hover {
+            border-color: var(--accent-primary);
+            box-shadow: var(--shadow-md);
+        }
+
+        .download-card h3 {
+            margin: 0 0 12px 0;
+            color: var(--text-primary);
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .download-card p {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .download-card ul {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 20px;
+            padding-left: 20px;
+            line-height: 1.8;
+        }
+
+        .deployment-note {
+            margin-top: 24px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-primary);
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+        .deployment-note strong {
+            color: var(--text-primary);
+        }
+
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 20px;
-            margin-top: 20px;
+            margin-top: 24px;
         }
-        
+
         .stat-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
+            background: var(--bg-secondary);
+            padding: 24px;
+            border-radius: 12px;
             text-align: center;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
         }
-        
+
+        .stat-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
         .stat-number {
-            font-size: 32px;
-            font-weight: bold;
-            color: #007bff;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-bottom: 8px;
         }
-        
+
         .stat-label {
-            color: #666;
-            margin-top: 5px;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            .account-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .api-key-display {
+                flex-direction: column;
+            }
+
+            .api-key-display input {
+                width: 100%;
+            }
+
+            .download-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -169,15 +360,18 @@
     <div class="account-container">
         <div class="account-header">
             <h1>⚙️ Account Settings</h1>
-            <div>
-                <a href="/" style="margin-right: 10px; text-decoration: none; color: #007bff;">← Back to Users</a>
+            <div class="header-actions">
+                <a href="/" class="btn-back">← Back to Users</a>
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                    <span class="theme-toggle-icon" id="theme-icon">☀️</span>
+                </button>
                 <a href="/logout" class="btn-logout">Logout</a>
             </div>
         </div>
-        
+
         <!-- Account Information -->
         <div class="account-section">
-            <h2>Account Information</h2>
+            <h2>👤 Account Information</h2>
             <div class="info-row">
                 <div class="info-label">Organization:</div>
                 <div class="info-value"><%= account.name %></div>
@@ -193,17 +387,17 @@
             <div class="info-row">
                 <div class="info-label">Subscription:</div>
                 <div class="info-value">
-                    <span style="background: #28a745; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; text-transform: uppercase;">
+                    <span class="subscription-badge">
                         <%= account.subscriptionTier %>
                     </span>
                 </div>
             </div>
         </div>
-        
+
         <!-- API Key -->
         <div class="account-section">
-            <h2>API Key</h2>
-            <p>Use this API key in your PowerShell monitoring scripts to send data to your account.</p>
+            <h2>🔑 API Key</h2>
+            <p class="section-description">Use this API key in your PowerShell monitoring scripts to send data to your account.</p>
             
             <div class="api-key-display">
                 <input type="text" id="apiKeyInput" value="<%= account.apiKey %>" readonly>
@@ -212,38 +406,37 @@
             </div>
             
             <div class="warning-box">
-                <strong>⚠️ Keep this key secret!</strong> Anyone with this key can send data to your account. 
-                If compromised, regenerate it immediately.
+                <span class="warning-icon">⚠️</span>
+                <div>
+                    <strong>Keep this key secret!</strong> Anyone with this key can send data to your account.
+                    If compromised, regenerate it immediately.
+                </div>
             </div>
         </div>
-        
+
         <!-- Script Download -->
         <div class="account-section">
-            <h2>Downloads</h2>
-            <p>Download pre-configured monitoring tools with your API key embedded.</p>
-            
-            <div style="display: flex; flex-direction: column; gap: 20px; margin-top: 20px;">
+            <h2>📥 Downloads</h2>
+            <p class="section-description">Download pre-configured monitoring tools with your API key embedded.</p>
+
+            <div class="download-grid">
                 <!-- PowerShell Script -->
-                <div style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; background: #f8f9fa;">
-                    <h3 style="margin-top: 0; margin-bottom: 10px;">💻 PowerShell Monitoring Script</h3>
-                    <p style="color: #666; margin-bottom: 15px;">
-                        Tracks desktop Adobe applications (Acrobat, Photoshop, Illustrator, etc.)
-                    </p>
-                    <ul style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                <div class="download-card">
+                    <h3>💻 PowerShell Monitoring Script</h3>
+                    <p>Tracks desktop Adobe applications (Acrobat, Photoshop, Illustrator, etc.)</p>
+                    <ul>
                         <li>✓ Monitors desktop apps</li>
                         <li>✓ Pre-configured with your API key</li>
                         <li>✓ Ready for Intune deployment</li>
                     </ul>
                     <a href="/download/monitor-script" class="btn-download">📥 Download Script (.ps1)</a>
                 </div>
-                
+
                 <!-- Chrome Extension -->
-                <div style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; background: #f8f9fa;">
-                    <h3 style="margin-top: 0; margin-bottom: 10px;">🌐 Chrome Extension</h3>
-                    <p style="color: #666; margin-bottom: 15px;">
-                        Tracks Adobe web applications (Acrobat Web, Express, Admin Console, etc.)
-                    </p>
-                    <ul style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                <div class="download-card">
+                    <h3>🌐 Chrome Extension</h3>
+                    <p>Tracks Adobe web applications (Acrobat Web, Express, Admin Console, etc.)</p>
+                    <ul>
                         <li>✓ Monitors web apps</li>
                         <li>✓ Easy browser installation</li>
                         <li>✓ Configure with your API key</li>
@@ -251,16 +444,16 @@
                     <a href="/download/extension" class="btn-download">📥 Download Extension (.zip)</a>
                 </div>
             </div>
-            
-            <p style="margin-top: 20px; color: #666; font-size: 14px;">
-                📖 <strong>Deployment:</strong> Deploy the PowerShell script via Intune or Group Policy, 
+
+            <div class="deployment-note">
+                <strong>📖 Deployment:</strong> Deploy the PowerShell script via Intune or Group Policy,
                 and distribute the Chrome Extension to users' browsers. Both tools use your API key above.
-            </p>
+            </div>
         </div>
-        
+
         <!-- Account Stats -->
         <div class="account-section">
-            <h2>Account Statistics</h2>
+            <h2>📊 Account Statistics</h2>
             
             <div class="stats-grid">
                 <div class="stat-card">
@@ -286,19 +479,19 @@
             document.execCommand('copy');
             alert('✓ API key copied to clipboard!');
         }
-        
+
         async function regenerateApiKey() {
             if (!confirm('Are you sure you want to regenerate your API key? This will invalidate all existing scripts using the old key.')) {
                 return;
             }
-            
+
             try {
                 const response = await fetch('/api/account/regenerate-key', {
                     method: 'POST'
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
                     document.getElementById('apiKeyInput').value = result.apiKey;
                     alert('✓ API key regenerated successfully! Update your PowerShell scripts with the new key.');
@@ -309,6 +502,29 @@
                 alert('✗ Error: ' + error.message);
             }
         }
+
+        // Theme toggle functionality
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+
+            // Update icon
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Initialize theme on page load (default to dark)
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        });
     </script>
 </body>
 </html>
