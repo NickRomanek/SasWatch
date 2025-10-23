@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+
+# Database
+*.db
+*.db-journal
+data/*.json.backup-*
+
+# Prisma
+generated/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Legacy/Obsolete (not needed for multi-tenant)
+receiver/
+
+# Build artifacts
+dist/
+build/

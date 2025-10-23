@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1>📊 SubTracker</h1>
+                <p class="subtitle">Usage Monitor</p>
+            </div>
+            <nav>
+                <a href="/">Users</a>
+                <a href="/dashboard" class="active">Dashboard</a>
+                <a href="/account">Account</a>
+                <a href="/logout" class="nav-logout">Logout</a>
+            </nav>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <span class="theme-toggle-icon" id="theme-icon">☀️</span>
+            </button>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card adobe">
+                <div class="stat-icon">🔵</div>
+                <div class="stat-content">
+                    <div class="stat-label">Web Apps</div>
+                    <div class="stat-value" id="adobe-total"><%= adobeCount %></div>
+                    <div class="stat-detail" id="adobe-today">0 today</div>
+                </div>
+            </div>
+
+            <div class="stat-card wrapper">
+                <div class="stat-icon">💻</div>
+                <div class="stat-content">
+                    <div class="stat-label">Desktop Apps</div>
+                    <div class="stat-value" id="wrapper-total"><%= wrapperCount %></div>
+                    <div class="stat-detail" id="wrapper-today">0 today</div>
+                </div>
+            </div>
+
+            <div class="stat-card combined">
+                <div class="stat-icon">📈</div>
+                <div class="stat-content">
+                    <div class="stat-label">This Week</div>
+                    <div class="stat-value" id="week-total">0</div>
+                    <div class="stat-detail" id="unique-clients">0 unique clients</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+            <button class="btn btn-secondary" onclick="toggleAutoRefresh()">
+                <span id="auto-refresh-text">Enable Auto-Refresh</span>
+            </button>
+            <button class="btn btn-danger" onclick="clearData()">🗑️ Clear Data</button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('recent')">Recent Activity</button>
+            <button class="tab-btn" onclick="switchTab('adobe')">Web Apps</button>
+            <button class="tab-btn" onclick="switchTab('wrapper')">Desktop Apps</button>
+        </div>
+
+        <div id="recent-tab" class="tab-content active">
+            <h2>Recent Activity</h2>
+            <div id="recent-activity" class="activity-list">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div id="adobe-tab" class="tab-content">
+            <h2>Web Apps Activity</h2>
+            <div id="adobe-activity" class="activity-list">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div id="wrapper-tab" class="tab-content">
+            <h2>Desktop Apps Activity</h2>
+            <div id="wrapper-activity" class="activity-list">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+    <script>
+        // Theme toggle functionality
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            // Update icon
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Initialize theme on page load (default to dark)
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        });
+    </script>
+</body>
+</html>

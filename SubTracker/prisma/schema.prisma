@@ -1,0 +1,123 @@
+// Prisma Schema for SubTracker - Multi-Tenant
+// PostgreSQL database for Railway deployment
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Account model - represents organizations/tenants
+model Account {
+  id                String             @id @default(uuid())
+  name              String             // Organization name
+  email             String             @unique // Admin email
+  password          String             // Hashed password
+  apiKey            String             @unique @default(uuid()) // Unique API key for this account
+  isActive          Boolean            @default(true)
+  subscriptionTier  String             @default("free") // free, pro, enterprise
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  lastLoginAt       DateTime?
+  
+  // Relations
+  users             User[]
+  usageEvents       UsageEvent[]
+  unmappedUsernames UnmappedUsername[]
+  
+  @@index([email])
+  @@index([apiKey])
+  @@map("accounts")
+}
+
+// User model - stores Adobe users and their information
+model User {
+  id                String             @id @default(uuid())
+  accountId         String             // Links to account (multi-tenant)
+  account           Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  email             String             
+  firstName         String
+  lastName          String
+  adminRoles        String?
+  userGroups        String?
+  licenses          String[]           // Array of license names
+  lastActivity      DateTime?
+  activityCount     Int                @default(0)
+  importedAt        DateTime           @default(now())
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  
+  // Relations
+  windowsUsernames  WindowsUsername[]
+  
+  @@unique([accountId, email]) // Email unique per account
+  @@index([accountId])
+  @@index([email])
+  @@index([lastActivity])
+  @@map("users")
+}
+
+// Windows Username mapping - links Windows usernames to users
+model WindowsUsername {
+  id        String   @id @default(uuid())
+  username  String   @unique // Windows usernames are globally unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  
+  @@index([username])
+  @@index([userId])
+  @@map("windows_usernames")
+}
+
+// Unmapped usernames - Windows usernames that haven't been mapped to a user yet
+model UnmappedUsername {
+  id            String   @id @default(uuid())
+  accountId     String   // Links to account (multi-tenant)
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  username      String
+  activityCount Int      @default(0)
+  firstSeen     DateTime @default(now())
+  lastSeen      DateTime @default(now())
+  
+  @@unique([accountId, username]) // Username unique per account
+  @@index([accountId])
+  @@index([username])
+  @@map("unmapped_usernames")
+}
+
+// Usage events - tracks all Adobe usage (web and desktop)
+model UsageEvent {
+  id            String    @id @default(uuid())
+  accountId     String    // Links to account (multi-tenant)
+  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  event         String    // Event type (adobe_web_login_detected, adobe_desktop_usage, etc.)
+  url           String    // URL or application name
+  tabId         Int?      // Browser tab ID (null for desktop apps)
+  clientId      String    // Client/device identifier
+  why           String    // Why the event was triggered
+  when          DateTime  // When the event occurred
+  receivedAt    DateTime  @default(now()) // When we received the event
+  
+  // Desktop-specific fields (optional)
+  windowsUser   String?
+  userDomain    String?
+  computerName  String?
+  
+  // Source tracking
+  source        String    // 'adobe' or 'wrapper'
+  
+  createdAt     DateTime  @default(now())
+  
+  @@index([accountId])
+  @@index([clientId])
+  @@index([windowsUser])
+  @@index([when])
+  @@index([receivedAt])
+  @@index([source])
+  @@index([event])
+  @@map("usage_events")
+}

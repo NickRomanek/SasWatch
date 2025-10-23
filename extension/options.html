@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adobe Sensor Configuration</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            margin-top: 0;
+            color: #333;
+            font-size: 24px;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #1976d2;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        
+        .hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+        
+        .test-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #eee;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            margin-left: 10px;
+        }
+        
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        
+        .config-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .config-info strong {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Adobe Usage Sensor Configuration</h1>
+        
+        <div class="info">
+            <strong>ℹ️ Setup Instructions:</strong><br>
+            1. Log in to your SubTracker account<br>
+            2. Go to Account Settings<br>
+            3. Copy your API Key<br>
+            4. Paste it below and save
+        </div>
+        
+        <form id="configForm">
+            <div class="form-group">
+                <label for="apiUrl">API URL</label>
+                <input type="text" id="apiUrl" placeholder="https://your-app.railway.app/api/track" required>
+                <div class="hint">Your SubTracker API endpoint (from Railway or local)</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="apiKey">API Key</label>
+                <input type="password" id="apiKey" placeholder="Enter your API key from SubTracker" required>
+                <div class="hint">Found in Account Settings → API Key</div>
+            </div>
+            
+            <button type="submit" id="saveBtn">💾 Save Configuration</button>
+            <button type="button" class="btn-secondary" id="testBtn">🧪 Test Connection</button>
+            
+            <div id="status" class="status"></div>
+        </form>
+        
+        <div class="config-info" id="configInfo" style="display: none;">
+            <strong>Current Configuration:</strong><br>
+            <div id="currentConfig"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>How It Works</h3>
+            <p style="font-size: 14px; color: #666; line-height: 1.6;">
+                This extension monitors when users visit Adobe web applications (like Acrobat, Express, Admin Console, etc.) 
+                and reports usage to your SubTracker account. The data helps you track web-based Adobe activity alongside 
+                desktop application usage.
+            </p>
+            <p style="font-size: 14px; color: #666; line-height: 1.6;">
+                <strong>Tracked Sites:</strong> adobe.com, acrobat.adobe.com, express.adobe.com, adminconsole.adobe.com, and more.
+            </p>
+        </div>
+    </div>
+    
+    <script src="options.js"></script>
+</body>
+</html>
+

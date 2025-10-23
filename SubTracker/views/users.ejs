@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1>📊 SubTracker</h1>
+                <p class="subtitle">User Management</p>
+            </div>
+            <nav>
+                <a href="/" class="active">Users</a>
+                <a href="/dashboard">Dashboard</a>
+                <a href="/account">Account</a>
+                <a href="/logout" class="nav-logout">Logout</a>
+            </nav>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <span class="theme-toggle-icon" id="theme-icon">☀️</span>
+            </button>
+        </header>
+
+        <!-- Upload + Unmapped Grid -->
+        <div class="upload-section">
+            <div class="upload-unmapped-grid">
+                <div class="upload-card">
+                <div class="upload-header">
+                    <div class="upload-info">
+                        <h2>📁 Import Adobe User List</h2>
+                        <% if (users && users.length > 0) { %>
+                            <div class="upload-status-inline">
+                                <span class="status-badge status-success">✓ Imported</span>
+                                <span class="upload-count"><strong><%= users.length %></strong> users loaded</span>
+                            </div>
+                        <% } else { %>
+                            <p>Upload your Adobe Admin Console user export to begin tracking license usage.</p>
+                        <% } %>
+                    </div>
+                    <% if (users && users.length > 0) { %>
+                    <div class="upload-actions">
+                        <button class="btn btn-secondary" onclick="document.getElementById('csv-upload-form').style.display='block'">
+                            📤 Upload New CSV
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteAllUsers()">
+                            🗑️ Delete All
+                        </button>
+                    </div>
+                    <% } %>
+                </div>
+                
+                <form id="csv-upload-form" style="<%= users && users.length > 0 ? 'display:none' : '' %>" enctype="multipart/form-data">
+                    <div class="upload-dropzone" id="upload-dropzone">
+                        <input type="file" id="csv-file-input" name="csvFile" accept=".csv" style="display:none">
+                        <div class="upload-prompt">
+                            <span class="upload-icon">📄</span>
+                            <p>Drag and drop CSV file here or click to browse</p>
+                            <small>Expected format: Email, First Name, Last Name, Admin Roles, User Groups, Team Products</small>
+                        </div>
+                    </div>
+                    <div id="upload-progress" style="display:none">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill"></div>
+                        </div>
+                        <p id="upload-status">Uploading...</p>
+                    </div>
+                </form>
+                </div>
+
+                <% if (users && users.length > 0 && unmappedUsernames && unmappedUsernames.length > 0) { %>
+                <div class="unmapped-card">
+                    <div class="unmapped-card-header">
+                        <h2>🔗 Unmapped User Activity</h2>
+                        <span class="status-badge status-warning"><strong><%= unmappedUsernames.length %></strong> to map</span>
+                    </div>
+                    <p class="unmapped-card-text">We detected Windows usernames sending activity that aren’t linked to any imported user. Map them to ensure activity is attributed correctly.</p>
+                    <div class="unmapped-card-actions">
+                        <button class="btn btn-primary" onclick="document.getElementById('unmapped-section').scrollIntoView({ behavior: 'smooth' })">Map Now</button>
+                    </div>
+                </div>
+                <% } %>
+            </div>
+        </div>
+
+        <!-- Azure Sync Section -->
+        <div class="azure-sync-section">
+            <div class="sync-header">
+                <h2>☁️ Azure Security Group Sync</h2>
+                <div class="sync-status" id="sync-status">
+                    <span class="status-indicator"></span>
+                    <span id="connection-status" class="status-text">Checking connection...</span>
+                </div>
+            </div>
+
+            <!-- Configuration -->
+            <div class="sync-config-card">
+                <h3>⚙️ Configuration</h3>
+                <div class="config-form">
+                    <div class="form-group">
+                        <label for="inactive-threshold">
+                            Inactive Threshold (days):
+                            <span class="label-hint">Users with no activity for this many days are considered inactive</span>
+                        </label>
+                        <input type="number" id="inactive-threshold" value="90" min="30" max="365" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="auto-sync-enabled">
+                            <span>Enable automatic weekly sync</span>
+                            <span class="label-hint">Automatically move inactive users every Sunday at midnight</span>
+                        </label>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveAzureConfig()">💾 Save Settings</button>
+                </div>
+            </div>
+
+            <!-- Group Management -->
+            <div class="sync-actions">
+                <div class="sync-card">
+                    <div class="sync-card-header">
+                        <h3>1️⃣ Create Active Users Group</h3>
+                        <span id="active-group-status"></span>
+                    </div>
+                    <p class="sync-card-description">Creates security group in Azure and adds all imported users with Adobe licenses</p>
+                    <input type="text" id="active-group-name" placeholder="Adobe-Active-Users" class="form-input">
+                    <button class="btn btn-success" onclick="createActiveGroup()">
+                        ➕ Create Active Group
+                    </button>
+                </div>
+                
+                <div class="sync-card">
+                    <div class="sync-card-header">
+                        <h3>2️⃣ Create Inactive Users Group</h3>
+                        <span id="inactive-group-status"></span>
+                    </div>
+                    <p class="sync-card-description">Creates empty security group for users to be removed from monitoring</p>
+                    <input type="text" id="inactive-group-name" placeholder="Adobe-Inactive-Users" class="form-input">
+                    <button class="btn btn-success" onclick="createInactiveGroup()">
+                        ➕ Create Inactive Group
+                    </button>
+                </div>
+                
+                <div class="sync-card">
+                    <div class="sync-card-header">
+                        <h3>3️⃣ Move Inactive Users</h3>
+                    </div>
+                    <p class="sync-card-description" id="inactive-preview">Loading preview...</p>
+                    <div class="sync-card-actions">
+                        <button class="btn btn-warning" onclick="previewInactive()">
+                            👁️ Preview Inactive Users
+                        </button>
+                        <button class="btn btn-primary" onclick="moveInactive()">
+                            ↗️ Move to Inactive Group
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sync History -->
+            <div class="sync-history">
+                <h3>📋 Last Sync Results</h3>
+                <div id="sync-results">
+                    <p class="no-sync-history">No sync history yet</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unmapped Usernames Section -->
+        <% if (unmappedUsernames && unmappedUsernames.length > 0) { %>
+        <div class="unmapped-section" id="unmapped-section">
+            <h2>🔗 Map Unmapped Usernames</h2>
+            <table class="unmapped-table">
+                <thead>
+                    <tr>
+                        <th>Windows Username</th>
+                        <th>Activity Count</th>
+                        <th>First Seen</th>
+                        <th>Map to User</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% unmappedUsernames.forEach(unmapped => { %>
+                    <tr data-username="<%= unmapped.username %>">
+                        <td><strong><%= unmapped.username %></strong></td>
+                        <td><%= unmapped.activityCount || 0 %></td>
+                        <td><%= new Date(unmapped.firstSeen).toLocaleString() %></td>
+                        <td>
+                            <select class="user-select" data-username="<%= unmapped.username %>">
+                                <option value="">Select user...</option>
+                                <% users.forEach(user => { %>
+                                <option value="<%= user.email %>"><%= user.firstName %> <%= user.lastName %> (<%= user.email %>)</option>
+                                <% }); %>
+                            </select>
+                        </td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" onclick="mapUsername('<%= unmapped.username %>')">Map</button>
+                        </td>
+                    </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+        <% } %>
+
+        <!-- Users Table Section -->
+        <div class="users-section">
+            <div class="users-header">
+                <h2>👥 Users (<span id="user-count"><%= users ? users.length : 0 %></span>)</h2>
+                <div class="users-controls">
+                    <input type="text" id="search-input" placeholder="Search by name or email..." class="search-box">
+                    <select id="license-filter" class="filter-select">
+                        <option value="">All Licenses</option>
+                        <option value="Adobe Acrobat Pro">Adobe Acrobat Pro</option>
+                        <option value="Creative Cloud Pro">Creative Cloud Pro</option>
+                        <option value="no-license">No License</option>
+                    </select>
+                    <select id="status-filter" class="filter-select">
+                        <option value="">All Status</option>
+                        <option value="active">Active (7 days)</option>
+                        <option value="inactive">Inactive (7-30 days)</option>
+                        <option value="unused">Unused (30+ days)</option>
+                    </select>
+                </div>
+            </div>
+
+            <% if (!users || users.length === 0) { %>
+            <div class="empty-state">
+                <div class="empty-icon">📋</div>
+                <h3>No Users Imported</h3>
+                <p>Upload your Adobe Admin Console user export CSV to get started.</p>
+            </div>
+            <% } else { %>
+            <table class="users-table" id="users-table">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('name')">Name <span class="sort-icon">↕</span></th>
+                        <th onclick="sortTable('email')">Email <span class="sort-icon">↕</span></th>
+                        <th onclick="sortTable('licenses')">Licenses <span class="sort-icon">↕</span></th>
+                        <th onclick="sortTable('lastActivity')">Last Activity <span class="sort-icon">↕</span></th>
+                        <th onclick="sortTable('activityCount')">Activity Count <span class="sort-icon">↕</span></th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body">
+                    <!-- Will be populated by JavaScript -->
+                </tbody>
+            </table>
+            <% } %>
+        </div>
+    </div>
+
+    <script>
+        // Pass server data to JavaScript
+        const usersData = <%- JSON.stringify(users || []) %>;
+    </script>
+    <script src="/js/users.js"></script>
+    <script src="/js/azure-sync.js"></script>
+    <script>
+        // Theme toggle functionality
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            // Update icon
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Initialize theme on page load (default to dark)
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        });
+    </script>
+</body>
+</html>
+
