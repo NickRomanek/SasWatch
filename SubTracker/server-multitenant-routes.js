@@ -223,12 +223,15 @@ function setupScriptRoutes(app) {
             // Prefer explicit API_URL, else infer from request protocol/host
             const inferredBaseUrl = `${req.protocol}://${req.get('host')}`;
             const apiUrl = process.env.API_URL || inferredBaseUrl;
-            
+
             const script = generateMonitorScript(account.apiKey, apiUrl);
-            
-            res.setHeader('Content-Type', 'text/plain');
+
+            // Ensure proper Windows/PowerShell encoding and line endings
+            const scriptBuffer = Buffer.from(script.replace(/\n/g, '\r\n'), 'utf8');
+
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
             res.setHeader('Content-Disposition', 'attachment; filename=Monitor-AdobeUsage.ps1');
-            res.send(script);
+            res.send(scriptBuffer);
         } catch (error) {
             console.error('Script download error:', error);
             res.status(500).send('Failed to generate script');
@@ -240,12 +243,15 @@ function setupScriptRoutes(app) {
         try {
             const account = await auth.getAccountById(req.session.accountId);
             const apiUrl = process.env.API_URL || `https://${req.get('host')}`;
-            
+
             const instructions = generateDeploymentInstructions(account.apiKey, apiUrl);
-            
-            res.setHeader('Content-Type', 'text/markdown');
+
+            // Ensure proper Windows line endings
+            const instructionsBuffer = Buffer.from(instructions.replace(/\n/g, '\r\n'), 'utf8');
+
+            res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
             res.setHeader('Content-Disposition', 'attachment; filename=DEPLOYMENT-INSTRUCTIONS.md');
-            res.send(instructions);
+            res.send(instructionsBuffer);
         } catch (error) {
             console.error('Instructions download error:', error);
             res.status(500).send('Failed to generate instructions');
