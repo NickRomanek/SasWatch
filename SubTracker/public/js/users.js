@@ -6,7 +6,18 @@ let filteredUsers = [...usersData];
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     setupUploadHandlers();
-    renderUsersTable();
+
+    // Show skeleton loaders while initializing
+    if (usersData && usersData.length > 0) {
+        showSkeletonLoaders();
+        // Delay actual rendering slightly for skeleton effect
+        setTimeout(() => {
+            renderUsersTable();
+        }, 300);
+    } else {
+        renderUsersTable();
+    }
+
     setupFilters();
     setupSearch();
 });
@@ -56,30 +67,34 @@ function setupUploadHandlers() {
 
 async function handleFileUpload(file) {
     if (!file.name.endsWith('.csv')) {
-        alert('Please upload a CSV file');
+        Toast.error('Please upload a CSV file');
         return;
     }
-    
+
     const formData = new FormData();
     formData.append('csvFile', file);
-    
+
     // Show progress
     document.getElementById('upload-dropzone').style.display = 'none';
     document.getElementById('upload-progress').style.display = 'block';
     document.getElementById('upload-status').textContent = 'Uploading...';
-    
+    document.getElementById('upload-status').style.color = '';
+
     try {
         const response = await fetch('/api/users/import', {
             method: 'POST',
             body: formData
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
-            document.getElementById('upload-status').textContent = 
+            document.getElementById('upload-status').textContent =
                 `✓ Success! Imported ${result.imported} new users, updated ${result.updated} existing users.`;
-            
+            document.getElementById('upload-status').style.color = 'var(--success)';
+
+            Toast.success(`Imported ${result.imported} new users, updated ${result.updated} existing users`);
+
             // Reload page after 2 seconds
             setTimeout(() => {
                 window.location.reload();
@@ -90,8 +105,10 @@ async function handleFileUpload(file) {
     } catch (error) {
         console.error('Upload error:', error);
         document.getElementById('upload-status').textContent = `✗ Error: ${error.message}`;
-        document.getElementById('upload-status').style.color = 'red';
-        
+        document.getElementById('upload-status').style.color = 'var(--danger)';
+
+        Toast.error('Upload failed: ' + error.message);
+
         // Reset after 3 seconds
         setTimeout(() => {
             document.getElementById('upload-dropzone').style.display = 'block';
@@ -105,26 +122,32 @@ async function handleFileUpload(file) {
 // ============================================
 
 async function deleteAllUsers() {
-    if (!confirm('Are you sure you want to delete all users? This will remove all imported user data and mappings. Activity history will be preserved.')) {
-        return;
-    }
-    
+    const confirmed = await ConfirmModal.show({
+        title: 'Delete All Users?',
+        message: 'This will remove all imported user data and mappings. Activity history will be preserved.',
+        confirmText: 'Delete All',
+        cancelText: 'Cancel',
+        type: 'danger'
+    });
+
+    if (!confirmed) return;
+
     try {
         const response = await fetch('/api/users', {
             method: 'DELETE'
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
-            alert('✓ All users deleted successfully');
-            window.location.reload();
+            Toast.success('All users deleted successfully');
+            setTimeout(() => window.location.reload(), 1500);
         } else {
             throw new Error(result.error || 'Delete failed');
         }
     } catch (error) {
         console.error('Delete error:', error);
-        alert(`✗ Error: ${error.message}`);
+        Toast.error('Error: ' + error.message);
     }
 }
 
@@ -135,30 +158,35 @@ async function deleteAllUsers() {
 async function mapUsername(username) {
     const select = document.querySelector(`select[data-username="${username}"]`);
     const email = select.value;
-    
+
     if (!email) {
-        alert('Please select a user to map to');
+        Toast.warning('Please select a user to map to');
         return;
     }
-    
+
+    const button = event.target;
+    addButtonSpinner(button, button.innerHTML);
+
     try {
         const response = await fetch('/api/users/mapping', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, email })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
-            alert(`✓ Mapped ${username} to ${email}\nRetroactive activity: ${result.retroactiveActivity} events`);
-            window.location.reload();
+            Toast.success(`Mapped ${username} to ${email} • ${result.retroactiveActivity} retroactive events`);
+            setTimeout(() => window.location.reload(), 1500);
         } else {
             throw new Error(result.error || 'Mapping failed');
         }
     } catch (error) {
         console.error('Mapping error:', error);
-        alert(`✗ Error: ${error.message}`);
+        Toast.error('Error: ' + error.message);
+    } finally {
+        removeButtonSpinner(button);
     }
 }
 
@@ -166,14 +194,34 @@ async function mapUsername(username) {
 // Users Table Rendering
 // ============================================
 
+function showSkeletonLoaders() {
+    const tbody = document.getElementById('users-table-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><div class="skeleton skeleton-text" style="width: 150px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width: 200px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width: 180px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width: 120px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width: 60px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width: 100px;"></div></td>
+            <td><div class="skeleton skeleton-text" style="width: 40px;"></div></td>
+        `;
+        tbody.appendChild(row);
+    }
+}
+
 function renderUsersTable() {
     const tbody = document.getElementById('users-table-body');
     if (!tbody) return;
-    
+
     tbody.innerHTML = '';
-    
+
     if (filteredUsers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;">No users match the current filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-secondary);">No users match the current filters</td></tr>';
         return;
     }
     
@@ -186,7 +234,11 @@ function renderUsersTable() {
             <td>${user.email}</td>
             <td>${renderLicenses(user.licenses)}</td>
             <td>${renderLastActivity(user.lastActivity)}</td>
-            <td><span class="activity-count">${user.activityCount || 0}</span></td>
+            <td>
+                <a href="/user/${encodeURIComponent(user.email)}/activity" class="activity-count-link" title="View activity details">
+                    <span class="activity-count">${user.activityCount || 0}</span>
+                </a>
+            </td>
             <td>${renderStatusBadge(user)}</td>
             <td>
                 <button class="btn btn-icon" onclick="editUserByEmail('${user.email.replace(/'/g, "\\'")}')" title="Edit user">

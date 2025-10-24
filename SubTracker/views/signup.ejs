@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - SubTracker</title>
+    <title>Sign Up - Abowdy</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
         body {
@@ -155,13 +155,67 @@
         [data-theme="dark"] .error-message {
             background: rgba(239, 68, 68, 0.1);
         }
+
+        .field-error {
+            color: var(--danger);
+            font-size: 0.813rem;
+            margin-top: 6px;
+            display: none;
+        }
+
+        .field-error.show {
+            display: block;
+        }
+
+        .form-group input.invalid {
+            border-color: var(--danger);
+        }
+
+        .form-group input.valid {
+            border-color: var(--success);
+        }
+
+        .password-strength {
+            margin-top: 6px;
+            font-size: 0.813rem;
+        }
+
+        .strength-bar {
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+
+        .strength-bar-fill {
+            height: 100%;
+            transition: width 0.3s, background-color 0.3s;
+            width: 0%;
+            background: var(--danger);
+        }
+
+        .strength-bar-fill.weak {
+            width: 33%;
+            background: var(--danger);
+        }
+
+        .strength-bar-fill.medium {
+            width: 66%;
+            background: var(--warning);
+        }
+
+        .strength-bar-fill.strong {
+            width: 100%;
+            background: var(--success);
+        }
     </style>
 </head>
 <body data-theme="dark">
     <div class="auth-container">
         <div class="auth-header">
             <span class="auth-logo">📊</span>
-            <h1>SubTracker</h1>
+            <h1>Abowdy</h1>
             <p>Create your account</p>
         </div>
 
@@ -188,12 +242,17 @@
             <div class="form-group">
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required minlength="8">
-                <small>At least 8 characters</small>
+                <div class="strength-bar">
+                    <div class="strength-bar-fill" id="strength-bar"></div>
+                </div>
+                <small id="password-hint">At least 8 characters</small>
+                <div class="field-error" id="password-error"></div>
             </div>
-            
+
             <div class="form-group">
                 <label for="confirmPassword">Confirm Password</label>
                 <input type="password" id="confirmPassword" name="confirmPassword" required>
+                <div class="field-error" id="confirm-error"></div>
             </div>
             
             <button type="submit" class="btn-primary">Create Account</button>
@@ -203,22 +262,116 @@
             Already have an account? <a href="/login">Sign in</a>
         </div>
     </div>
-    
+
+    <script src="/js/ui-components.js"></script>
     <script>
-        // Client-side password validation
+        // Password strength checker
+        function checkPasswordStrength(password) {
+            let strength = 0;
+            if (password.length >= 8) strength++;
+            if (password.length >= 12) strength++;
+            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+            if (/\d/.test(password)) strength++;
+            if (/[^a-zA-Z\d]/.test(password)) strength++;
+
+            return Math.min(strength, 3); // 0-3 scale
+        }
+
+        // Real-time password validation
+        document.getElementById('password').addEventListener('input', function(e) {
+            const password = e.target.value;
+            const strengthBar = document.getElementById('strength-bar');
+            const hint = document.getElementById('password-hint');
+            const input = e.target;
+
+            if (password.length === 0) {
+                strengthBar.className = 'strength-bar-fill';
+                input.classList.remove('valid', 'invalid');
+                hint.textContent = 'At least 8 characters';
+                hint.style.color = 'var(--text-tertiary)';
+                return;
+            }
+
+            const strength = checkPasswordStrength(password);
+
+            strengthBar.className = 'strength-bar-fill';
+            if (strength === 1) {
+                strengthBar.classList.add('weak');
+                hint.textContent = 'Weak password';
+                hint.style.color = 'var(--danger)';
+                input.classList.add('invalid');
+                input.classList.remove('valid');
+            } else if (strength === 2) {
+                strengthBar.classList.add('medium');
+                hint.textContent = 'Medium strength';
+                hint.style.color = 'var(--warning)';
+                input.classList.add('invalid');
+                input.classList.remove('valid');
+            } else if (strength >= 3) {
+                strengthBar.classList.add('strong');
+                hint.textContent = 'Strong password';
+                hint.style.color = 'var(--success)';
+                input.classList.add('valid');
+                input.classList.remove('invalid');
+            }
+        });
+
+        // Confirm password validation
+        document.getElementById('confirmPassword').addEventListener('input', function(e) {
+            const password = document.getElementById('password').value;
+            const confirmPassword = e.target.value;
+            const errorDiv = document.getElementById('confirm-error');
+            const input = e.target;
+
+            if (confirmPassword.length === 0) {
+                errorDiv.classList.remove('show');
+                input.classList.remove('valid', 'invalid');
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                errorDiv.textContent = 'Passwords do not match';
+                errorDiv.classList.add('show');
+                input.classList.add('invalid');
+                input.classList.remove('valid');
+            } else {
+                errorDiv.classList.remove('show');
+                input.classList.add('valid');
+                input.classList.remove('invalid');
+            }
+        });
+
+        // Form submission validation
         document.querySelector('form').addEventListener('submit', function(e) {
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
-            
-            if (password !== confirmPassword) {
-                e.preventDefault();
-                alert('Passwords do not match');
-                return false;
-            }
-            
+            const passwordError = document.getElementById('password-error');
+            const confirmError = document.getElementById('confirm-error');
+
+            let hasError = false;
+
+            // Clear previous errors
+            passwordError.classList.remove('show');
+            confirmError.classList.remove('show');
+
             if (password.length < 8) {
                 e.preventDefault();
-                alert('Password must be at least 8 characters');
+                passwordError.textContent = 'Password must be at least 8 characters';
+                passwordError.classList.add('show');
+                document.getElementById('password').classList.add('invalid');
+                hasError = true;
+            }
+
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                confirmError.textContent = 'Passwords do not match';
+                confirmError.classList.add('show');
+                document.getElementById('confirmPassword').classList.add('invalid');
+                hasError = true;
+            }
+
+            if (hasError) {
+                Toast.error('Please fix the errors before submitting');
                 return false;
             }
         });

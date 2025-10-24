@@ -95,62 +95,83 @@ function updateActivityLists(data) {
 
 function updateActivityList(elementId, items) {
     const container = document.getElementById(elementId);
-    
+
     if (items.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                <div class="empty-state-icon">📭</div>
-                <div class="empty-state-text">No activity recorded yet</div>
+                <div class="empty-icon">📭</div>
+                <h3>No Activity Yet</h3>
+                <p>No activity has been recorded yet. Start using Adobe applications to see data here.</p>
             </div>
         `;
-            return;
-        }
-        
-    container.innerHTML = items.map(item => createActivityItem(item)).join('');
+        return;
+    }
+
+    // Create table structure
+    container.innerHTML = `
+        <div class="activity-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>TIMESTAMP</th>
+                        <th>APPLICATION</th>
+                        <th>SOURCE</th>
+                        <th>COMPUTER</th>
+                        <th>WINDOWS USER</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${items.map(item => createActivityRow(item)).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
 }
 
-function createActivityItem(item) {
+function createActivityRow(item) {
     const time = new Date(item.receivedAt || item.when);
-    const timeStr = formatTime(time);
-    const sourceClass = item.source === 'adobe' ? 'adobe-item' : 'wrapper-item';
-    const sourceLabel = item.source === 'adobe' ? '🌐 Adobe' : '🔧 Wrapper';
-    
-    // Format the item details based on what data we have
-    let details = '';
-    if (item.event) {
-        details += `<div class="activity-details">Event: ${item.event}</div>`;
-    }
-    if (item.url) {
-        details += `<div class="activity-url">${escapeHtml(item.url)}</div>`;
-    }
-    if (item.clientId) {
-        details += `<div class="activity-details">Client: ${item.clientId.substring(0, 8)}...</div>`;
-    }
-    if (item.why) {
-        details += `<div class="activity-details">Detected by: ${item.why}</div>`;
-    }
-    
-    // Add any additional fields
-    const additionalFields = Object.keys(item).filter(key => 
-        !['receivedAt', 'when', 'event', 'url', 'clientId', 'why', 'source', 'tabId'].includes(key)
-    );
-    
-    if (additionalFields.length > 0) {
-        const extraData = additionalFields.map(key => 
-            `${key}: ${JSON.stringify(item[key])}`
-        ).join(', ');
-        details += `<div class="activity-details">${escapeHtml(extraData)}</div>`;
-    }
-        
-        return `
-        <div class="activity-item ${sourceClass}">
-            <div class="activity-header">
-                <div class="activity-type">${sourceLabel}</div>
-                <div class="activity-time">${timeStr}</div>
-                        </div>
-            ${details}
-                    </div>
+    const timeStr = formatTimeDetailed(time);
+    const timeOnly = time.toLocaleTimeString();
+    const sourceLabel = item.source === 'adobe' ? '🌐 Web' : '💻 Desktop';
+    const sourceClass = item.source === 'adobe' ? 'source-adobe' : 'source-wrapper';
+
+    // Get application name
+    const appName = item.url || item.event || 'Unknown';
+    const detectedBy = item.why ? `<div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;">${escapeHtml(item.why)}</div>` : '';
+
+    // Computer info
+    const computerName = item.computerName || 'N/A';
+    const domain = item.userDomain ? `<div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;">${escapeHtml(item.userDomain)}</div>` : '';
+
+    // Windows user
+    const windowsUser = item.windowsUser || 'N/A';
+
+    return `
+        <tr>
+            <td>
+                <div>${timeStr}</div>
+                <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;">${timeOnly}</div>
+            </td>
+            <td>
+                <div class="app-name">${escapeHtml(appName)}</div>
+                ${detectedBy}
+            </td>
+            <td>
+                <span class="source-badge ${sourceClass}">${sourceLabel}</span>
+            </td>
+            <td>
+                <div class="computer-info">${escapeHtml(computerName)}</div>
+                ${domain}
+            </td>
+            <td>
+                <span class="username-badge">${escapeHtml(windowsUser)}</span>
+            </td>
+        </tr>
     `;
+}
+
+function formatTimeDetailed(date) {
+    return date.toLocaleString();
 }
 
 function formatTime(date) {
@@ -213,31 +234,41 @@ function toggleAutoRefresh() {
 }
 
 async function clearData() {
-    if (!confirm('Are you sure you want to clear all tracked data? This cannot be undone.')) {
-        return;
-    }
-    
+    const confirmed = await ConfirmModal.show({
+        title: 'Clear All Activity Data?',
+        message: 'This will permanently delete all tracked usage events. This action cannot be undone.',
+        confirmText: 'Clear All Data',
+        cancelText: 'Cancel',
+        type: 'danger'
+    });
+
+    if (!confirmed) return;
+
+    const button = event.target;
+    addButtonSpinner(button, button.innerHTML);
+
     try {
         const response = await fetch('/api/usage', {
             method: 'DELETE'
         });
-        
+
         if (response.ok) {
-            alert('Data cleared successfully');
+            Toast.success('All activity data cleared successfully');
             refreshData();
         } else {
             throw new Error('Failed to clear data');
         }
     } catch (error) {
         console.error('Error clearing data:', error);
-        alert('Failed to clear data');
+        Toast.error('Failed to clear data: ' + error.message);
+    } finally {
+        removeButtonSpinner(button);
     }
 }
 
 function showError(message) {
-    // Simple error display - could be enhanced with a toast notification
     console.error(message);
-        alert(message);
+    Toast.error(message);
 }
 
 // Expose functions globally for inline onclick handlers

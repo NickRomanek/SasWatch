@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Settings - SubTracker</title>
+    <title>Account Settings - Abowdy</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
         .account-container {
@@ -471,19 +471,27 @@
             </div>
         </div>
     </div>
-    
+
+    <script src="/js/ui-components.js"></script>
     <script>
-        function copyApiKey() {
+        async function copyApiKey() {
             const input = document.getElementById('apiKeyInput');
-            input.select();
-            document.execCommand('copy');
-            alert('✓ API key copied to clipboard!');
+            await copyToClipboard(input.value, '✓ API key copied to clipboard!');
         }
 
         async function regenerateApiKey() {
-            if (!confirm('Are you sure you want to regenerate your API key? This will invalidate all existing scripts using the old key.')) {
-                return;
-            }
+            const confirmed = await ConfirmModal.show({
+                title: 'Regenerate API Key?',
+                message: 'This will invalidate all existing scripts using the old key. You will need to re-download and re-deploy the monitoring script.',
+                confirmText: 'Regenerate Key',
+                cancelText: 'Cancel',
+                type: 'warning'
+            });
+
+            if (!confirmed) return;
+
+            const button = event.target;
+            addButtonSpinner(button, button.innerHTML);
 
             try {
                 const response = await fetch('/api/account/regenerate-key', {
@@ -494,12 +502,14 @@
 
                 if (result.success) {
                     document.getElementById('apiKeyInput').value = result.apiKey;
-                    alert('✓ API key regenerated successfully! Update your PowerShell scripts with the new key.');
+                    Toast.success('✓ API key regenerated successfully! Download the new monitoring script.');
                 } else {
-                    alert('✗ Failed to regenerate API key: ' + result.error);
+                    Toast.error('Failed to regenerate API key: ' + result.error);
                 }
             } catch (error) {
-                alert('✗ Error: ' + error.message);
+                Toast.error('Error: ' + error.message);
+            } finally {
+                removeButtonSpinner(button);
             }
         }
 

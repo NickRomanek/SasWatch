@@ -224,7 +224,8 @@ function setupScriptRoutes(app) {
             const inferredBaseUrl = `${req.protocol}://${req.get('host')}`;
             const apiUrl = process.env.API_URL || inferredBaseUrl;
 
-            let script = generateMonitorScript(account.apiKey, apiUrl);
+            // Pass NODE_ENV to control check interval (5s dev, 5m prod)
+            let script = generateMonitorScript(account.apiKey, apiUrl, process.env.NODE_ENV);
 
             // Normalize all line endings to Windows format (CRLF)
             // First normalize to LF, then convert to CRLF
@@ -703,8 +704,8 @@ function setupDashboardRoutes(app) {
         try {
             const usersData = await db.getUsersData(req.session.accountId);
             const stats = await db.getDatabaseStats(req.session.accountId);
-            
-            res.render('index', { 
+
+            res.render('index', {
                 title: 'SubTracker - Dashboard',
                 users: usersData.users,
                 adobeCount: stats.adobeEvents || 0,
@@ -715,6 +716,29 @@ function setupDashboardRoutes(app) {
         } catch (error) {
             console.error('Dashboard error:', error);
             res.status(500).send('Error loading dashboard');
+        }
+    });
+
+    // User Activity Detail Page
+    app.get('/user/:email/activity', auth.requireAuth, async (req, res) => {
+        try {
+            const userEmail = decodeURIComponent(req.params.email);
+            const accountId = req.session.accountId;
+
+            const { user, activity } = await db.getUserActivityData(accountId, userEmail);
+
+            if (!user) {
+                return res.status(404).send('User not found or you do not have access to this user.');
+            }
+
+            res.render('user-activity', {
+                title: `Activity - ${user.firstName} ${user.lastName}`,
+                user,
+                activity
+            });
+        } catch (error) {
+            console.error('User activity error:', error);
+            res.status(500).send('Error loading user activity');
         }
     });
 }

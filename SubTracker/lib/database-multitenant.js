@@ -298,6 +298,70 @@ async function deleteAllUsageEvents(accountId) {
     });
 }
 
+// Get usage activity for a specific user
+async function getUserActivityData(accountId, userEmail, limit = 500) {
+    try {
+        // Get user and their Windows usernames
+        const user = await prisma.user.findUnique({
+            where: {
+                accountId_email: {
+                    accountId,
+                    email: userEmail
+                }
+            },
+            include: {
+                windowsUsernames: true
+            }
+        });
+
+        if (!user) {
+            return { user: null, activity: [] };
+        }
+
+        // Get all Windows usernames for this user
+        const windowsUsernames = user.windowsUsernames.map(wu => wu.username);
+
+        // Get usage events for these Windows usernames
+        const events = await prisma.usageEvent.findMany({
+            where: {
+                accountId,
+                windowsUser: {
+                    in: windowsUsernames
+                }
+            },
+            orderBy: { receivedAt: 'desc' },
+            take: limit
+        });
+
+        return {
+            user: {
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                licenses: user.licenses,
+                lastActivity: user.lastActivity,
+                activityCount: user.activityCount,
+                windowsUsernames: windowsUsernames
+            },
+            activity: events.map(e => ({
+                event: e.event,
+                url: e.url,
+                source: e.source,
+                clientId: e.clientId,
+                why: e.why,
+                when: e.when,
+                receivedAt: e.receivedAt,
+                windowsUser: e.windowsUser,
+                userDomain: e.userDomain,
+                computerName: e.computerName
+            }))
+        };
+    } catch (error) {
+        console.error('Error getting user activity data:', error);
+        return { user: null, activity: [] };
+    }
+}
+
 async function updateUserActivityByUsername(accountId, windowsUser) {
     try {
         // Find the username mapping scoped to this account
@@ -375,6 +439,7 @@ module.exports = {
     
     // Usage event operations (all account-scoped)
     getUsageData,
+    getUserActivityData,
     addUsageEvent,
     deleteAllUsageEvents,
     updateUserActivityByUsername,

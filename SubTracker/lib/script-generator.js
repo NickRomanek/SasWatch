@@ -1,12 +1,17 @@
 // PowerShell Script Generator
 // Generates monitoring scripts with embedded API keys for each account
 
-function generateMonitorScript(apiKey, apiUrl) {
+function generateMonitorScript(apiKey, apiUrl, nodeEnv = 'production') {
     // Remove trailing slash from API URL if present
     const cleanApiUrl = apiUrl.replace(/\/$/, '');
-    
+
+    // Use 5 seconds for development, 5 minutes for production
+    const checkInterval = nodeEnv === 'development' ? 5 : 300;
+    const intervalDescription = nodeEnv === 'development' ? '5 seconds (TESTING MODE)' : '5 minutes';
+
     return `# Adobe Usage Monitor - Auto-configured for your SubTracker account
 # Generated: ${new Date().toISOString()}
+# Environment: ${nodeEnv.toUpperCase()}
 
 # ============================================
 # Configuration (DO NOT MODIFY)
@@ -14,12 +19,13 @@ function generateMonitorScript(apiKey, apiUrl) {
 
 $API_KEY = "${apiKey}"
 $API_URL = "${cleanApiUrl}/api/track"
-$CHECK_INTERVAL = 300  # Check every 5 minutes
+$CHECK_INTERVAL = ${checkInterval}  # Check every ${intervalDescription}
 
 # ============================================
 # Adobe Process Monitoring
 # ============================================
 
+# Only track actual creative applications (not background services)
 $ADOBE_PROCESSES = @(
     "Acrobat.exe",
     "AcroRd32.exe",
@@ -27,8 +33,7 @@ $ADOBE_PROCESSES = @(
     "Photoshop.exe",
     "InDesign.exe",
     "AfterFX.exe",
-    "Premiere Pro.exe",
-    "Creative Cloud.exe"
+    "Premiere Pro.exe"
 )
 
 function Send-UsageData {
@@ -60,20 +65,69 @@ function Send-UsageData {
     }
 }
 
+function Get-ActiveWindowProcess {
+    # Get the currently active/foreground window
+    Add-Type @"
+        using System;
+        using System.Runtime.InteropServices;
+        using System.Text;
+        public class Window {
+            [DllImport("user32.dll")]
+            public static extern IntPtr GetForegroundWindow();
+
+            [DllImport("user32.dll")]
+            public static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+
+            [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+            public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+        }
+"@
+
+    try {
+        $hwnd = [Window]::GetForegroundWindow()
+        $processId = 0
+        [Window]::GetWindowThreadProcessId($hwnd, [ref]$processId) | Out-Null
+
+        if ($processId -gt 0) {
+            $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+            return $process
+        }
+    }
+    catch {
+        # Silently handle any errors
+    }
+
+    return $null
+}
+
 function Get-RunningAdobeProcesses {
     $runningProcesses = @()
-    
+    $activeProcess = Get-ActiveWindowProcess
+
     foreach ($processName in $ADOBE_PROCESSES) {
-        $process = Get-Process -Name $processName.Replace(".exe", "") -ErrorAction SilentlyContinue
-        
-        if ($process) {
-            $runningProcesses += @{
-                name = $processName
-                count = ($process | Measure-Object).Count
+        $processes = Get-Process -Name $processName.Replace(".exe", "") -ErrorAction SilentlyContinue
+
+        if ($processes) {
+            # Check if any of these processes is the active window
+            $isActive = $false
+            foreach ($proc in $processes) {
+                if ($activeProcess -and $proc.Id -eq $activeProcess.Id) {
+                    $isActive = $true
+                    break
+                }
+            }
+
+            # Only include if it's the active window
+            if ($isActive) {
+                $runningProcesses += @{
+                    name = $processName
+                    count = ($processes | Measure-Object).Count
+                    isActive = $true
+                }
             }
         }
     }
-    
+
     return $runningProcesses
 }
 
@@ -81,8 +135,9 @@ function Monitor-AdobeUsage {
     Write-Host "Starting Adobe Usage Monitor..." -ForegroundColor Cyan
     Write-Host "API URL: $API_URL" -ForegroundColor Gray
     Write-Host "Check Interval: $CHECK_INTERVAL seconds" -ForegroundColor Gray
+    Write-Host "Tracking Mode: Active window only (ignores background processes)" -ForegroundColor Gray
     Write-Host ""
-    
+
     $lastReportedProcesses = @{}
     
     while ($true) {
