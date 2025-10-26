@@ -420,22 +420,35 @@
             <p class="section-description">Download pre-configured monitoring tools with your API key embedded.</p>
 
             <div class="download-grid">
-                <!-- PowerShell Script -->
+                <!-- PowerShell Script (Simple) -->
                 <div class="download-card">
-                    <h3>💻 PowerShell Monitoring Script</h3>
-                    <p>Tracks desktop Adobe applications (Acrobat, Photoshop, Illustrator, etc.)</p>
+                    <h3>💻 PowerShell Script (Simple)</h3>
+                    <p>For manual deployment or testing on individual machines</p>
                     <ul>
-                        <li>✓ Monitors desktop apps</li>
-                        <li>✓ Pre-configured with your API key</li>
-                        <li>✓ Ready for Intune deployment</li>
+                        <li>✓ Download and run directly</li>
+                        <li>✓ Quick testing on one machine</li>
+                        <li>✓ Custom deployment scenarios</li>
                     </ul>
                     <a href="/download/monitor-script" class="btn-download">📥 Download Script (.ps1)</a>
                 </div>
 
+                <!-- Intune Deployment Package -->
+                <div class="download-card">
+                    <h3>🚀 Intune Package (Enterprise)</h3>
+                    <p>Complete package for Microsoft Intune deployment across all devices</p>
+                    <ul>
+                        <li>✓ Deploy to hundreds of devices</li>
+                        <li>✓ Includes installer & uninstaller</li>
+                        <li>✓ Runs as SYSTEM at startup</li>
+                        <li>✓ Step-by-step deployment guide</li>
+                    </ul>
+                    <a href="/download/intune-package" class="btn-download" style="background: var(--accent-primary);">🎁 Download Intune Package (.zip)</a>
+                </div>
+
                 <!-- Chrome Extension -->
                 <div class="download-card">
-                    <h3>🌐 Chrome Extension</h3>
-                    <p>Tracks Adobe web applications (Acrobat Web, Express, Admin Console, etc.)</p>
+                    <h3>🌐 Chrome Extension (Optional)</h3>
+                    <p>Tracks Adobe web applications (Acrobat Web, Express, Admin Console)</p>
                     <ul>
                         <li>✓ Monitors web apps</li>
                         <li>✓ Easy browser installation</li>
@@ -446,8 +459,8 @@
             </div>
 
             <div class="deployment-note">
-                <strong>📖 Deployment:</strong> Deploy the PowerShell script via Intune or Group Policy,
-                and distribute the Chrome Extension to users' browsers. Both tools use your API key above.
+                <strong>🚀 Recommended for Enterprise:</strong> Download the Intune Package for professional deployment to all devices.
+                It includes everything you need: monitoring script (with your API key), installer, uninstaller, and complete deployment instructions.
             </div>
         </div>
 

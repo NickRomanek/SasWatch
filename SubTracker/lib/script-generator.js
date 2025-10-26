@@ -65,9 +65,9 @@ function Send-UsageData {
     }
 }
 
-function Get-ActiveWindowProcess {
-    # Get the currently active/foreground window
-    Add-Type @"
+# Add Windows API calls for detecting foreground window (only once)
+if (-not ([System.Management.Automation.PSTypeName]'Window').Type) {
+    Add-Type -TypeDefinition @"
         using System;
         using System.Runtime.InteropServices;
         using System.Text;
@@ -81,8 +81,11 @@ function Get-ActiveWindowProcess {
             [DllImport("user32.dll", CharSet = CharSet.Unicode)]
             public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
         }
-"@
+"@ -ErrorAction SilentlyContinue
+}
 
+function Get-ActiveWindowProcess {
+    # Get the currently active/foreground window
     try {
         $hwnd = [Window]::GetForegroundWindow()
         $processId = 0

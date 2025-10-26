@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const auth = require('./lib/auth');
 const db = require('./lib/database-multitenant');
 const { generateMonitorScript, generateDeploymentInstructions } = require('./lib/script-generator');
+const { generateIntunePackage, getPackageFilename } = require('./lib/intune-package-generator');
 const prisma = require('./lib/prisma');
 
 // ============================================
@@ -303,10 +304,41 @@ function setupScriptRoutes(app) {
             
             // Finalize the archive
             await archive.finalize();
-            
+
         } catch (error) {
             console.error('Extension download error:', error);
             res.status(500).send('Failed to package extension');
+        }
+    });
+
+    // Download Intune deployment package
+    app.get('/download/intune-package', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await auth.getAccountById(req.session.accountId);
+
+            // Prefer explicit API_URL, else infer from request protocol/host
+            const inferredBaseUrl = `${req.protocol}://${req.get('host')}`;
+            const apiUrl = process.env.API_URL || inferredBaseUrl;
+
+            console.log('Generating Intune package for account:', account.name);
+
+            // Generate ZIP package with all scripts and customer's API key
+            const packageBuffer = await generateIntunePackage(account, apiUrl, process.env.NODE_ENV);
+
+            // Get suggested filename
+            const filename = getPackageFilename(account);
+
+            console.log('Intune package generated successfully:', filename);
+
+            // Send ZIP file
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+            res.setHeader('Content-Length', packageBuffer.length);
+            res.send(packageBuffer);
+
+        } catch (error) {
+            console.error('Intune package download error:', error);
+            res.status(500).send('Failed to generate Intune package');
         }
     });
 }
