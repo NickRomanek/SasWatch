@@ -67,7 +67,7 @@ function Send-UsageData {
 
 # Add Windows API calls for detecting foreground window (only once)
 if (-not ([System.Management.Automation.PSTypeName]'Window').Type) {
-    Add-Type -TypeDefinition @"
+    Add-Type -TypeDefinition @'
         using System;
         using System.Runtime.InteropServices;
         using System.Text;
@@ -81,7 +81,7 @@ if (-not ([System.Management.Automation.PSTypeName]'Window').Type) {
             [DllImport("user32.dll", CharSet = CharSet.Unicode)]
             public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
         }
-"@ -ErrorAction SilentlyContinue
+'@ -ErrorAction SilentlyContinue
 }
 
 function Get-ActiveWindowProcess {
