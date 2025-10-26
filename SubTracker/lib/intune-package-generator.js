@@ -68,7 +68,13 @@ async function generateIntunePackage(account, apiUrl, nodeEnv = 'production') {
         archive.file(detectionPath, { name: 'Detect-AdobeMonitor.ps1' });
 
         // =========================================
-        // 5. Generate customized deployment guide
+        // 5. Add customized troubleshooting script
+        // =========================================
+        const troubleshootScript = generateTroubleshootScript(account.apiKey, apiUrl);
+        archive.append(troubleshootScript, { name: 'troubleshoot-monitoring.ps1' });
+
+        // =========================================
+        // 6. Generate customized deployment guide
         // =========================================
         const deploymentGuide = generateDeploymentGuide(account, apiUrl, nodeEnv);
         archive.append(deploymentGuide, { name: 'DEPLOYMENT-GUIDE.txt' });
@@ -106,6 +112,33 @@ function generateDeploymentGuide(account, apiUrl, nodeEnv) {
     template = template.replace(/{{NODE_ENV}}/g, nodeEnv.toUpperCase());
 
     return template;
+}
+
+/**
+ * Generates customized troubleshooting script with customer's API key and URL
+ * @param {String} apiKey - Customer's API key
+ * @param {String} apiUrl - API base URL
+ * @returns {String} - Customized troubleshooting script
+ */
+function generateTroubleshootScript(apiKey, apiUrl) {
+    const templatePath = path.join(__dirname, '../troubleshoot-monitoring.ps1');
+
+    if (!fs.existsSync(templatePath)) {
+        throw new Error(`Troubleshooting script template not found: ${templatePath}`);
+    }
+
+    let script = fs.readFileSync(templatePath, 'utf8');
+
+    // Remove trailing slash from API URL if present
+    const cleanApiUrl = apiUrl.replace(/\/$/, '');
+
+    // Replace hardcoded localhost URLs with customer's actual API URL
+    script = script.replace(/http:\/\/localhost:3000/g, cleanApiUrl);
+
+    // Replace hardcoded API key with customer's actual API key
+    script = script.replace(/"dca3ea2d-0953-4aa6-b39a-0b3facfff360"/g, `"${apiKey}"`);
+
+    return script;
 }
 
 /**
