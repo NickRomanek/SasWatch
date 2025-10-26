@@ -3,6 +3,7 @@
 
 const express = require('express');
 const session = require('express-session');
+const rateLimit = require('express-rate-limit');
 const auth = require('./lib/auth');
 const db = require('./lib/database-multitenant');
 const { generateMonitorScript, generateDeploymentInstructions } = require('./lib/script-generator');
@@ -315,8 +316,29 @@ function setupScriptRoutes(app) {
 // ============================================
 
 function setupTrackingAPI(app) {
+    // Rate limiter for tracking endpoint
+    // Prevents abuse, infinite loops, and excessive API calls
+    // Applied AFTER auth so we can rate limit per account, not just per IP
+    const trackingLimiter = rateLimit({
+        windowMs: 1 * 60 * 1000, // 1 minute window
+        max: 100, // Max 100 requests per minute per account
+        message: {
+            success: false,
+            error: 'Too many tracking requests. Please wait a moment and try again.',
+            retryAfter: '60 seconds'
+        },
+        standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
+        legacyHeaders: false, // Disable `X-RateLimit-*` headers
+        // Use account ID as the identifier (set by auth.requireApiKey middleware)
+        // Since this runs after auth, req.accountId will always be set
+        keyGenerator: (req) => {
+            return req.accountId; // Always use accountId (set by auth middleware)
+        }
+    });
+
     // Usage tracking endpoint (PowerShell scripts use this)
-    app.post('/api/track', auth.requireApiKey, async (req, res) => {
+    // Auth first (sets req.accountId), then rate limit by account, then process request
+    app.post('/api/track', auth.requireApiKey, trackingLimiter, async (req, res) => {
         try {
             const data = req.body;
             
