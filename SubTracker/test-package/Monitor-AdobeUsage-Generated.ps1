@@ -1,25 +1,14 @@
-// PowerShell Script Generator
-// Generates monitoring scripts with embedded API keys for each account
-
-function generateMonitorScript(apiKey, apiUrl, nodeEnv = 'production') {
-    // Remove trailing slash from API URL if present
-    const cleanApiUrl = apiUrl.replace(/\/$/, '');
-
-    // Use 5 seconds for development and testing, 5 minutes for production
-    const checkInterval = (nodeEnv === 'development' || nodeEnv === 'testing') ? 5 : 300;
-    const intervalDescription = (nodeEnv === 'development' || nodeEnv === 'testing') ? '5 seconds (TESTING MODE)' : '5 minutes';
-
-    return `# Adobe Usage Monitor - Auto-configured for your SubTracker account
-# Generated: ${new Date().toISOString()}
-# Environment: ${nodeEnv.toUpperCase()}
+# Adobe Usage Monitor - Auto-configured for your SubTracker account
+# Generated: 2025-10-26T20:03:50.974Z
+# Environment: TESTING
 
 # ============================================
 # Configuration (DO NOT MODIFY)
 # ============================================
 
-$API_KEY = "${apiKey}"
-$API_URL = "${cleanApiUrl}/api/track"
-$CHECK_INTERVAL = ${checkInterval}  # Check every ${intervalDescription}
+$API_KEY = "test-api-key-12345"
+$API_URL = "http://localhost:3000/api/track"
+$CHECK_INTERVAL = 5  # Check every 5 seconds (TESTING MODE)
 
 # ============================================
 # Adobe Process Monitoring
@@ -50,10 +39,10 @@ function Send-UsageData {
         
         $json = $Data | ConvertTo-Json -Compress
         
-        $response = Invoke-RestMethod -Uri $API_URL \`
-            -Method POST \`
-            -Headers $headers \`
-            -Body $json \`
+        $response = Invoke-RestMethod -Uri $API_URL `
+            -Method POST `
+            -Headers $headers `
+            -Body $json `
             -ErrorAction Stop
         
         Write-Host "✓ Usage data sent successfully" -ForegroundColor Green
@@ -229,171 +218,3 @@ catch {
     Write-Host "Monitor stopped. Please contact support." -ForegroundColor Yellow
     exit 1
 }
-`;
-}
-
-function generateDeploymentInstructions(apiKey, apiUrl) {
-    // Remove trailing slash from API URL if present
-    const cleanApiUrl = apiUrl.replace(/\/$/, '');
-    
-    return `# SubTracker - Deployment Instructions
-
-## 🚀 Quick Deployment Guide
-
-### Your Account Details:
-- **API URL:** ${cleanApiUrl}/api/track
-- **API Key:** ${apiKey}
-- **Script Generated:** ${new Date().toLocaleString()}
-
----
-
-## 📋 Deployment Options
-
-### Option 1: Microsoft Intune (Recommended)
-
-1. **Create PowerShell Script Package:**
-   - Go to Intune Portal → Devices → Scripts → Add → Windows 10 and later
-   - Upload the \`Monitor-AdobeUsage.ps1\` script
-   - Configuration:
-     - Run this script using the logged on credentials: **No**
-     - Enforce script signature check: **No**
-     - Run script in 64 bit PowerShell Host: **Yes**
-
-2. **Assign to Groups:**
-   - Assign to your Adobe licensed users group
-   - Set as "Required"
-
-3. **Monitor:**
-   - Check SubTracker dashboard for incoming data
-   - Users will report usage within 5 minutes
-
-### Option 2: Group Policy (GPO)
-
-1. **Create Startup Script:**
-   - Group Policy Management Console
-   - Computer Configuration → Windows Settings → Scripts → Startup
-   - Add script: \`Monitor-AdobeUsage.ps1\`
-
-2. **Link GPO:**
-   - Link to OU containing Adobe users
-
-3. **Force Update:**
-   \`\`\`
-   gpupdate /force
-   \`\`\`
-
-### Option 3: Manual Deployment
-
-1. **Copy script to each computer:**
-   \`\`\`
-   C:\\ProgramData\\AdobeMonitor\\Monitor-AdobeUsage.ps1
-   \`\`\`
-
-2. **Create Scheduled Task:**
-   \`\`\`powershell
-   $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File C:\\ProgramData\\AdobeMonitor\\Monitor-AdobeUsage.ps1"
-   $trigger = New-ScheduledTaskTrigger -AtStartup
-   Register-ScheduledTask -TaskName "Adobe Usage Monitor" -Action $action -Trigger $trigger -RunLevel Highest
-   \`\`\`
-
----
-
-## 🧪 Testing
-
-### Test on One Computer First:
-
-\`\`\`powershell
-# Run the script manually
-PowerShell.exe -ExecutionPolicy Bypass -File .\\Monitor-AdobeUsage.ps1
-
-# Should see:
-# ✓ API connection successful!
-# Starting Adobe Usage Monitor...
-\`\`\`
-
-### Verify in Dashboard:
-
-1. Log in to SubTracker
-2. Go to Dashboard
-3. Check for usage events from test computer
-4. Should appear within 5 minutes
-
----
-
-## ⚠️ Troubleshooting
-
-### No Data Appearing:
-
-1. **Check firewall:** Ensure outbound HTTPS to ${cleanApiUrl} is allowed
-2. **Test API manually:**
-   \`\`\`powershell
-   Invoke-RestMethod -Uri "${cleanApiUrl}/api/track" -Method POST -Headers @{"X-API-Key"="${apiKey}"} -Body '{"test":"true"}' -ContentType "application/json"
-   \`\`\`
-3. **Check script is running:** Task Manager → Details → powershell.exe
-
-### Script Not Starting:
-
-1. Check execution policy: \`Get-ExecutionPolicy\`
-2. Run as Administrator
-3. Check Windows Event Viewer for errors
-
-### API Key Issues:
-
-If you regenerate your API key, you must:
-1. Download new script from SubTracker
-2. Redeploy to all computers
-3. Old scripts will stop working immediately
-
----
-
-## 📊 What Gets Tracked:
-
-- Adobe Acrobat (Reader & Pro)
-- Adobe Illustrator
-- Adobe Photoshop
-- Adobe InDesign
-- Adobe After Effects
-- Adobe Premiere Pro
-- Creative Cloud app
-
-**Frequency:** Every 5 minutes when running
-
-**Data Sent:**
-- Application name
-- Windows username
-- Computer name
-- Timestamp
-- User domain
-
-**Not Tracked:**
-- File names or content
-- Passwords or credentials
-- Personal information
-- Browsing history
-
----
-
-## 🔒 Security Notes:
-
-- API key is embedded in script (keep secure)
-- All data sent over HTTPS
-- No personally identifiable information collected
-- Can revoke access anytime by regenerating API key
-
----
-
-## 📞 Support:
-
-Having issues? Check your SubTracker dashboard for:
-- Account settings
-- API key status
-- Usage statistics
-- Connection logs
-`;
-}
-
-module.exports = {
-    generateMonitorScript,
-    generateDeploymentInstructions
-};
-

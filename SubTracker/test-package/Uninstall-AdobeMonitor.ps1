@@ -10,16 +10,6 @@
 
 $ErrorActionPreference = "Stop"
 
-# Check if running as administrator
-$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
-
-if (-not $isAdmin) {
-    Write-Warning "This script should be run as Administrator for best results."
-    Write-Warning "Some operations may fail due to insufficient permissions."
-    Write-Warning "To run as Administrator: Right-click PowerShell and select 'Run as Administrator'"
-    Write-Warning ""
-}
-
 # Configuration
 $INSTALL_DIR = "C:\ProgramData\AdobeMonitor"
 $TASK_NAME = "Adobe Usage Monitor - SubTracker"
@@ -32,23 +22,14 @@ function Write-Log {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "[$timestamp] [$Level] $Message"
 
-    # Always output to console
+    # Create log directory if needed
+    $logDir = Split-Path $LOG_FILE -Parent
+    if (-not (Test-Path $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    }
+
+    Add-Content -Path $LOG_FILE -Value $logMessage
     Write-Output $logMessage
-
-    # Try to write to log file, but don't fail if we can't
-    try {
-        # Create log directory if needed
-        $logDir = Split-Path $LOG_FILE -Parent
-        if (-not (Test-Path $logDir)) {
-            New-Item -ItemType Directory -Path $logDir -Force | Out-Null
-        }
-
-        Add-Content -Path $LOG_FILE -Value $logMessage -ErrorAction SilentlyContinue
-    }
-    catch {
-        # Silently continue if we can't write to log file
-        # This prevents the script from failing due to permission issues
-    }
 }
 
 try {

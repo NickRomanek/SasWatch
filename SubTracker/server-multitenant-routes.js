@@ -218,7 +218,36 @@ function setupAccountRoutes(app) {
 // ============================================
 
 function setupScriptRoutes(app) {
-    // Download monitor script
+    // Download monitor script for testing (5-second intervals)
+    app.get('/download/monitor-script-testing', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await auth.getAccountById(req.session.accountId);
+            // Prefer explicit API_URL, else infer from request protocol/host
+            const inferredBaseUrl = `${req.protocol}://${req.get('host')}`;
+            const apiUrl = process.env.API_URL || inferredBaseUrl;
+
+            // Force testing mode for 5-second intervals
+            let script = generateMonitorScript(account.apiKey, apiUrl, 'testing');
+
+            // Normalize all line endings to Windows format (CRLF)
+            // First normalize to LF, then convert to CRLF
+            script = script.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, '\r\n');
+
+            // Create buffer with UTF-8 BOM for Windows compatibility
+            const bom = Buffer.from([0xEF, 0xBB, 0xBF]);
+            const scriptBuffer = Buffer.concat([bom, Buffer.from(script, 'utf8')]);
+
+            res.setHeader('Content-Type', 'application/octet-stream');
+            res.setHeader('Content-Disposition', 'attachment; filename=Monitor-AdobeUsage-Testing.ps1');
+            res.setHeader('Content-Length', scriptBuffer.length);
+            res.send(scriptBuffer);
+        } catch (error) {
+            console.error('Script download error:', error);
+            res.status(500).send('Failed to generate script');
+        }
+    });
+
+    // Download monitor script (always 5-second intervals for testing)
     app.get('/download/monitor-script', auth.requireAuth, async (req, res) => {
         try {
             const account = await auth.getAccountById(req.session.accountId);
@@ -226,8 +255,8 @@ function setupScriptRoutes(app) {
             const inferredBaseUrl = `${req.protocol}://${req.get('host')}`;
             const apiUrl = process.env.API_URL || inferredBaseUrl;
 
-            // Pass NODE_ENV to control check interval (5s dev, 5m prod)
-            let script = generateMonitorScript(account.apiKey, apiUrl, process.env.NODE_ENV);
+            // Always use testing mode for simple script (5-second intervals)
+            let script = generateMonitorScript(account.apiKey, apiUrl, 'testing');
 
             // Normalize all line endings to Windows format (CRLF)
             // First normalize to LF, then convert to CRLF
@@ -311,7 +340,7 @@ function setupScriptRoutes(app) {
         }
     });
 
-    // Download Intune deployment package
+    // Download Intune deployment package (production - 5-minute intervals)
     app.get('/download/intune-package', auth.requireAuth, async (req, res) => {
         try {
             const account = await auth.getAccountById(req.session.accountId);
@@ -320,15 +349,46 @@ function setupScriptRoutes(app) {
             const inferredBaseUrl = `${req.protocol}://${req.get('host')}`;
             const apiUrl = process.env.API_URL || inferredBaseUrl;
 
-            console.log('Generating Intune package for account:', account.name);
+            console.log('Generating Intune package (production) for account:', account.name);
 
-            // Generate ZIP package with all scripts and customer's API key
-            const packageBuffer = await generateIntunePackage(account, apiUrl, process.env.NODE_ENV);
+            // Generate ZIP package with production intervals (5 minutes)
+            const packageBuffer = await generateIntunePackage(account, apiUrl, 'production');
 
             // Get suggested filename
-            const filename = getPackageFilename(account);
+            const filename = getPackageFilename(account, 'production');
 
-            console.log('Intune package generated successfully:', filename);
+            console.log('Intune package (production) generated successfully:', filename);
+
+            // Send ZIP file
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+            res.setHeader('Content-Length', packageBuffer.length);
+            res.send(packageBuffer);
+
+        } catch (error) {
+            console.error('Intune package download error:', error);
+            res.status(500).send('Failed to generate Intune package');
+        }
+    });
+
+    // Download Intune deployment package (testing - 5-second intervals)
+    app.get('/download/intune-package-testing', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await auth.getAccountById(req.session.accountId);
+
+            // Prefer explicit API_URL, else infer from request protocol/host
+            const inferredBaseUrl = `${req.protocol}://${req.get('host')}`;
+            const apiUrl = process.env.API_URL || inferredBaseUrl;
+
+            console.log('Generating Intune package (testing) for account:', account.name);
+
+            // Generate ZIP package with testing intervals (5 seconds)
+            const packageBuffer = await generateIntunePackage(account, apiUrl, 'testing');
+
+            // Get suggested filename
+            const filename = getPackageFilename(account, 'testing');
+
+            console.log('Intune package (testing) generated successfully:', filename);
 
             // Send ZIP file
             res.setHeader('Content-Type', 'application/zip');

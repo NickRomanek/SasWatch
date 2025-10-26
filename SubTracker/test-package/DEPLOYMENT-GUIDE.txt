@@ -1,0 +1,287 @@
+═══════════════════════════════════════════════════════════════════════════
+  SubTracker - Microsoft Intune Deployment Guide
+  Adobe Usage Monitor - Win32 App Package
+═══════════════════════════════════════════════════════════════════════════
+
+YOUR ACCOUNT DETAILS:
+────────────────────────────────────────────────────────────────────────────
+  Organization: Test Account
+  Email: test@example.com
+  API URL: http://localhost:3000
+  API Key: test-api-key-12345
+  Package Generated: 10/26/2025, 4:03:50 PM
+  Environment: TESTING
+
+═══════════════════════════════════════════════════════════════════════════
+ PACKAGE CONTENTS
+═══════════════════════════════════════════════════════════════════════════
+
+  ✓ Monitor-AdobeUsage.ps1      - Monitoring script (with YOUR API key embedded)
+  ✓ Install-AdobeMonitor.ps1     - Installation script
+  ✓ Uninstall-AdobeMonitor.ps1   - Uninstallation script
+  ✓ Detect-AdobeMonitor.ps1      - Detection script (for Intune)
+  ✓ DEPLOYMENT-GUIDE.txt         - This file
+
+═══════════════════════════════════════════════════════════════════════════
+ DEPLOYMENT STEPS
+═══════════════════════════════════════════════════════════════════════════
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 1: Download Microsoft Win32 Content Prep Tool                       ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  1. Visit: https://github.com/microsoft/Microsoft-Win32-Content-Prep-Tool
+  2. Download: Microsoft-Win32-Content-Prep-Tool.zip
+  3. Extract IntuneWinAppUtil.exe to a folder (e.g., C:\IntuneTools\)
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 2: Prepare Package Folder                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  1. Extract THIS ZIP file to a folder (e.g., C:\AdobeMonitor-Package\)
+  2. Verify all 4 files are present:
+     - Monitor-AdobeUsage.ps1
+     - Install-AdobeMonitor.ps1
+     - Uninstall-AdobeMonitor.ps1
+     - Detect-AdobeMonitor.ps1
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 3: Create .intunewin Package                                        ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  Open PowerShell and run:
+
+  C:\IntuneTools\IntuneWinAppUtil.exe `
+      -c "C:\AdobeMonitor-Package" `
+      -s "Install-AdobeMonitor.ps1" `
+      -o "C:\IntunePackages"
+
+  What this does:
+    -c = Source folder containing all your scripts
+    -s = Setup file (the installer script)
+    -o = Output folder for the .intunewin file
+
+  Output: Install-AdobeMonitor.intunewin (ready to upload!)
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 4: Upload to Microsoft Intune                                       ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  1. Open Microsoft Intune admin center: https://intune.microsoft.com
+  2. Navigate: Apps → Windows → Add → Windows app (Win32)
+  3. Click "Select app package file"
+  4. Upload: Install-AdobeMonitor.intunewin
+  5. Click OK
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 5: Configure App Information                                        ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  App information:
+  ────────────────────────────────────────────────────────────────────────
+  Name: Adobe Usage Monitor - SubTracker
+  Description: Monitors Adobe Creative Cloud usage and reports to SubTracker
+  Publisher: SubTracker
+  App Version: 1.0
+
+  (Optional fields can be left blank)
+
+  Click Next
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 6: Configure Program Settings                                       ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  Install command:
+  ────────────────────────────────────────────────────────────────────────
+  PowerShell.exe -ExecutionPolicy Bypass -File Install-AdobeMonitor.ps1
+
+  Uninstall command:
+  ────────────────────────────────────────────────────────────────────────
+  PowerShell.exe -ExecutionPolicy Bypass -File Uninstall-AdobeMonitor.ps1
+
+  Install behavior: System
+  ────────────────────────────────────────────────────────────────────────
+  Device restart behavior: No specific action
+  Return codes: Use defaults
+
+  Click Next
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 7: Configure Requirements                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  Operating system architecture: 64-bit
+  Minimum operating system: Windows 10 1607 (or later)
+
+  Click Next
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 8: Configure Detection Rules                                        ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  Rules format: Use a custom detection script
+  ────────────────────────────────────────────────────────────────────────
+  Script file: Upload "Detect-AdobeMonitor.ps1" from your package
+  Run script as 32-bit process on 64-bit clients: No
+  Enforce script signature check: No
+
+  Click Next
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 9: Dependencies (Optional)                                          ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  No dependencies required.
+
+  Click Next
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 10: Supersedence (Optional)                                         ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  No supersedence configuration needed.
+
+  Click Next
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 11: Assign to Device Groups                                         ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  Add group:
+  ────────────────────────────────────────────────────────────────────────
+  Assignment type: Required
+  Target group: Select your Adobe licensed users/devices group
+
+  Mode: Include
+  ────────────────────────────────────────────────────────────────────────
+  End user notifications: Display all toast notifications
+
+  Click Next
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ STEP 12: Review and Create                                               ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+  Review all settings and click Create.
+
+  The app will now deploy to your assigned device groups!
+
+═══════════════════════════════════════════════════════════════════════════
+ WHAT HAPPENS NEXT
+═══════════════════════════════════════════════════════════════════════════
+
+  Deployment Process:
+  ────────────────────────────────────────────────────────────────────────
+  1. Intune pushes the app to assigned devices
+  2. Install script runs automatically as SYSTEM
+  3. Monitoring script is copied to C:\ProgramData\AdobeMonitor\
+  4. Scheduled task is created (runs at startup)
+  5. Monitoring begins immediately
+  6. Data appears in SubTracker dashboard within 5 minutes
+
+  What Gets Monitored:
+  ────────────────────────────────────────────────────────────────────────
+  ✓ Adobe Acrobat (Reader & Pro)
+  ✓ Adobe Photoshop
+  ✓ Adobe Illustrator
+  ✓ Adobe InDesign
+  ✓ Adobe Premiere Pro
+  ✓ Adobe After Effects
+  ✓ Creative Cloud Desktop App
+
+  Data Collected:
+  ────────────────────────────────────────────────────────────────────────
+  • Application name
+  • Windows username
+  • Computer name
+  • User domain
+  • Timestamp
+
+  NOT Collected:
+  ────────────────────────────────────────────────────────────────────────
+  ✗ File names or content
+  ✗ Passwords or credentials
+  ✗ Personal information
+  ✗ Browsing history
+
+═══════════════════════════════════════════════════════════════════════════
+ VERIFICATION & TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════
+
+  Verify Deployment in Intune:
+  ────────────────────────────────────────────────────────────────────────
+  1. Intune → Apps → Windows → Adobe Usage Monitor
+  2. Click "Device install status"
+  3. Check that devices show "Installed" status
+
+  Verify on Client Computer:
+  ────────────────────────────────────────────────────────────────────────
+  1. Open Task Scheduler
+  2. Look for "Adobe Usage Monitor - SubTracker"
+  3. Verify it's running and set to run at startup
+  4. Check C:\ProgramData\AdobeMonitor\ exists
+  5. Check install.log for success messages
+
+  Verify in SubTracker Dashboard:
+  ────────────────────────────────────────────────────────────────────────
+  1. Log in to SubTracker: http://localhost:3000
+  2. Go to Dashboard
+  3. Look for usage events within 5 minutes
+  4. Events should show computer names and usernames
+
+  No Data Appearing?
+  ────────────────────────────────────────────────────────────────────────
+  ▸ Check firewall: Ensure outbound HTTPS to http://localhost:3000 is allowed
+  ▸ Check scheduled task: Verify it's running in Task Scheduler
+  ▸ Check logs: C:\ProgramData\AdobeMonitor\install.log
+  ▸ Check Intune deployment status
+  ▸ Test API manually (see below)
+
+  Manual API Test:
+  ────────────────────────────────────────────────────────────────────────
+  Run this in PowerShell on a client machine:
+
+  Invoke-RestMethod -Uri "http://localhost:3000/api/track" `
+      -Method POST `
+      -Headers @{"X-API-Key"="test-api-key-12345"} `
+      -Body (@{event="test"; url="test"; clientId="test"; windowsUser=$env:USERNAME; computerName=$env:COMPUTERNAME; when=(Get-Date).ToUniversalTime().ToString("o")} | ConvertTo-Json) `
+      -ContentType "application/json"
+
+  If this succeeds, API connection is working!
+
+═══════════════════════════════════════════════════════════════════════════
+ UPDATING THE DEPLOYMENT
+═══════════════════════════════════════════════════════════════════════════
+
+  If you regenerate your API key in SubTracker:
+  ────────────────────────────────────────────────────────────────────────
+  1. Download new Intune package from SubTracker dashboard
+  2. Create new .intunewin file (repeat Steps 2-3)
+  3. In Intune, edit your existing app
+  4. Upload the new .intunewin package
+  5. Intune will redeploy to all devices
+  6. Old API key stops working, new key takes effect
+
+═══════════════════════════════════════════════════════════════════════════
+ SUPPORT & DOCUMENTATION
+═══════════════════════════════════════════════════════════════════════════
+
+  SubTracker Dashboard: http://localhost:3000
+  Your Account Settings: http://localhost:3000/account
+
+  For help with:
+  ────────────────────────────────────────────────────────────────────────
+  • SubTracker features → Check your account dashboard
+  • API issues → Verify API key in account settings
+  • Intune deployment → Microsoft Intune documentation
+  • Data not appearing → Check troubleshooting section above
+
+═══════════════════════════════════════════════════════════════════════════
+
+Thank you for using SubTracker!
+
+Your monitoring script will help optimize Adobe license allocation and
+identify cost savings opportunities across your organization.
+
+═══════════════════════════════════════════════════════════════════════════

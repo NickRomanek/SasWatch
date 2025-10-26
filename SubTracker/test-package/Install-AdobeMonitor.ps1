@@ -10,16 +10,6 @@
 
 $ErrorActionPreference = "Stop"
 
-# Check if running as administrator
-$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
-
-if (-not $isAdmin) {
-    Write-Warning "This script should be run as Administrator for best results."
-    Write-Warning "Some operations may fail due to insufficient permissions."
-    Write-Warning "To run as Administrator: Right-click PowerShell and select 'Run as Administrator'"
-    Write-Warning ""
-}
-
 # Configuration
 $INSTALL_DIR = "C:\ProgramData\AdobeMonitor"
 $SCRIPT_NAME = "Monitor-AdobeUsage.ps1"
@@ -33,23 +23,14 @@ function Write-Log {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "[$timestamp] [$Level] $Message"
 
-    # Always output to console
+    # Create log directory if needed
+    $logDir = Split-Path $LOG_FILE -Parent
+    if (-not (Test-Path $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    }
+
+    Add-Content -Path $LOG_FILE -Value $logMessage
     Write-Output $logMessage
-
-    # Try to write to log file, but don't fail if we can't
-    try {
-        # Create log directory if needed
-        $logDir = Split-Path $LOG_FILE -Parent
-        if (-not (Test-Path $logDir)) {
-            New-Item -ItemType Directory -Path $logDir -Force | Out-Null
-        }
-
-        Add-Content -Path $LOG_FILE -Value $logMessage -ErrorAction SilentlyContinue
-    }
-    catch {
-        # Silently continue if we can't write to log file
-        # This prevents the script from failing due to permission issues
-    }
 }
 
 try {
@@ -163,39 +144,10 @@ try {
     # Step 7: Test API connectivity
     Write-Log "Testing API connectivity..." "INFO"
     try {
-        # Read the API URL from the monitoring script to ensure consistency
-        $monitoringScriptPath = Join-Path $INSTALL_DIR $SCRIPT_NAME
-        if (Test-Path $monitoringScriptPath) {
-            $scriptContent = Get-Content $monitoringScriptPath -Raw
-            if ($scriptContent -match '\$API_URL = "([^"]+)"') {
-                $apiUrl = $matches[1]
-                Write-Log "Using API URL from monitoring script: $apiUrl" "INFO"
-            } else {
-                $apiUrl = "http://localhost:3000/api/track"  # Default fallback
-                Write-Log "Could not detect API URL, using default: $apiUrl" "WARN"
-            }
-        } else {
-            $apiUrl = "http://localhost:3000/api/track"  # Default fallback
-            Write-Log "Monitoring script not found, using default: $apiUrl" "WARN"
-        }
-
-        # Get API key from monitoring script
-        $apiKey = "test-api-key-12345"  # Default fallback
-        if (Test-Path $monitoringScriptPath) {
-            $scriptContent = Get-Content $monitoringScriptPath -Raw
-            if ($scriptContent -match '\$API_KEY = "([^"]+)"') {
-                $apiKey = $matches[1]
-                Write-Log "Using API key from monitoring script" "INFO"
-            } else {
-                Write-Log "Could not detect API key, using default" "WARN"
-            }
-        }
-
         # Create a test script to check API connectivity
         $testScript = @"
 # Test API connectivity
-`$API_URL = "$apiUrl"
-`$API_KEY = "$apiKey"
+`$API_URL = "https://abowdyv2-production.up.railway.app/api/track"
 `$testData = @{
     event = "install_test"
     url = "system"
@@ -208,11 +160,7 @@ try {
 } | ConvertTo-Json -Compress
 
 try {
-    `$headers = @{
-        "Content-Type" = "application/json"
-        "X-API-Key" = `$API_KEY
-    }
-    `$response = Invoke-RestMethod -Uri `$API_URL -Method POST -Body `$testData -Headers `$headers -TimeoutSec 10
+    `$response = Invoke-RestMethod -Uri `$API_URL -Method POST -Body `$testData -ContentType "application/json" -TimeoutSec 10
     Write-Output "API_TEST_SUCCESS"
 } catch {
     Write-Output "API_TEST_FAILED: `$_"

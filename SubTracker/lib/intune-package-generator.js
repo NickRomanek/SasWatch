@@ -38,7 +38,7 @@ async function generateIntunePackage(account, apiUrl, nodeEnv = 'production') {
         // 1. Generate monitoring script with customer's API key
         // =========================================
         const monitoringScript = generateMonitorScript(account.apiKey, apiUrl, nodeEnv);
-        archive.append(monitoringScript, { name: 'Monitor-AdobeUsage.ps1' });
+        archive.append(monitoringScript, { name: 'Monitor-AdobeUsage-Generated.ps1' });
 
         // =========================================
         // 2. Add installer script
@@ -68,10 +68,13 @@ async function generateIntunePackage(account, apiUrl, nodeEnv = 'production') {
         archive.file(detectionPath, { name: 'Detect-AdobeMonitor.ps1' });
 
         // =========================================
-        // 5. Add customized troubleshooting script
+        // 5. Add troubleshooting script
         // =========================================
-        const troubleshootScript = generateTroubleshootScript(account.apiKey, apiUrl);
-        archive.append(troubleshootScript, { name: 'troubleshoot-monitoring.ps1' });
+        const troubleshootPath = path.join(__dirname, '../intune-scripts/troubleshoot-monitoring.ps1');
+        if (!fs.existsSync(troubleshootPath)) {
+            return reject(new Error(`Troubleshooting script not found: ${troubleshootPath}`));
+        }
+        archive.file(troubleshootPath, { name: 'troubleshoot-monitoring.ps1' });
 
         // =========================================
         // 6. Generate customized deployment guide
@@ -144,16 +147,18 @@ function generateTroubleshootScript(apiKey, apiUrl) {
 /**
  * Get suggested filename for the Intune package
  * @param {Object} account - Account object
+ * @param {String} environment - Environment (production/testing)
  * @returns {String} - Suggested filename
  */
-function getPackageFilename(account) {
+function getPackageFilename(account, environment = 'production') {
     // Create safe filename from account name
     const safeName = account.name
         .replace(/[^a-zA-Z0-9-]/g, '-') // Replace special chars with dash
         .replace(/-+/g, '-')  // Replace multiple dashes with single dash
         .toLowerCase();
 
-    return `AdobeMonitor-Intune-${safeName}.zip`;
+    const envSuffix = environment === 'testing' ? '-Testing' : '';
+    return `AdobeMonitor-Intune-${safeName}${envSuffix}.zip`;
 }
 
 module.exports = {

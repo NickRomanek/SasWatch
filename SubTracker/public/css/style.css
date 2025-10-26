@@ -1798,6 +1798,42 @@ nav a.active {
     font-size: 0.875rem;
 }
 
+/* Download buttons */
+.download-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: var(--accent-primary);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-download:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-download.btn-testing {
+    background: var(--warning);
+}
+
+.btn-download.btn-testing:hover {
+    background: #d97706;
+}
+
 .users-table th:last-child,
 .users-table td:last-child {
     width: 80px;
