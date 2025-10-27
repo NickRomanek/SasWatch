@@ -20,6 +20,25 @@ function generateMonitorScript(apiKey, apiUrl, nodeEnv = 'production') {
 $API_KEY = "${apiKey}"
 $API_URL = "${cleanApiUrl}/api/track"
 $CHECK_INTERVAL = ${checkInterval}  # Check every ${intervalDescription}
+$LOG_FILE = "C:\\ProgramData\\AdobeMonitor\\monitor.log"
+
+# Logging function
+function Write-MonitorLog {
+    param($Message, $Level = "INFO")
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logMessage = "[$timestamp] [$Level] $Message"
+    
+    # Always output to console
+    Write-Output $logMessage
+    
+    # Try to write to log file
+    try {
+        Add-Content -Path $LOG_FILE -Value $logMessage -ErrorAction SilentlyContinue
+    }
+    catch {
+        # Silently continue if we can't write to log file
+    }
+}
 
 # ============================================
 # Adobe Process Monitoring
@@ -135,17 +154,29 @@ function Get-RunningAdobeProcesses {
 }
 
 function Monitor-AdobeUsage {
-    Write-Host "Starting Adobe Usage Monitor..." -ForegroundColor Cyan
-    Write-Host "API URL: $API_URL" -ForegroundColor Gray
-    Write-Host "Check Interval: $CHECK_INTERVAL seconds" -ForegroundColor Gray
-    Write-Host "Tracking Mode: Active window only (ignores background processes)" -ForegroundColor Gray
-    Write-Host ""
+    Write-MonitorLog "Starting Adobe Usage Monitor..." "INFO"
+    Write-MonitorLog "API URL: $API_URL" "INFO"
+    Write-MonitorLog "Check Interval: $CHECK_INTERVAL seconds" "INFO"
+    Write-MonitorLog "Tracking Mode: Active window only (ignores background processes)" "INFO"
+    Write-MonitorLog "" "INFO"
 
     $lastReportedProcesses = @{}
+    $cycleCount = 0
     
     while ($true) {
+        $cycleCount++
         $currentTime = Get-Date
+        Write-MonitorLog "Monitoring cycle #$cycleCount - Checking for active Adobe processes..." "DEBUG"
         $runningProcesses = Get-RunningAdobeProcesses
+        
+        if ($runningProcesses.Count -gt 0) {
+            Write-MonitorLog "Found $($runningProcesses.Count) active Adobe process(es)" "INFO"
+            foreach ($process in $runningProcesses) {
+                Write-MonitorLog "Active Adobe process: $($process.name) (Count: $($process.count))" "DEBUG"
+            }
+        } else {
+            Write-MonitorLog "No active Adobe processes found" "DEBUG"
+        }
         
         foreach ($process in $runningProcesses) {
             $processName = $process.name
@@ -154,6 +185,7 @@ function Monitor-AdobeUsage {
             if (-not $lastReportedProcesses.ContainsKey($processName) -or 
                 ($currentTime - $lastReportedProcesses[$processName]).TotalSeconds -gt $CHECK_INTERVAL) {
                 
+                Write-MonitorLog "Sending usage data for $processName..." "INFO"
                 $usageData = @{
                     event = "adobe_desktop_usage"
                     url = $processName
@@ -167,8 +199,12 @@ function Monitor-AdobeUsage {
                 
                 if (Send-UsageData -Data $usageData) {
                     $lastReportedProcesses[$processName] = $currentTime
-                    Write-Host "Reported: $processName (User: $env:USERNAME, Computer: $env:COMPUTERNAME)" -ForegroundColor Yellow
+                    Write-MonitorLog "Successfully reported: $processName (User: $env:USERNAME, Computer: $env:COMPUTERNAME)" "SUCCESS"
+                } else {
+                    Write-MonitorLog "Failed to report: $processName" "ERROR"
                 }
+            } else {
+                Write-MonitorLog "Skipping $processName - already reported recently" "DEBUG"
             }
         }
         
@@ -182,8 +218,10 @@ function Monitor-AdobeUsage {
         
         foreach ($key in $keysToRemove) {
             $lastReportedProcesses.Remove($key)
+            Write-MonitorLog "Cleaned up old entry: $key" "DEBUG"
         }
         
+        Write-MonitorLog "Cycle #$cycleCount complete. Waiting $CHECK_INTERVAL seconds..." "DEBUG"
         Start-Sleep -Seconds $CHECK_INTERVAL
     }
 }
