@@ -24,6 +24,7 @@ if (-not $isAdmin) {
 $INSTALL_DIR = "C:\ProgramData\AdobeMonitor"
 $TASK_NAME = "Adobe Usage Monitor - SubTracker"
 $LOG_FILE = "$INSTALL_DIR\uninstall.log"
+$RUN_KEY_NAME = "AdobeUsageMonitor"
 $REMOVE_FILES = $true  # Set to $false to keep logs/tracking data
 
 # Logging function
@@ -87,7 +88,16 @@ try {
         Write-Log "Scheduled task not found (may already be removed)" "WARN"
     }
 
-    # Step 3: Remove files and directories (optional)
+    # Step 3: Remove Run key entry
+    try {
+        Write-Log "Removing startup entry from Run key" "INFO"
+        Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $RUN_KEY_NAME -ErrorAction SilentlyContinue
+        Write-Log "Startup entry removed" "SUCCESS"
+    } catch {
+        Write-Log "Could not remove startup entry: $_" "WARN"
+    }
+
+    # Step 4: Remove files and directories (optional)
     if ($REMOVE_FILES) {
         if (Test-Path $INSTALL_DIR) {
             Write-Log "Removing installation directory: $INSTALL_DIR" "INFO"

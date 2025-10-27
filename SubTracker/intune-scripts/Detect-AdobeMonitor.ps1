@@ -17,16 +17,9 @@ $ErrorActionPreference = "SilentlyContinue"
 $INSTALL_DIR = "C:\ProgramData\AdobeMonitor"
 $SCRIPT_NAME = "Monitor-AdobeUsage.ps1"
 $TASK_NAME = "Adobe Usage Monitor - SubTracker"
+$RUN_KEY_NAME = "AdobeUsageMonitor"
 
-# Check #1: Verify scheduled task exists
-$task = Get-ScheduledTask -TaskName $TASK_NAME
-
-if (-not $task) {
-    # Task doesn't exist - not installed
-    exit 1
-}
-
-# Check #2: Verify monitoring script file exists
+# Check #1: Verify monitoring script file exists
 $scriptPath = Join-Path $INSTALL_DIR $SCRIPT_NAME
 
 if (-not (Test-Path $scriptPath)) {
@@ -34,18 +27,19 @@ if (-not (Test-Path $scriptPath)) {
     exit 1
 }
 
-# Check #3: Verify task is properly configured
-# Make sure it's set to run as SYSTEM
-if ($task.Principal.UserId -ne "SYSTEM") {
-    # Task not running as SYSTEM - incorrect installation
+# Check #2: Verify run key entry exists
+$runKeyPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
+$runKeyValue = (Get-ItemProperty -Path $runKeyPath -Name $RUN_KEY_NAME -ErrorAction SilentlyContinue).$RUN_KEY_NAME
+
+if (-not $runKeyValue) {
+    # Run key entry missing
     exit 1
 }
 
 # All checks passed - app is properly installed
 Write-Output "Adobe Usage Monitor is installed and configured correctly"
-Write-Output "Task: $TASK_NAME"
 Write-Output "Script: $scriptPath"
-Write-Output "Principal: $($task.Principal.UserId)"
-Write-Output "State: $($task.State)"
+Write-Output "Run key: HKLM\\...\\$RUN_KEY_NAME"
+Write-Output "Launch command: $runKeyValue"
 
 exit 0

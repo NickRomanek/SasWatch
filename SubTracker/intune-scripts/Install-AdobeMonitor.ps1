@@ -24,6 +24,8 @@ if (-not $isAdmin) {
 $INSTALL_DIR = "C:\ProgramData\AdobeMonitor"
 $SCRIPT_NAME = "Monitor-AdobeUsage.ps1"
 $TASK_NAME = "Adobe Usage Monitor - SubTracker"
+$RUN_KEY_NAME = "AdobeUsageMonitor"
+$LAUNCHER_NAME = "MonitorLauncher.vbs"
 $LOG_FILE = "$INSTALL_DIR\install.log"
 $STATUS_FILE = "$INSTALL_DIR\status.json"
 
@@ -94,73 +96,47 @@ try {
     Copy-Item -Path $sourceScript -Destination $targetScript -Force
     Write-Log "Script copied successfully" "SUCCESS"
 
-    # Step 4: Remove existing scheduled task if it exists
-    $existingTask = Get-ScheduledTask -TaskName $TASK_NAME -ErrorAction SilentlyContinue
-    if ($existingTask) {
-        Write-Log "Removing existing scheduled task" "WARN"
-        Unregister-ScheduledTask -TaskName $TASK_NAME -Confirm:$false
-        Write-Log "Existing task removed" "SUCCESS"
-    }
-
-    # Step 5: Create scheduled task
-    Write-Log "Creating scheduled task: $TASK_NAME" "INFO"
-
-    # Task action - Run PowerShell with monitoring script
-    $action = New-ScheduledTaskAction `
-        -Execute "PowerShell.exe" `
-        -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$targetScript`""
-
-    # Task trigger - At startup
-    $trigger = New-ScheduledTaskTrigger -AtStartup
-
-    # Task principal - Run as SYSTEM
-    $principal = New-ScheduledTaskPrincipal `
-        -UserId "SYSTEM" `
-        -LogonType ServiceAccount `
-        -RunLevel Highest
-
-    # Task settings
-    $settings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries `
-        -StartWhenAvailable `
-        -DontStopOnIdleEnd `
-        -RestartCount 3 `
-        -RestartInterval (New-TimeSpan -Minutes 1)
-
-    # Register the task
+    # Step 4: Ensure directory permissions for standard users
     try {
-        Register-ScheduledTask `
-            -TaskName $TASK_NAME `
-            -Action $action `
-            -Trigger $trigger `
-            -Principal $principal `
-            -Settings $settings `
-            -Description "Monitors Adobe Creative Cloud usage and reports to SubTracker" `
-            -ErrorAction Stop | Out-Null
-
-        Write-Log "Scheduled task created successfully" "SUCCESS"
+        Write-Log "Setting directory permissions for Users group" "INFO"
+        $acl = Get-Acl -Path $INSTALL_DIR
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Users","Modify","ContainerInherit, ObjectInherit","None","Allow")
+        $acl.SetAccessRule($rule)
+        Set-Acl -Path $INSTALL_DIR -AclObject $acl
+        Write-Log "Directory permissions updated" "SUCCESS"
     } catch {
-        Write-Log "Failed to create scheduled task: $_" "ERROR"
-        throw "Scheduled task creation failed: $_"
+        Write-Log "Could not update directory permissions: $_" "WARN"
     }
 
-    # Step 6: Start the monitoring task
-    Write-Log "Starting monitoring task" "INFO"
-    Start-ScheduledTask -TaskName $TASK_NAME
+    # Step 5: Create launcher script for user sessions
+    $launcherPath = Join-Path $INSTALL_DIR $LAUNCHER_NAME
+    Write-Log "Creating launcher script: $launcherPath" "INFO"
 
-    # Wait a moment and verify it started
-    Start-Sleep -Seconds 3
-    $taskInfo = Get-ScheduledTaskInfo -TaskName $TASK_NAME
-    $task = Get-ScheduledTask -TaskName $TASK_NAME
+    $launcherContent = @"
+Set objShell = CreateObject("Wscript.Shell")
+objShell.Run "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$targetScript""", 0, False
+"@
 
-    if ($taskInfo.LastTaskResult -eq 267009) {
-        Write-Log "Task is currently running" "SUCCESS"
-    } else {
-        Write-Log "Task started (Result code: $($taskInfo.LastTaskResult))" "SUCCESS"
+    Set-Content -Path $launcherPath -Value $launcherContent -Encoding ASCII
+    Write-Log "Launcher script created" "SUCCESS"
+
+    # Step 6: Configure Run key for all users
+    $runKeyPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
+    $launchCommand = "wscript.exe `"$launcherPath`""
+    Write-Log "Registering startup entry in Run key" "INFO"
+    Set-ItemProperty -Path $runKeyPath -Name $RUN_KEY_NAME -Value $launchCommand -Force
+    Write-Log "Startup entry registered" "SUCCESS"
+
+    # Step 7: Launch monitor for current session (if applicable)
+    try {
+        Write-Log "Launching monitor for current user session" "INFO"
+        Start-Process -FilePath "wscript.exe" -ArgumentList "`"$launcherPath`"" -WindowStyle Hidden
+        Write-Log "Monitor launched for current session" "SUCCESS"
+    } catch {
+        Write-Log "Could not launch monitor for current session: $_" "WARN"
     }
 
-    # Step 7: Test API connectivity
+    # Step 8: Test API connectivity
     Write-Log "Testing API connectivity..." "INFO"
     try {
         # Read the API URL from the monitoring script to ensure consistency
@@ -238,9 +214,9 @@ try {
     $statusInfo = @{
         installed = $true
         installTime = (Get-Date).ToUniversalTime().ToString("o")
-        taskName = $TASK_NAME
-        taskState = $task.State
-        taskLastResult = $taskInfo.LastTaskResult
+        runKeyName = $RUN_KEY_NAME
+        runKeyPath = $runKeyPath
+        launcherPath = $launcherPath
         scriptPath = $targetScript
         installDir = $INSTALL_DIR
         logFile = $LOG_FILE
@@ -259,15 +235,14 @@ try {
     Write-Log "========================================" "INFO"
     Write-Log "Installation completed successfully!" "SUCCESS"
     Write-Log "Monitoring script: $targetScript" "INFO"
-    Write-Log "Scheduled task: $TASK_NAME" "INFO"
+    Write-Log "Launcher script: $launcherPath" "INFO"
+    Write-Log "Run key entry: HKLM\\...\\$RUN_KEY_NAME" "INFO"
     Write-Log "Status file: $STATUS_FILE" "INFO"
     Write-Log "Log file: $LOG_FILE" "INFO"
     Write-Log "========================================" "INFO"
     Write-Log "TROUBLESHOOTING INFO:" "INFO"
     Write-Log "- Check status file: $STATUS_FILE" "INFO"
     Write-Log "- Check log file: $LOG_FILE" "INFO"
-    Write-Log "- Task state: $($task.State)" "INFO"
-    Write-Log "- Task last result: $($taskInfo.LastTaskResult)" "INFO"
     Write-Log "- API test result: $apiTestResult" "INFO"
     Write-Log "========================================" "INFO"
 
