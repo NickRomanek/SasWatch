@@ -231,13 +231,13 @@ function Monitor-AdobeUsage {
 # ============================================
 
 try {
-    Write-Host "================================================" -ForegroundColor Cyan
-    Write-Host "  Adobe Usage Monitor - SubTracker" -ForegroundColor Cyan
-    Write-Host "================================================" -ForegroundColor Cyan
-    Write-Host ""
+    Write-MonitorLog "================================================" "INFO"
+    Write-MonitorLog "Adobe Usage Monitor - SubTracker" "INFO"
+    Write-MonitorLog "================================================" "INFO"
+    Write-MonitorLog "" "INFO"
     
     # Test API connection
-    Write-Host "Testing API connection..." -ForegroundColor Yellow
+    Write-MonitorLog "Testing API connection..." "INFO"
     $testData = @{
         event = "monitor_started"
         url = "system"
@@ -250,21 +250,21 @@ try {
     }
     
     if (Send-UsageData -Data $testData) {
-        Write-Host "✓ API connection successful!" -ForegroundColor Green
-        Write-Host ""
+        Write-MonitorLog "API connection successful!" "SUCCESS"
+        Write-MonitorLog "" "INFO"
         Monitor-AdobeUsage
     }
     else {
-        Write-Host "✗ Failed to connect to API. Please check:" -ForegroundColor Red
-        Write-Host "  1. Internet connection" -ForegroundColor Yellow
-        Write-Host "  2. API URL: $API_URL" -ForegroundColor Yellow
-        Write-Host "  3. API Key is valid" -ForegroundColor Yellow
+        Write-MonitorLog "Failed to connect to API. Please check:" "ERROR"
+        Write-MonitorLog "  1. Internet connection" "ERROR"
+        Write-MonitorLog "  2. API URL: $API_URL" "ERROR"
+        Write-MonitorLog "  3. API Key is valid" "ERROR"
         exit 1
     }
 }
 catch {
-    Write-Host "✗ Error: $_" -ForegroundColor Red
-    Write-Host "Monitor stopped. Please contact support." -ForegroundColor Yellow
+    Write-MonitorLog "Error: $_" "ERROR"
+    Write-MonitorLog "Monitor stopped. Please contact support." "ERROR"
     exit 1
 }
 `;
