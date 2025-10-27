@@ -75,11 +75,11 @@ function Send-UsageData {
             -Body $json \`
             -ErrorAction Stop
         
-        Write-Host "✓ Usage data sent successfully" -ForegroundColor Green
+        Write-MonitorLog "Usage data sent successfully" "SUCCESS"
         return $true
     }
     catch {
-        Write-Host "✗ Failed to send usage data: $_" -ForegroundColor Red
+        Write-MonitorLog "Failed to send usage data: $_" "ERROR"
         return $false
     }
 }
