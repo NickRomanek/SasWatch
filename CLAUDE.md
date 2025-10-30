@@ -62,8 +62,15 @@ The platform uses **account-scoped queries** for complete data isolation:
 
 **`lib/script-generator.js`** - PowerShell Script Generation
 - Generates monitoring scripts with embedded API keys
-- Each account gets custom script with their unique API key
-- Scripts monitor Adobe processes and send data to `/api/track`
+- Environment-aware intervals (5 seconds for testing, 5 minutes for production)
+- Emits detailed logs via `Write-MonitorLog` to both console and `monitor.log`
+- Each account gets custom script with their unique API key and API URL
+- Scripts monitor foreground Adobe processes and send data to `/api/track`
+
+**`lib/intune-package-generator.js`** - Intune Package Builder
+- Creates tenant-specific ZIPs containing installer, uninstaller, detection, troubleshoot scripts
+- Embeds generated monitor script as `Monitor-AdobeUsage-Generated.ps1`
+- Produces tailored deployment guide and names packages per environment (production/testing)
 
 **`server-multitenant-routes.js`** - All Application Routes
 - Session setup with PostgreSQL store (production) or memory (dev)
@@ -163,8 +170,19 @@ Sessions use PostgreSQL store in production (via `DATABASE_URL`), memory store i
 
 Each account downloads customized PowerShell scripts via `/download/monitor-script`:
 - API key is embedded in the script
-- API URL is dynamically set (supports local dev and Railway)
+- API URL is dynamically set (supports self-host, Railway, or custom domains)
+- Log file location: `C:\ProgramData\AdobeMonitor\monitor.log`
+- Scripts include troubleshooting guidance via `Write-MonitorLog`
 - Scripts are generated on-the-fly, not stored
+
+The Intune package routes (`/download/intune-package`, `/download/intune-package-testing`) call the package generator to bundle:
+
+- `Install-AdobeMonitor.ps1` (per-user launcher installer)
+- `Uninstall-AdobeMonitor.ps1`
+- `Detect-AdobeMonitor.ps1`
+- `Monitor-AdobeUsage-Generated.ps1`
+- `troubleshoot-monitoring.ps1`
+- `DEPLOYMENT-GUIDE.txt`
 
 ## File Organization
 
@@ -190,6 +208,7 @@ SubTracker/
 Outside `SubTracker/`:
 - `extension/` - Chrome extension for web Adobe.com tracking
 - `scripts/` - Reference PowerShell templates
+- `intune-scripts/` - Installer, uninstaller, detection, troubleshooting scripts bundled into Intune packages
 - `README.md`, `DEPLOYMENT-GUIDE.md` - Documentation
 
 ## Environment Variables
@@ -258,14 +277,23 @@ See `README.md` and `DEPLOYMENT-GUIDE.md` for complete instructions.
 
 1. **Organization signs up** → Gets unique `apiKey`
 2. **Downloads monitoring script** → PowerShell with embedded API key
-3. **Deploys via Intune/GPO** → Runs on employees' computers every 5 minutes
+3. **Deploys via Intune/GPO** → Installer runs as SYSTEM, registers per-user launcher
 4. **Script detects Adobe processes** → Acrobat, Photoshop, Illustrator, etc.
-5. **Sends to `/api/track`** → Includes Windows username, computer name, process
+5. **Launcher runs in the user session at logon** → Ensures foreground window access
+6. **Sends to `/api/track`** → Includes Windows username, computer name, process
 6. **Username mapping** → Links Windows username to Adobe email
 7. **Updates activity** → `lastActivity` and `activityCount` for that user
 8. **Dashboard shows usage** → Organization sees who's using Adobe and when
 
 Optional: Chrome extension also tracks Adobe.com website usage.
+
+## Intune Deployment Notes
+
+- `Install-AdobeMonitor.ps1` now configures a launcher (`MonitorLauncher.vbs`) and Run key (`HKLM\...\Run\AdobeUsageMonitor`) so the monitoring script runs inside each user session (foreground window access).
+- The installer sets ACLs on `C:\ProgramData\AdobeMonitor` so standard users can write `monitor.log` and status files.
+- `Detect-AdobeMonitor.ps1` validates both the installed script and Run-key entry (checks 64-bit and WOW6432Node views for Intune’s 32-bit detection host).
+- `Uninstall-AdobeMonitor.ps1` removes the Run-key entry, kills the launcher, and cleans up the install directory.
+- Logging is available at `C:\ProgramData\AdobeMonitor\monitor.log` (monitoring) and `install.log` / `uninstall.log` (installer scripts) for troubleshooting.
 
 ## Security Considerations
 

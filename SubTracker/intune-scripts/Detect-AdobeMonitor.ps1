@@ -27,9 +27,20 @@ if (-not (Test-Path $scriptPath)) {
     exit 1
 }
 
-# Check #2: Verify run key entry exists
-$runKeyPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
-$runKeyValue = (Get-ItemProperty -Path $runKeyPath -Name $RUN_KEY_NAME -ErrorAction SilentlyContinue).$RUN_KEY_NAME
+# Check #2: Verify run key entry exists (both 64-bit and 32-bit views)
+$runKeyPaths = @(
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run",
+    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"
+)
+
+$runKeyValue = $null
+foreach ($path in $runKeyPaths) {
+    $value = (Get-ItemProperty -Path $path -Name $RUN_KEY_NAME -ErrorAction SilentlyContinue).$RUN_KEY_NAME
+    if ($value) {
+        $runKeyValue = $value
+        break
+    }
+}
 
 if (-not $runKeyValue) {
     # Run key entry missing
