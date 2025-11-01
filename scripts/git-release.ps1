@@ -114,7 +114,25 @@ Show-Header
 $currentBranch = git branch --show-current
 $status = git status --short
 
-Write-Host "Branch: $currentBranch" -ForegroundColor Cyan
+# Get current version/tag
+$latestTag = git describe --tags --abbrev=0 2>$null
+
+Write-Host "Current Status:" -ForegroundColor Cyan
+Write-Host "  Branch: " -NoNewline -ForegroundColor Gray
+Write-Host $currentBranch -ForegroundColor $(switch ($currentBranch) {
+    "main" { "Red" }
+    "develop" { "Yellow" }
+    default { "Green" }
+})
+
+if ($latestTag) {
+    Write-Host "  Current Version: " -NoNewline -ForegroundColor Gray
+    Write-Host $latestTag -ForegroundColor Green
+} else {
+    Write-Host "  Current Version: " -NoNewline -ForegroundColor Gray
+    Write-Host "None (starting fresh)" -ForegroundColor Yellow
+}
+
 Write-Host ""
 
 # ============================================
