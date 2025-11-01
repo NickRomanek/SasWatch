@@ -10,6 +10,68 @@ function Show-Header {
     Write-Host ""
 }
 
+function Test-GitHubConnection {
+    Write-Host "Testing connection to GitHub..." -ForegroundColor Yellow
+    try {
+        $response = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
+        Write-Host "✅ Connection to GitHub successful" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        Write-Host "❌ Cannot reach GitHub" -ForegroundColor Red
+        Write-Host "   Error: $($_.Exception.Message)" -ForegroundColor Gray
+        return $false
+    }
+}
+
+function Handle-GitHubAuth {
+    Write-Host ""
+    Write-Host "GitHub Authentication Help" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "You may need to authenticate with GitHub." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Options:" -ForegroundColor Cyan
+    Write-Host "  1. Try pushing now (will prompt for credentials)" -ForegroundColor White
+    Write-Host "  2. Install GitHub CLI and login (recommended)" -ForegroundColor White
+    Write-Host "  3. Skip push (keep changes local)" -ForegroundColor White
+    Write-Host ""
+    $choice = Read-Host "Enter choice (1-3)"
+    
+    switch ($choice) {
+        "1" {
+            Write-Host ""
+            Write-Host "Attempting push (will prompt for credentials)..." -ForegroundColor Yellow
+            Write-Host "Username: Use your GitHub username" -ForegroundColor Gray
+            Write-Host "Password: Use a Personal Access Token (not password)" -ForegroundColor Gray
+            Write-Host "Get token: https://github.com/settings/tokens" -ForegroundColor Gray
+            Write-Host ""
+            return "retry"
+        }
+        "2" {
+            Write-Host ""
+            Write-Host "Installing GitHub CLI..." -ForegroundColor Yellow
+            try {
+                winget install --id GitHub.cli --silent --accept-source-agreements --accept-package-agreements
+                Write-Host "✅ GitHub CLI installed" -ForegroundColor Green
+                Write-Host "Running: gh auth login" -ForegroundColor Yellow
+                gh auth login
+                return "retry"
+            }
+            catch {
+                Write-Host "❌ Failed to install GitHub CLI" -ForegroundColor Red
+                Write-Host "   Install manually: winget install GitHub.cli" -ForegroundColor Gray
+                return "skip"
+            }
+        }
+        "3" {
+            return "skip"
+        }
+        default {
+            return "skip"
+        }
+    }
+}
+
 function Show-Summary {
     param(
         [string]$Mode,
@@ -322,22 +384,68 @@ Write-Host "✅ Tag created locally" -ForegroundColor Green
 Write-Host ""
 
 # ============================================
-# Step 11: Push Commits and Tag (if Full Release)
+# Step 11: Push Commits and Tag (ONLY for Full Release mode)
 # ============================================
+# Note: Connection test and push only happen for "Full Release" (option 1)
+# "Local Only" (option 2) and "Dry Run" (option 3) skip this entire section
 if ($mode -eq "full") {
+    # Test GitHub connection before attempting push
+    Write-Host ""
+    $connectionOk = Test-GitHubConnection
+    Write-Host ""
+    
+    if (-not $connectionOk) {
+        Write-Host "⚠️  Cannot connect to GitHub" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Possible causes:" -ForegroundColor Cyan
+        Write-Host "  • No internet connection" -ForegroundColor Gray
+        Write-Host "  • VPN not connected" -ForegroundColor Gray
+        Write-Host "  • Firewall blocking GitHub" -ForegroundColor Gray
+        Write-Host "  • GitHub is down" -ForegroundColor Gray
+        Write-Host ""
+        $retry = Read-Host "Try anyway? (y/n)"
+        if ($retry -ne "y" -and $retry -ne "Y") {
+            Write-Host ""
+            Write-Host "Changes and tag are local. Push manually later with:" -ForegroundColor Yellow
+            Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
+            Write-Host "  git push origin $newVersion" -ForegroundColor Gray
+            exit 1
+        }
+        Write-Host ""
+    }
+    
     if ($status) {
         Write-Host "Pushing commits to GitHub..." -ForegroundColor Yellow
         git push origin $currentBranch
         
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "❌ Push failed. Check your connection." -ForegroundColor Red
-            Write-Host ""
-            Write-Host "Changes and tag are local. You can push manually with:" -ForegroundColor Yellow
-            Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
-            Write-Host "  git push origin $newVersion" -ForegroundColor Gray
-            exit 1
+            Write-Host "❌ Push failed" -ForegroundColor Red
+            $authAction = Handle-GitHubAuth
+            
+            if ($authAction -eq "retry") {
+                Write-Host ""
+                Write-Host "Retrying push..." -ForegroundColor Yellow
+                git push origin $currentBranch
+                
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "❌ Push still failed" -ForegroundColor Red
+                    Write-Host ""
+                    Write-Host "Changes and tag are local. Push manually with:" -ForegroundColor Yellow
+                    Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
+                    Write-Host "  git push origin $newVersion" -ForegroundColor Gray
+                    exit 1
+                }
+                Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
+            } else {
+                Write-Host ""
+                Write-Host "Skipping push. Changes and tag are local:" -ForegroundColor Yellow
+                Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
+                Write-Host "  git push origin $newVersion" -ForegroundColor Gray
+                exit 1
+            }
+        } else {
+            Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
         }
-        Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
     }
     
     Write-Host "Pushing tag to GitHub..." -ForegroundColor Yellow
@@ -361,10 +469,13 @@ if ($mode -eq "full") {
         Write-Host ""
     } else {
         Write-Host ""
-        Write-Host "❌ Failed to push tag. Check your connection." -ForegroundColor Red
+        Write-Host "❌ Failed to push tag" -ForegroundColor Red
         Write-Host ""
         Write-Host "Tag created locally. You can push manually with:" -ForegroundColor Yellow
         Write-Host "  git push origin $newVersion" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "Or retry authentication:" -ForegroundColor Cyan
+        Write-Host "  gh auth login" -ForegroundColor Gray
     }
 } else {
     Write-Host ""
