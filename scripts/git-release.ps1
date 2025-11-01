@@ -295,13 +295,16 @@ try {
     Write-Host "Local Only (commit locally + create tag locally, no push)" -ForegroundColor White
     Write-Host "  3. " -NoNewline -ForegroundColor Yellow
     Write-Host "Dry Run (just show what would happen, do nothing)" -ForegroundColor White
+    Write-Host "  4. " -NoNewline -ForegroundColor Yellow
+    Write-Host "Restore from Previous Version" -ForegroundColor White
     Write-Host ""
-    $modeChoice = Read-Host "Enter choice (1-3)"
+    $modeChoice = Read-Host "Enter choice (1-4)"
 
     switch ($modeChoice) {
         "1" { $mode = "full"; $modeDisplay = "Full Release" }
         "2" { $mode = "local"; $modeDisplay = "Local Only" }
         "3" { $mode = "dryrun"; $modeDisplay = "Dry Run" }
+        "4" { $mode = "restore"; $modeDisplay = "Restore Version" }
         default {
             Write-Host "Invalid choice. Cancelled." -ForegroundColor Yellow
             Pop-Location
@@ -310,6 +313,149 @@ try {
     }
 
     Write-Host ""
+
+    # ============================================
+    # Restore Mode - Handle Separately
+    # ============================================
+    if ($mode -eq "restore") {
+        Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+        Write-Host "Restore from Previous Version" -ForegroundColor Cyan
+        Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+        Write-Host ""
+
+        # Get last 10 tags with their commit dates
+        $tags = git tag --sort=-creatordate --format='%(refname:short)|%(creatordate:short)|%(subject)' 2>$null
+
+        if (-not $tags) {
+            Write-Host "❌ No tags found in this repository" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "You need to create at least one release first." -ForegroundColor Yellow
+            Pop-Location
+            exit
+        }
+
+        # Parse and display tags
+        $tagList = @()
+        $tags | Select-Object -First 10 | ForEach-Object {
+            $parts = $_ -split '\|'
+            $tagList += [PSCustomObject]@{
+                Tag = $parts[0]
+                Date = $parts[1]
+                Message = if ($parts.Length -gt 2) { $parts[2] } else { "" }
+            }
+        }
+
+        Write-Host "Available versions (showing last 10):" -ForegroundColor Yellow
+        Write-Host ""
+        for ($i = 0; $i -lt $tagList.Count; $i++) {
+            $tag = $tagList[$i]
+            $num = $i + 1
+            Write-Host "  $num. " -NoNewline -ForegroundColor Yellow
+            Write-Host "$($tag.Tag)" -NoNewline -ForegroundColor Green
+            Write-Host " - " -NoNewline -ForegroundColor Gray
+            Write-Host "$($tag.Date)" -NoNewline -ForegroundColor Cyan
+            if ($tag.Message) {
+                Write-Host " ($($tag.Message))" -ForegroundColor Gray
+            } else {
+                Write-Host ""
+            }
+        }
+        Write-Host ""
+        Write-Host "  0. Cancel" -ForegroundColor Yellow
+        Write-Host ""
+
+        $versionChoice = Read-Host "Select version to restore (0-$($tagList.Count))"
+
+        if ($versionChoice -eq "0" -or [string]::IsNullOrWhiteSpace($versionChoice)) {
+            Write-Host "Restore cancelled." -ForegroundColor Yellow
+            Pop-Location
+            exit
+        }
+
+        $versionIndex = [int]$versionChoice - 1
+        if ($versionIndex -lt 0 -or $versionIndex -ge $tagList.Count) {
+            Write-Host "Invalid choice. Cancelled." -ForegroundColor Yellow
+            Pop-Location
+            exit
+        }
+
+        $selectedTag = $tagList[$versionIndex].Tag
+
+        Write-Host ""
+        Write-Host "════════════════════════════════════════" -ForegroundColor Yellow
+        Write-Host "⚠️  WARNING: Restore Operation" -ForegroundColor Yellow
+        Write-Host "════════════════════════════════════════" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "You are about to restore to version: " -NoNewline -ForegroundColor White
+        Write-Host "$selectedTag" -ForegroundColor Green
+        Write-Host "Date: " -NoNewline -ForegroundColor White
+        Write-Host "$($tagList[$versionIndex].Date)" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "This will:" -ForegroundColor Yellow
+        Write-Host "  • Checkout the code from version $selectedTag" -ForegroundColor Gray
+        Write-Host "  • Put your repository in 'detached HEAD' state" -ForegroundColor Gray
+        Write-Host "  • You can explore this version safely" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "If you have uncommitted changes, they will be lost!" -ForegroundColor Red
+        Write-Host ""
+
+        # Check for uncommitted changes
+        $statusCheck = git status --short
+        if ($statusCheck) {
+            Write-Host "⚠️  You have uncommitted changes:" -ForegroundColor Red
+            git status --short
+            Write-Host ""
+            Write-Host "Options:" -ForegroundColor Cyan
+            Write-Host "  1. Continue anyway (changes will be lost)" -ForegroundColor White
+            Write-Host "  2. Cancel and commit changes first" -ForegroundColor White
+            Write-Host ""
+            $continueChoice = Read-Host "Enter choice (1-2)"
+
+            if ($continueChoice -ne "1") {
+                Write-Host "Restore cancelled. Please commit or stash your changes first." -ForegroundColor Yellow
+                Pop-Location
+                exit
+            }
+        }
+
+        $confirm = Read-Host "Continue with restore? (y/n)"
+        if ($confirm -ne "y" -and $confirm -ne "Y") {
+            Write-Host "Restore cancelled." -ForegroundColor Yellow
+            Pop-Location
+            exit
+        }
+
+        Write-Host ""
+        Write-Host "Checking out version $selectedTag..." -ForegroundColor Yellow
+        git checkout $selectedTag
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host ""
+            Write-Host "════════════════════════════════════════" -ForegroundColor Green
+            Write-Host "✅ Restore Complete!" -ForegroundColor Green
+            Write-Host "════════════════════════════════════════" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "You are now at version: " -NoNewline -ForegroundColor Cyan
+            Write-Host "$selectedTag" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "Your repository is in 'detached HEAD' state." -ForegroundColor Yellow
+            Write-Host "This is safe for viewing/testing this version." -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "To go back to the latest code:" -ForegroundColor Cyan
+            Write-Host "  git checkout $currentBranch" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "To create a new branch from this version:" -ForegroundColor Cyan
+            Write-Host "  git checkout -b new-branch-name" -ForegroundColor Gray
+            Write-Host ""
+        } else {
+            Write-Host ""
+            Write-Host "❌ Restore failed" -ForegroundColor Red
+            Write-Host ""
+        }
+
+        Pop-Location
+        exit
+    }
 
     # ============================================
     # Step 0.5: Test GitHub Connection (for Full Release only)
