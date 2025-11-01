@@ -312,6 +312,20 @@ try {
 
     Write-Host "Current Status:" -ForegroundColor Cyan
     Write-Host "  Branch: " -NoNewline -ForegroundColor Gray
+
+    # Handle detached HEAD state
+    if ([string]::IsNullOrWhiteSpace($currentBranch)) {
+        $currentBranch = "detached HEAD"
+        Write-Host $currentBranch -ForegroundColor Red
+        Write-Host ""
+        Write-Host "⚠️  You are in detached HEAD state!" -ForegroundColor Yellow
+        Write-Host "   Please return to a branch before creating a release:" -ForegroundColor Yellow
+        Write-Host "   git checkout main" -ForegroundColor Gray
+        Write-Host ""
+        Pop-Location
+        exit 1
+    }
+
     Write-Host $currentBranch -ForegroundColor $(switch ($currentBranch) {
         "main" { "Red" }
         "develop" { "Yellow" }
@@ -426,19 +440,71 @@ try {
         $selectedTag = $tagList[$versionIndex].Tag
 
         Write-Host ""
+        Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+        Write-Host "Restore Options" -ForegroundColor Cyan
+        Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Selected version: " -NoNewline -ForegroundColor White
+        Write-Host "$selectedTag" -ForegroundColor Green
+        Write-Host "Date: " -NoNewline -ForegroundColor White
+        Write-Host "$($tagList[$versionIndex].Date)" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "How would you like to restore?" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "  1. " -NoNewline -ForegroundColor Yellow
+        Write-Host "View Only (detached HEAD - safe, no changes to branch)" -ForegroundColor White
+        Write-Host "     • Checkout code to view/test this version" -ForegroundColor Gray
+        Write-Host "     • Repository in 'detached HEAD' state" -ForegroundColor Gray
+        Write-Host "     • Easily return to latest with 'git checkout main'" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "  2. " -NoNewline -ForegroundColor Yellow
+        Write-Host "Full Rollback (DESTRUCTIVE - resets branch to this version)" -ForegroundColor Red
+        Write-Host "     • Resets '$currentBranch' branch to this version" -ForegroundColor Gray
+        Write-Host "     • Deletes all commits after $selectedTag" -ForegroundColor Gray
+        Write-Host "     • Force pushes to GitHub (overwrites remote)" -ForegroundColor Gray
+        Write-Host "     ⚠️  THIS CANNOT BE UNDONE!" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  0. Cancel" -ForegroundColor Yellow
+        Write-Host ""
+        $restoreMethod = Read-Host "Enter choice (0-2)"
+
+        if ($restoreMethod -eq "0" -or [string]::IsNullOrWhiteSpace($restoreMethod)) {
+            Write-Host "Restore cancelled." -ForegroundColor Yellow
+            Pop-Location
+            exit
+        }
+
+        if ($restoreMethod -ne "1" -and $restoreMethod -ne "2") {
+            Write-Host "Invalid choice. Cancelled." -ForegroundColor Yellow
+            Pop-Location
+            exit
+        }
+
+        Write-Host ""
         Write-Host "════════════════════════════════════════" -ForegroundColor Yellow
         Write-Host "⚠️  WARNING: Restore Operation" -ForegroundColor Yellow
         Write-Host "════════════════════════════════════════" -ForegroundColor Yellow
         Write-Host ""
         Write-Host "You are about to restore to version: " -NoNewline -ForegroundColor White
         Write-Host "$selectedTag" -ForegroundColor Green
-        Write-Host "Date: " -NoNewline -ForegroundColor White
-        Write-Host "$($tagList[$versionIndex].Date)" -ForegroundColor Cyan
         Write-Host ""
-        Write-Host "This will:" -ForegroundColor Yellow
-        Write-Host "  • Checkout the code from version $selectedTag" -ForegroundColor Gray
-        Write-Host "  • Put your repository in 'detached HEAD' state" -ForegroundColor Gray
-        Write-Host "  • You can explore this version safely" -ForegroundColor Gray
+
+        if ($restoreMethod -eq "2") {
+            Write-Host "This will:" -ForegroundColor Red
+            Write-Host "  • RESET $currentBranch branch to $selectedTag" -ForegroundColor Gray
+            Write-Host "  • DELETE all commits after $selectedTag" -ForegroundColor Gray
+            Write-Host "  • FORCE PUSH to GitHub (overwrites remote history)" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "Commits that will be LOST:" -ForegroundColor Red
+            git log --oneline $selectedTag..HEAD 2>$null
+            Write-Host ""
+            Write-Host "⚠️  THIS IS PERMANENT AND CANNOT BE UNDONE!" -ForegroundColor Red
+        } else {
+            Write-Host "This will:" -ForegroundColor Yellow
+            Write-Host "  • Checkout the code from version $selectedTag" -ForegroundColor Gray
+            Write-Host "  • Put your repository in 'detached HEAD' state" -ForegroundColor Gray
+            Write-Host "  • You can explore this version safely" -ForegroundColor Gray
+        }
         Write-Host ""
         Write-Host "If you have uncommitted changes, they will be lost!" -ForegroundColor Red
         Write-Host ""
@@ -470,10 +536,61 @@ try {
         }
 
         Write-Host ""
-        Write-Host "Checking out version $selectedTag..." -ForegroundColor Yellow
-        git checkout $selectedTag
 
-        if ($LASTEXITCODE -eq 0) {
+        if ($restoreMethod -eq "2") {
+            # Full Rollback - Hard Reset
+            Write-Host "Resetting $currentBranch to $selectedTag..." -ForegroundColor Yellow
+            git reset --hard $selectedTag
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "❌ Reset failed" -ForegroundColor Red
+                Pop-Location
+                exit 1
+            }
+
+            Write-Host "✅ Branch reset to $selectedTag" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "Pushing to GitHub (force push)..." -ForegroundColor Yellow
+            git push --force origin $currentBranch
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "❌ Force push failed" -ForegroundColor Red
+                Write-Host ""
+                Write-Host "Local branch has been reset, but GitHub was not updated." -ForegroundColor Yellow
+                Write-Host "You can manually force push with:" -ForegroundColor Cyan
+                Write-Host "  git push --force origin $currentBranch" -ForegroundColor Gray
+                Write-Host ""
+                Pop-Location
+                exit 1
+            }
+
+            Write-Host "✅ Pushed to GitHub" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "════════════════════════════════════════" -ForegroundColor Green
+            Write-Host "✅ Rollback Complete!" -ForegroundColor Green
+            Write-Host "════════════════════════════════════════" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "Branch: " -NoNewline -ForegroundColor Cyan
+            Write-Host "$currentBranch" -ForegroundColor White
+            Write-Host "Version: " -NoNewline -ForegroundColor Cyan
+            Write-Host "$selectedTag" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "Your repository has been rolled back to $selectedTag" -ForegroundColor Gray
+            Write-Host "All commits after this version have been deleted." -ForegroundColor Gray
+            Write-Host "Railway will auto-deploy this version." -ForegroundColor Gray
+            Write-Host ""
+
+        } else {
+            # View Only - Detached HEAD
+            Write-Host "Checking out version $selectedTag..." -ForegroundColor Yellow
+            git checkout $selectedTag
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "❌ Checkout failed" -ForegroundColor Red
+                Pop-Location
+                exit 1
+            }
+
             Write-Host ""
             Write-Host "════════════════════════════════════════" -ForegroundColor Green
             Write-Host "✅ Restore Complete!" -ForegroundColor Green
@@ -490,10 +607,6 @@ try {
             Write-Host ""
             Write-Host "To create a new branch from this version:" -ForegroundColor Cyan
             Write-Host "  git checkout -b new-branch-name" -ForegroundColor Gray
-            Write-Host ""
-        } else {
-            Write-Host ""
-            Write-Host "❌ Restore failed" -ForegroundColor Red
             Write-Host ""
         }
 
