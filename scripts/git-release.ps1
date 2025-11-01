@@ -16,7 +16,7 @@ function Test-GitHubConnection {
     # Test 1: HTTP connectivity to github.com (optional check - git connectivity is what matters)
     $httpOk = $false
     try {
-        $response = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
+        $response = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 7 -UseBasicParsing -ErrorAction Stop
         $httpOk = $true
         Write-Host "  ✓ HTTP connection to github.com: OK" -ForegroundColor Green
     }
@@ -222,6 +222,13 @@ function Show-Summary {
 }
 
 Show-Header
+
+# ============================================
+# Configure git timeouts (reduce hanging)
+# ============================================
+# Set a reasonable timeout for git operations (30 seconds)
+$env:GIT_HTTP_LOW_SPEED_LIMIT = "1000"
+$env:GIT_HTTP_LOW_SPEED_TIME = "30"
 
 # ============================================
 # Ensure we're in the git repository root
@@ -627,33 +634,84 @@ try {
         if ($status) {
             Write-Host "Pushing commits to GitHub..." -ForegroundColor Yellow
             git push origin $currentBranch
-            
+
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "❌ Push failed" -ForegroundColor Red
-                $authAction = Handle-GitHubAuth
-                
-                if ($authAction -eq "retry") {
-                    Write-Host ""
-                    Write-Host "Retrying push..." -ForegroundColor Yellow
-                    git push origin $currentBranch
-                    
-                    if ($LASTEXITCODE -ne 0) {
-                        Write-Host "❌ Push still failed" -ForegroundColor Red
+                Write-Host ""
+                Write-Host "This usually happens due to:" -ForegroundColor Yellow
+                Write-Host "  • Network/VPN disconnected" -ForegroundColor Gray
+                Write-Host "  • Firewall blocking git operations" -ForegroundColor Gray
+                Write-Host "  • GitHub temporarily unreachable" -ForegroundColor Gray
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Cyan
+                Write-Host "  1. Keep changes local (recommended - you can push manually later)" -ForegroundColor White
+                Write-Host "  2. Try authentication setup" -ForegroundColor White
+                Write-Host "  3. Retry push now" -ForegroundColor White
+                Write-Host ""
+                $pushChoice = Read-Host "Enter choice (1-3)"
+
+                switch ($pushChoice) {
+                    "1" {
                         Write-Host ""
-                        Write-Host "Changes and tag are local. Push manually with:" -ForegroundColor Yellow
+                        Write-Host "✅ Release saved locally" -ForegroundColor Green
+                        Write-Host ""
+                        Write-Host "Push manually when ready with:" -ForegroundColor Cyan
+                        Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
+                        Write-Host "  git push origin $newVersion" -ForegroundColor Gray
+                        Write-Host ""
+                        Pop-Location
+                        exit 0
+                    }
+                    "2" {
+                        $authAction = Handle-GitHubAuth
+                        if ($authAction -eq "retry") {
+                            Write-Host ""
+                            Write-Host "Retrying push..." -ForegroundColor Yellow
+                            git push origin $currentBranch
+
+                            if ($LASTEXITCODE -ne 0) {
+                                Write-Host "❌ Push still failed" -ForegroundColor Red
+                                Write-Host ""
+                                Write-Host "Changes and tag are saved locally. Push manually with:" -ForegroundColor Yellow
+                                Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
+                                Write-Host "  git push origin $newVersion" -ForegroundColor Gray
+                                Pop-Location
+                                exit 1
+                            }
+                            Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
+                        } else {
+                            Write-Host ""
+                            Write-Host "Changes and tag are saved locally. Push manually with:" -ForegroundColor Yellow
+                            Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
+                            Write-Host "  git push origin $newVersion" -ForegroundColor Gray
+                            Pop-Location
+                            exit 0
+                        }
+                    }
+                    "3" {
+                        Write-Host ""
+                        Write-Host "Retrying push..." -ForegroundColor Yellow
+                        git push origin $currentBranch
+
+                        if ($LASTEXITCODE -ne 0) {
+                            Write-Host "❌ Push still failed" -ForegroundColor Red
+                            Write-Host ""
+                            Write-Host "Changes and tag are saved locally. Push manually with:" -ForegroundColor Yellow
+                            Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
+                            Write-Host "  git push origin $newVersion" -ForegroundColor Gray
+                            Pop-Location
+                            exit 1
+                        }
+                        Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
+                    }
+                    default {
+                        Write-Host ""
+                        Write-Host "Changes and tag are saved locally. Push manually with:" -ForegroundColor Yellow
                         Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
                         Write-Host "  git push origin $newVersion" -ForegroundColor Gray
                         Pop-Location
-                        exit 1
+                        exit 0
                     }
-                    Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
-                } else {
-                    Write-Host ""
-                    Write-Host "Skipping push. Changes and tag are local:" -ForegroundColor Yellow
-                    Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
-                    Write-Host "  git push origin $newVersion" -ForegroundColor Gray
-                    Pop-Location
-                    exit 1
                 }
             } else {
                 Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
@@ -662,7 +720,7 @@ try {
         
         Write-Host "Pushing tag to GitHub..." -ForegroundColor Yellow
         git push origin $newVersion
-        
+
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
             Write-Host "════════════════════════════════════════" -ForegroundColor Green
@@ -683,11 +741,28 @@ try {
             Write-Host ""
             Write-Host "❌ Failed to push tag" -ForegroundColor Red
             Write-Host ""
-            Write-Host "Tag created locally. You can push manually with:" -ForegroundColor Yellow
+            Write-Host "Options:" -ForegroundColor Cyan
+            Write-Host "  1. Keep tag local (you can push manually later)" -ForegroundColor White
+            Write-Host "  2. Retry push now" -ForegroundColor White
+            Write-Host ""
+            $tagPushChoice = Read-Host "Enter choice (1-2)"
+
+            if ($tagPushChoice -eq "2") {
+                Write-Host ""
+                Write-Host "Retrying tag push..." -ForegroundColor Yellow
+                git push origin $newVersion
+
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "✅ Tag pushed successfully!" -ForegroundColor Green
+                } else {
+                    Write-Host "❌ Tag push still failed" -ForegroundColor Red
+                }
+            }
+
+            Write-Host ""
+            Write-Host "Tag is saved locally. Push manually when ready with:" -ForegroundColor Yellow
             Write-Host "  git push origin $newVersion" -ForegroundColor Gray
             Write-Host ""
-            Write-Host "Or retry authentication:" -ForegroundColor Cyan
-            Write-Host "  gh auth login" -ForegroundColor Gray
         }
     } else {
         Write-Host ""
