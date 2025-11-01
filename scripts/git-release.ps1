@@ -494,16 +494,7 @@ try {
     }
 
     # ============================================
-    # Step 5: Get Tag/Release Message
-    # ============================================
-    Write-Host ""
-    $tagMessage = Read-Host "Enter release description (or press Enter for default)"
-    if ([string]::IsNullOrWhiteSpace($tagMessage)) {
-        $tagMessage = "Release $releaseType version"
-    }
-
-    # ============================================
-    # Step 6: Calculate New Version
+    # Step 5: Calculate New Version
     # ============================================
     # Reuse $latestTag from initial status check
     $currentVersion = "0.0.0"
@@ -528,11 +519,14 @@ try {
 
     $newVersion = "v$major.$minor.$patch"
 
+    # Auto-generate tag message
+    $tagMessage = "Release $newVersion"
+
     Write-Host "New version: $newVersion" -ForegroundColor Green
     Write-Host ""
 
     # ============================================
-    # Step 7: Show Summary and Confirm
+    # Step 6: Show Summary and Confirm
     # ============================================
     Show-Summary -Mode $modeDisplay -Version $newVersion -Type $releaseType `
         -TagMessage $tagMessage -CommitMessage $commitMsg `
@@ -587,7 +581,7 @@ try {
     }
 
     # ============================================
-    # Step 9: Commit Changes Locally (if any)
+    # Step 7: Commit Changes Locally (if any)
     # ============================================
     if ($status) {
         Write-Host ""
@@ -611,7 +605,7 @@ try {
     }
 
     # ============================================
-    # Step 10: Create Tag Locally
+    # Step 8: Create Tag Locally
     # ============================================
     Write-Host "Creating tag: $newVersion" -ForegroundColor Yellow
     git tag -a $newVersion -m $tagMessage
@@ -625,7 +619,7 @@ try {
     Write-Host ""
 
     # ============================================
-    # Step 11: Push Commits and Tag (ONLY for Full Release mode)
+    # Step 9: Push Commits and Tag (ONLY for Full Release mode)
     # ============================================
     # Note: Push only happens for "Full Release" (option 1)
     # "Local Only" (option 2) and "Dry Run" (option 3) skip this entire section
