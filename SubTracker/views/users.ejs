@@ -7,22 +7,62 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-content">
-                <h1>📊 Abowdy</h1>
-                <p class="subtitle">User Management</p>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <span>📊</span>
+                <span>Abowdy</span>
             </div>
-            <nav>
-                <a href="/" class="active">Users</a>
-                <a href="/dashboard">Dashboard</a>
-                <a href="/account">Account</a>
-                <a href="/logout" class="nav-logout">Logout</a>
-            </nav>
-            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
-                <span class="theme-toggle-icon" id="theme-icon">☀️</span>
+            <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+                <span id="sidebar-toggle-icon">◀</span>
             </button>
-        </header>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <div class="sidebar-nav-item">
+                <a href="/" class="sidebar-nav-link active" data-tooltip="Users">
+                    <span class="nav-icon">👥</span>
+                    <span>Users</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
+                    <span class="nav-icon">📊</span>
+                    <span>Activity</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/account" class="sidebar-nav-link" data-tooltip="Account">
+                    <span class="nav-icon">⚙️</span>
+                    <span>Account</span>
+                </a>
+            </div>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-actions">
+                <a href="/logout" class="sidebar-footer-link">
+                    <span class="nav-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+                <button class="sidebar-footer-link" onclick="toggleTheme()" style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;" title="Toggle theme">
+                    <span class="nav-icon" id="theme-icon">☀️</span>
+                    <span>Theme</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <header>
+                <div class="header-content">
+                    <h1>👥 Users</h1>
+                    <p class="subtitle">User Management</p>
+                </div>
+            </header>
 
         <!-- Upload + Unmapped Grid -->
         <div class="upload-section">
@@ -53,6 +93,13 @@
                         </button>
                     </div>
                     <% } %>
+                    
+                    <% if (users && users.length > 0 && unmappedUsernames && unmappedUsernames.length > 0) { %>
+                    <div class="unmapped-info-notice">
+                        <span class="info-icon-small">ℹ️</span>
+                        <span>We detected Windows usernames sending activity that aren't linked to any imported user. Map them to ensure activity is attributed correctly.</span>
+                    </div>
+                    <% } %>
                 </div>
                 
                 <form id="csv-upload-form" style="<%= users && users.length > 0 ? 'display:none' : '' %>" enctype="multipart/form-data">
@@ -72,19 +119,6 @@
                     </div>
                 </form>
                 </div>
-
-                <% if (users && users.length > 0 && unmappedUsernames && unmappedUsernames.length > 0) { %>
-                <div class="unmapped-card">
-                    <div class="unmapped-card-header">
-                        <h2>🔗 Unmapped User Activity</h2>
-                        <span class="status-badge status-warning"><strong><%= unmappedUsernames.length %></strong> to map</span>
-                    </div>
-                    <p class="unmapped-card-text">We detected Windows usernames sending activity that aren’t linked to any imported user. Map them to ensure activity is attributed correctly.</p>
-                    <div class="unmapped-card-actions">
-                        <button class="btn btn-primary" onclick="document.getElementById('unmapped-section').scrollIntoView({ behavior: 'smooth' })">Map Now</button>
-                    </div>
-                </div>
-                <% } %>
             </div>
         </div>
 
@@ -174,7 +208,10 @@
         <!-- Unmapped Usernames Section -->
         <% if (unmappedUsernames && unmappedUsernames.length > 0) { %>
         <div class="unmapped-section" id="unmapped-section">
-            <h2>🔗 Map Unmapped Usernames</h2>
+            <h2>
+                🔗 Map Unmapped Usernames
+                <span class="status-badge status-warning" style="margin-left: 0.75rem;"><strong><%= unmappedUsernames.length %></strong> to map</span>
+            </h2>
             <table class="unmapped-table">
                 <thead>
                     <tr>
@@ -255,7 +292,8 @@
             </table>
             <% } %>
         </div>
-    </div>
+        </div>
+    </main>
 
     <script src="/js/ui-components.js"></script>
     <script>
@@ -265,6 +303,18 @@
     <script src="/js/users.js"></script>
     <script src="/js/azure-sync.js"></script>
     <script>
+        // Sidebar toggle functionality
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('sidebar-toggle-icon');
+            sidebar.classList.toggle('collapsed');
+            
+            // Save state
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
+            icon.textContent = isCollapsed ? '▶' : '◀';
+        }
+
         // Theme toggle functionality
         function toggleTheme() {
             const html = document.documentElement;
@@ -279,13 +329,22 @@
             icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
         }
 
-        // Initialize theme on page load (default to dark)
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
+            // Initialize theme (default to dark)
             const savedTheme = localStorage.getItem('theme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
+            const themeIcon = document.getElementById('theme-icon');
+            themeIcon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
             
-            const icon = document.getElementById('theme-icon');
-            icon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+            // Initialize sidebar state
+            const sidebar = document.getElementById('sidebar');
+            const sidebarIcon = document.getElementById('sidebar-toggle-icon');
+            const savedSidebarState = localStorage.getItem('sidebarCollapsed') === 'true';
+            if (savedSidebarState) {
+                sidebar.classList.add('collapsed');
+                sidebarIcon.textContent = '▶';
+            }
         });
     </script>
 </body>
