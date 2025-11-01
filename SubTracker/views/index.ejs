@@ -70,7 +70,7 @@
 
             <div class="stats-grid">
                 <div class="stat-card adobe">
-                    <div class="stat-icon">🔵</div>
+                    <div class="stat-icon">🌐</div>
                     <div class="stat-content">
                         <div class="stat-label">Web Apps</div>
                         <div class="stat-value" id="adobe-total"><%= adobeCount %></div>
@@ -97,15 +97,16 @@
                 </div>
             </div>
 
-            <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('recent')">Recent Activity</button>
-                <button class="tab-btn" onclick="switchTab('adobe')">Web Apps</button>
-                <button class="tab-btn" onclick="switchTab('wrapper')">Desktop Apps</button>
-            </div>
-
-            <div id="recent-tab" class="tab-content active">
+            <div class="tab-content active">
                 <div class="tab-content-header">
-                    <h2>Recent Activity</h2>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <h2>Recent Activity</h2>
+                        <select id="source-filter" class="filter-select" onchange="filterBySource(this.value)" style="min-width: 180px;">
+                            <option value="all">All Sources</option>
+                            <option value="wrapper">Desktop Apps</option>
+                            <option value="adobe">Web Apps</option>
+                        </select>
+                    </div>
                     <div class="dashboard-controls">
                         <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
                         <button class="btn btn-secondary" onclick="toggleAutoRefresh()">
@@ -115,24 +116,6 @@
                     </div>
                 </div>
                 <div id="recent-activity" class="activity-table-container">
-                    <div class="loading">Loading...</div>
-                </div>
-            </div>
-
-            <div id="adobe-tab" class="tab-content">
-                <div class="tab-content-header">
-                    <h2>Web Apps Activity</h2>
-                </div>
-                <div id="adobe-activity" class="activity-table-container">
-                    <div class="loading">Loading...</div>
-                </div>
-            </div>
-
-            <div id="wrapper-tab" class="tab-content">
-                <div class="tab-content-header">
-                    <h2>Desktop Apps Activity</h2>
-                </div>
-                <div id="wrapper-activity" class="activity-table-container">
                     <div class="loading">Loading...</div>
                 </div>
             </div>

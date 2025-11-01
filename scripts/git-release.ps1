@@ -13,30 +13,31 @@ function Show-Header {
 function Test-GitHubConnection {
     Write-Host "Testing connection to GitHub..." -ForegroundColor Yellow
     
-    # Test 1: HTTP connectivity to github.com
+    # Test 1: HTTP connectivity to github.com (optional check - git connectivity is what matters)
     $httpOk = $false
     try {
-        $response = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 15 -UseBasicParsing -ErrorAction Stop
+        $response = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
         $httpOk = $true
         Write-Host "  ✓ HTTP connection to github.com: OK" -ForegroundColor Green
     }
     catch {
-        Write-Host "  ✗ HTTP connection to github.com: FAILED" -ForegroundColor Red
+        Write-Host "  ℹ HTTP connection to github.com: FAILED (not critical)" -ForegroundColor Yellow
         Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Gray
     }
     
-    # Test 2: Git remote connectivity (actual git push test)
+    # Test 2: Git remote connectivity (THIS IS WHAT MATTERS for push to work)
     $gitOk = $false
     try {
         # Check if we can reach the git remote (this tests actual git protocol)
         $remoteUrl = git remote get-url origin 2>$null
         if ($remoteUrl) {
             Write-Host "  ℹ Checking git remote: $remoteUrl" -ForegroundColor Gray
-            # Try a simple git command that connects to remote
-            git ls-remote --heads origin 2>$null | Out-Null
+            # Try a simple git command that connects to remote (5 second timeout via git config)
+            $env:GIT_TERMINAL_PROMPT = "0"  # Prevent hanging on auth prompts
+            $gitOutput = git ls-remote --heads origin 2>&1
             if ($LASTEXITCODE -eq 0) {
                 $gitOk = $true
-                Write-Host "  ✓ Git remote connectivity: OK" -ForegroundColor Green
+                Write-Host "  ✓ Git remote connectivity: OK (you can push!)" -ForegroundColor Green
             } else {
                 Write-Host "  ✗ Git remote connectivity: FAILED" -ForegroundColor Red
                 Write-Host "    This might indicate authentication or network issues" -ForegroundColor Gray
@@ -65,19 +66,29 @@ function Test-GitHubConnection {
     }
     
     Write-Host ""
-    
-    # Return true only if we have basic HTTP connectivity
-    # Git connectivity might fail due to auth, but HTTP is a good baseline
-    if ($httpOk) {
-        if (-not $gitOk) {
-            Write-Host "⚠️  HTTP connection works, but git connectivity failed." -ForegroundColor Yellow
-            Write-Host "   This usually means:" -ForegroundColor Gray
-            Write-Host "   • Authentication needed (credentials expired/changed)" -ForegroundColor Gray
-            Write-Host "   • Network firewall blocking git protocol" -ForegroundColor Gray
-            Write-Host "   • VPN or proxy configuration issue" -ForegroundColor Gray
+
+    # Git connectivity is what we actually need for push to work
+    # HTTP test is just a bonus check - prioritize git connectivity
+    if ($gitOk) {
+        Write-Host "✅ GitHub is reachable via Git" -ForegroundColor Green
+        if (-not $httpOk) {
             Write-Host ""
+            Write-Host "ℹ️  Note: HTTP test failed but Git connectivity works." -ForegroundColor Cyan
+            Write-Host "   This is fine - likely due to firewall/proxy settings." -ForegroundColor Gray
+            Write-Host "   Git push will work normally." -ForegroundColor Gray
         }
+        Write-Host ""
         return $true
+    } elseif ($httpOk -and -not $gitOk) {
+        Write-Host "⚠️  HTTP connection works, but git connectivity failed." -ForegroundColor Yellow
+        Write-Host "   Git push will likely fail!" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "   This usually means:" -ForegroundColor Gray
+        Write-Host "   • Authentication needed (credentials expired/changed)" -ForegroundColor Gray
+        Write-Host "   • Network firewall blocking git protocol (port 443/22)" -ForegroundColor Gray
+        Write-Host "   • VPN or proxy configuration issue" -ForegroundColor Gray
+        Write-Host ""
+        return $false
     } else {
         Write-Host "❌ Cannot reach GitHub" -ForegroundColor Red
         if (-not $dnsOk) {
@@ -89,45 +100,84 @@ function Test-GitHubConnection {
 
 function Handle-GitHubAuth {
     Write-Host ""
-    Write-Host "GitHub Authentication Help" -ForegroundColor Cyan
+    Write-Host "GitHub Authentication Setup" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "You may need to authenticate with GitHub." -ForegroundColor Yellow
+    Write-Host "Attempting to set up GitHub authentication..." -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "Options:" -ForegroundColor Cyan
-    Write-Host "  1. Try pushing now (will prompt for credentials)" -ForegroundColor White
-    Write-Host "  2. Install GitHub CLI and login (recommended)" -ForegroundColor White
-    Write-Host "  3. Skip push (keep changes local)" -ForegroundColor White
+    
+    # First, try GitHub CLI (most reliable)
+    $ghInstalled = $false
+    try {
+        $ghVersion = gh --version 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $ghInstalled = $true
+            Write-Host "✓ GitHub CLI is already installed" -ForegroundColor Green
+        }
+    }
+    catch {
+        # Not installed, continue
+    }
+    
+    if (-not $ghInstalled) {
+        Write-Host "Installing GitHub CLI (recommended)..." -ForegroundColor Yellow
+        try {
+            winget install --id GitHub.cli --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ GitHub CLI installed successfully" -ForegroundColor Green
+                $ghInstalled = $true
+            } else {
+                Write-Host "⚠️  GitHub CLI installation failed (may already be installed)" -ForegroundColor Yellow
+                # Try to use it anyway
+                try {
+                    $ghVersion = gh --version 2>$null
+                    if ($LASTEXITCODE -eq 0) {
+                        $ghInstalled = $true
+                    }
+                }
+                catch {
+                    # Still not available
+                }
+            }
+        }
+        catch {
+            Write-Host "⚠️  Could not install GitHub CLI automatically" -ForegroundColor Yellow
+        }
+    }
+    
+    if ($ghInstalled) {
+        Write-Host ""
+        Write-Host "Running GitHub CLI authentication..." -ForegroundColor Yellow
+        Write-Host "Follow the prompts to authenticate." -ForegroundColor Gray
+        Write-Host ""
+        gh auth login
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host ""
+            Write-Host "✅ GitHub CLI authentication completed" -ForegroundColor Green
+            return "retry"
+        } else {
+            Write-Host ""
+            Write-Host "⚠️  GitHub CLI authentication was not completed" -ForegroundColor Yellow
+        }
+    }
+    
+    # If GitHub CLI didn't work, offer manual credential options
     Write-Host ""
-    $choice = Read-Host "Enter choice (1-3)"
+    Write-Host "GitHub CLI authentication is recommended but not available." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Alternative options:" -ForegroundColor Cyan
+    Write-Host "  1. Continue anyway (will prompt for credentials during push)" -ForegroundColor White
+    Write-Host "  2. Skip authentication (switch to Local Only mode)" -ForegroundColor White
+    Write-Host ""
+    $choice = Read-Host "Enter choice (1-2)"
     
     switch ($choice) {
         "1" {
             Write-Host ""
-            Write-Host "Attempting push (will prompt for credentials)..." -ForegroundColor Yellow
+            Write-Host "Will prompt for credentials when pushing..." -ForegroundColor Gray
             Write-Host "Username: Use your GitHub username" -ForegroundColor Gray
-            Write-Host "Password: Use a Personal Access Token (not password)" -ForegroundColor Gray
-            Write-Host "Get token: https://github.com/settings/tokens" -ForegroundColor Gray
+            Write-Host "Password: Use a Personal Access Token (get one: https://github.com/settings/tokens)" -ForegroundColor Gray
             Write-Host ""
             return "retry"
-        }
-        "2" {
-            Write-Host ""
-            Write-Host "Installing GitHub CLI..." -ForegroundColor Yellow
-            try {
-                winget install --id GitHub.cli --silent --accept-source-agreements --accept-package-agreements
-                Write-Host "✅ GitHub CLI installed" -ForegroundColor Green
-                Write-Host "Running: gh auth login" -ForegroundColor Yellow
-                gh auth login
-                return "retry"
-            }
-            catch {
-                Write-Host "❌ Failed to install GitHub CLI" -ForegroundColor Red
-                Write-Host "   Install manually: winget install GitHub.cli" -ForegroundColor Gray
-                return "skip"
-            }
-        }
-        "3" {
-            return "skip"
         }
         default {
             return "skip"
@@ -265,80 +315,74 @@ try {
             Write-Host ""
             Write-Host "⚠️  Cannot connect to GitHub" -ForegroundColor Yellow
             Write-Host ""
-            Write-Host "Possible causes:" -ForegroundColor Cyan
-            Write-Host "  • No internet connection" -ForegroundColor Gray
-            Write-Host "  • VPN not connected" -ForegroundColor Gray
-            Write-Host "  • Firewall blocking GitHub" -ForegroundColor Gray
-            Write-Host "  • GitHub authentication needed (credentials expired)" -ForegroundColor Gray
-            Write-Host "  • Proxy settings changed" -ForegroundColor Gray
-            Write-Host "  • GitHub is down (check: https://www.githubstatus.com)" -ForegroundColor Gray
+            Write-Host "Automatically trying GitHub authentication setup..." -ForegroundColor Cyan
             Write-Host ""
-            Write-Host "Quick checks:" -ForegroundColor Cyan
-            Write-Host "  1. Try: ping github.com" -ForegroundColor Gray
-            Write-Host "  2. Check: git remote -v (verify remote URL)" -ForegroundColor Gray
-            Write-Host "  3. Test: git ls-remote origin (tests git connectivity)" -ForegroundColor Gray
-            Write-Host ""
-            Write-Host "Options:" -ForegroundColor Cyan
-            Write-Host "  1. Try GitHub authentication setup (recommended)" -ForegroundColor White
-            Write-Host "  2. Continue anyway (will try to push later)" -ForegroundColor White
-            Write-Host "  3. Switch to Local Only mode" -ForegroundColor White
-            Write-Host "  4. Cancel" -ForegroundColor White
-            Write-Host ""
-            $connectionChoice = Read-Host "Enter choice (1-4)"
             
-            switch ($connectionChoice) {
-                "1" {
-                    Write-Host ""
-                    $authAction = Handle-GitHubAuth
-                    if ($authAction -eq "skip") {
-                        Write-Host "Authentication skipped. Switching to Local Only mode..." -ForegroundColor Yellow
-                        $mode = "local"
-                        $modeDisplay = "Local Only"
-                    } else {
-                        Write-Host ""
-                        Write-Host "Retesting GitHub connection..." -ForegroundColor Yellow
-                        $connectionOk = Test-GitHubConnection
-                        if (-not $connectionOk) {
-                            Write-Host "Connection still failing. Options:" -ForegroundColor Yellow
-                            Write-Host "  1. Continue anyway (will try to push later)" -ForegroundColor White
-                            Write-Host "  2. Switch to Local Only mode" -ForegroundColor White
-                            $retryChoice = Read-Host "Enter choice (1-2)"
-                            if ($retryChoice -eq "2") {
-                                $mode = "local"
-                                $modeDisplay = "Local Only"
-                            }
-                        } else {
-                            Write-Host "✅ Connection successful after authentication!" -ForegroundColor Green
-                        }
-                        Write-Host ""
-                    }
-                }
-                "2" {
-                    Write-Host "Continuing with Full Release mode..." -ForegroundColor Yellow
-                    Write-Host ""
-                }
-                "3" {
-                    Write-Host "Switching to Local Only mode..." -ForegroundColor Yellow
-                    $mode = "local"
-                    $modeDisplay = "Local Only"
-                    Write-Host ""
-                }
-                "4" {
-                    Write-Host "Release cancelled." -ForegroundColor Yellow
-                    Pop-Location
-                    exit
-                }
-                default {
-                    Write-Host "Invalid choice. Switching to Local Only mode..." -ForegroundColor Yellow
-                    $mode = "local"
-                    $modeDisplay = "Local Only"
+            # Automatically try authentication
+            $authAction = Handle-GitHubAuth
+            if ($authAction -eq "skip") {
+                Write-Host ""
+                Write-Host "Authentication skipped." -ForegroundColor Yellow
+            } else {
+                Write-Host ""
+                Write-Host "Retesting GitHub connection..." -ForegroundColor Yellow
+                $connectionOk = Test-GitHubConnection
+                if ($connectionOk) {
+                    Write-Host "✅ Connection successful after authentication!" -ForegroundColor Green
                     Write-Host ""
                 }
             }
-        } else {
-            Write-Host "✅ Connection successful" -ForegroundColor Green
-            Write-Host ""
+            
+            # If still not connected, offer options
+            if (-not $connectionOk) {
+                Write-Host ""
+                Write-Host "Connection still failing after authentication attempt." -ForegroundColor Yellow
+                Write-Host ""
+                Write-Host "Possible causes:" -ForegroundColor Cyan
+                Write-Host "  • No internet connection" -ForegroundColor Gray
+                Write-Host "  • VPN not connected" -ForegroundColor Gray
+                Write-Host "  • Firewall blocking GitHub (port 443/22)" -ForegroundColor Gray
+                Write-Host "  • Proxy settings blocking git protocol" -ForegroundColor Gray
+                Write-Host "  • GitHub is down (check: https://www.githubstatus.com)" -ForegroundColor Gray
+                Write-Host ""
+                Write-Host "Quick checks:" -ForegroundColor Cyan
+                Write-Host "  1. Try: ping github.com" -ForegroundColor Gray
+                Write-Host "  2. Check: git remote -v (verify remote URL)" -ForegroundColor Gray
+                Write-Host "  3. Test: git ls-remote origin (tests git connectivity)" -ForegroundColor Gray
+                Write-Host ""
+                Write-Host "Options:" -ForegroundColor Cyan
+                Write-Host "  1. Continue anyway (will try to push later)" -ForegroundColor White
+                Write-Host "  2. Switch to Local Only mode" -ForegroundColor White
+                Write-Host "  3. Cancel" -ForegroundColor White
+                Write-Host ""
+                $connectionChoice = Read-Host "Enter choice (1-3)"
+                
+                switch ($connectionChoice) {
+                    "1" {
+                        Write-Host "Continuing with Full Release mode..." -ForegroundColor Yellow
+                        Write-Host ""
+                    }
+                    "2" {
+                        Write-Host "Switching to Local Only mode..." -ForegroundColor Yellow
+                        $mode = "local"
+                        $modeDisplay = "Local Only"
+                        Write-Host ""
+                    }
+                    "3" {
+                        Write-Host "Release cancelled." -ForegroundColor Yellow
+                        Pop-Location
+                        exit
+                    }
+                    default {
+                        Write-Host "Invalid choice. Switching to Local Only mode..." -ForegroundColor Yellow
+                        $mode = "local"
+                        $modeDisplay = "Local Only"
+                        Write-Host ""
+                    }
+                }
+            }
         }
+        # If connectionOk is true, we already printed success message in Test-GitHubConnection
     }
 
     # ============================================

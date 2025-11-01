@@ -1,6 +1,8 @@
 // SubTracker - Simple Usage Monitor
 let autoRefreshInterval = null;
 let isAutoRefresh = false;
+let currentSourceFilter = 'all';
+let cachedActivityData = null;
 
 // Theme management
 function initTheme() {
@@ -83,14 +85,41 @@ function updateActivityLists(data) {
         return timeB - timeA;
     });
 
-    // Update recent activity tab (combined)
-    updateActivityList('recent-activity', combined.slice(0, 50));
+    // Cache the data
+    cachedActivityData = {
+        all: combined,
+        adobe: data.adobe.map(item => ({ ...item, source: 'adobe' })),
+        wrapper: data.wrapper.map(item => ({ ...item, source: 'wrapper' }))
+    };
 
-    // Update Adobe tab
-    updateActivityList('adobe-activity', data.adobe.map(item => ({ ...item, source: 'adobe' })));
+    // Apply current filter
+    applySourceFilter();
+}
 
-    // Update Wrapper tab
-    updateActivityList('wrapper-activity', data.wrapper.map(item => ({ ...item, source: 'wrapper' })));
+function filterBySource(source) {
+    currentSourceFilter = source;
+    applySourceFilter();
+}
+
+function applySourceFilter() {
+    if (!cachedActivityData) return;
+
+    let filteredData;
+    switch (currentSourceFilter) {
+        case 'adobe':
+            filteredData = cachedActivityData.adobe;
+            break;
+        case 'wrapper':
+            filteredData = cachedActivityData.wrapper;
+            break;
+        case 'all':
+        default:
+            filteredData = cachedActivityData.all;
+            break;
+    }
+
+    // Update the activity list
+    updateActivityList('recent-activity', filteredData.slice(0, 50));
 }
 
 function updateActivityList(elementId, items) {
@@ -205,16 +234,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function switchTab(tabName) {
-    // Remove active class from all tabs and content
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    
-    // Add active class to selected tab
-    event.target.classList.add('active');
-    document.getElementById(`${tabName}-tab`).classList.add('active');
-}
-
 function toggleAutoRefresh() {
     isAutoRefresh = !isAutoRefresh;
     const btn = document.getElementById('auto-refresh-text');
@@ -273,7 +292,7 @@ function showError(message) {
 
 // Expose functions globally for inline onclick handlers
 window.refreshData = refreshData;
-window.switchTab = switchTab;
+window.filterBySource = filterBySource;
 window.toggleAutoRefresh = toggleAutoRefresh;
 window.clearData = clearData;
 window.toggleTheme = toggleTheme;
