@@ -824,220 +824,87 @@ try {
     # "Local Only" (option 2) and "Dry Run" (option 3) skip this entire section
     # Connection was already tested in Step 0.5
     if ($mode -eq "full") {
-        # Option to push commits and tags together (more reliable)
-        $pushTogether = $false
-        if ($status) {
-            Write-Host "Push method:" -ForegroundColor Cyan
-            Write-Host "  1. Push commits and tag separately (default)" -ForegroundColor White
-            Write-Host "  2. Push commits and tag together (more reliable for unstable networks)" -ForegroundColor White
-            Write-Host ""
-            $pushMethod = Read-Host "Enter choice (1-2, or press Enter for default)"
+        Write-Host "Pushing to GitHub..." -ForegroundColor Yellow
 
-            if ($pushMethod -eq "2") {
-                $pushTogether = $true
+        # Push commits and tag together in a single operation (more reliable)
+        if ($status) {
+            # Have commits to push along with tag
+            git push origin $currentBranch --follow-tags
+        } else {
+            # No commits, just push the tag
+            git push origin $newVersion
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Push failed" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "This usually happens due to:" -ForegroundColor Yellow
+            Write-Host "  • Network/VPN disconnected" -ForegroundColor Gray
+            Write-Host "  • Firewall blocking git operations" -ForegroundColor Gray
+            Write-Host "  • GitHub temporarily unreachable" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "Options:" -ForegroundColor Cyan
+            Write-Host "  1. Keep changes local (recommended - you can push manually later)" -ForegroundColor White
+            Write-Host "  2. Retry push now" -ForegroundColor White
+            Write-Host ""
+            $pushChoice = Read-Host "Enter choice (1-2)"
+
+            if ($pushChoice -eq "2") {
                 Write-Host ""
-                Write-Host "Pushing commits and tag together to GitHub..." -ForegroundColor Yellow
-                git push origin $currentBranch --follow-tags
+                Write-Host "Retrying push..." -ForegroundColor Yellow
+
+                if ($status) {
+                    git push origin $currentBranch --follow-tags
+                } else {
+                    git push origin $newVersion
+                }
 
                 if ($LASTEXITCODE -ne 0) {
-                    Write-Host "❌ Push failed" -ForegroundColor Red
-                    Write-Host ""
-                    Write-Host "This usually happens due to:" -ForegroundColor Yellow
-                    Write-Host "  • Network/VPN disconnected" -ForegroundColor Gray
-                    Write-Host "  • Firewall blocking git operations" -ForegroundColor Gray
-                    Write-Host "  • GitHub temporarily unreachable" -ForegroundColor Gray
+                    Write-Host "❌ Push still failed" -ForegroundColor Red
                     Write-Host ""
                     Write-Host "Changes and tag are saved locally. Push manually with:" -ForegroundColor Yellow
-                    Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
+                    if ($status) {
+                        Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
+                    }
                     Write-Host "  git push origin $newVersion" -ForegroundColor Gray
                     Pop-Location
                     exit 1
                 } else {
-                    Write-Host "✅ Commits and tag pushed to GitHub" -ForegroundColor Green
+                    Write-Host "✅ Push successful on retry!" -ForegroundColor Green
                 }
             } else {
                 Write-Host ""
-                Write-Host "Pushing commits to GitHub..." -ForegroundColor Yellow
-                git push origin $currentBranch
-
-                if ($LASTEXITCODE -ne 0) {
-                Write-Host "❌ Push failed" -ForegroundColor Red
+                Write-Host "✅ Release saved locally" -ForegroundColor Green
                 Write-Host ""
-                Write-Host "This usually happens due to:" -ForegroundColor Yellow
-                Write-Host "  • Network/VPN disconnected" -ForegroundColor Gray
-                Write-Host "  • Firewall blocking git operations" -ForegroundColor Gray
-                Write-Host "  • GitHub temporarily unreachable" -ForegroundColor Gray
-                Write-Host ""
-                Write-Host "Options:" -ForegroundColor Cyan
-                Write-Host "  1. Keep changes local (recommended - you can push manually later)" -ForegroundColor White
-                Write-Host "  2. Try authentication setup" -ForegroundColor White
-                Write-Host "  3. Retry push now" -ForegroundColor White
-                Write-Host ""
-                $pushChoice = Read-Host "Enter choice (1-3)"
-
-                switch ($pushChoice) {
-                    "1" {
-                        Write-Host ""
-                        Write-Host "✅ Release saved locally" -ForegroundColor Green
-                        Write-Host ""
-                        Write-Host "Push manually when ready with:" -ForegroundColor Cyan
-                        Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
-                        Write-Host "  git push origin $newVersion" -ForegroundColor Gray
-                        Write-Host ""
-                        Pop-Location
-                        exit 0
-                    }
-                    "2" {
-                        $authAction = Handle-GitHubAuth
-                        if ($authAction -eq "retry") {
-                            Write-Host ""
-                            Write-Host "Retrying push..." -ForegroundColor Yellow
-                            git push origin $currentBranch
-
-                            if ($LASTEXITCODE -ne 0) {
-                                Write-Host "❌ Push still failed" -ForegroundColor Red
-                                Write-Host ""
-                                Write-Host "Changes and tag are saved locally. Push manually with:" -ForegroundColor Yellow
-                                Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
-                                Write-Host "  git push origin $newVersion" -ForegroundColor Gray
-                                Pop-Location
-                                exit 1
-                            }
-                            Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
-                        } else {
-                            Write-Host ""
-                            Write-Host "Changes and tag are saved locally. Push manually with:" -ForegroundColor Yellow
-                            Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
-                            Write-Host "  git push origin $newVersion" -ForegroundColor Gray
-                            Pop-Location
-                            exit 0
-                        }
-                    }
-                    "3" {
-                        Write-Host ""
-                        Write-Host "Retrying push..." -ForegroundColor Yellow
-                        git push origin $currentBranch
-
-                        if ($LASTEXITCODE -ne 0) {
-                            Write-Host "❌ Push still failed" -ForegroundColor Red
-                            Write-Host ""
-                            Write-Host "Changes and tag are saved locally. Push manually with:" -ForegroundColor Yellow
-                            Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
-                            Write-Host "  git push origin $newVersion" -ForegroundColor Gray
-                            Pop-Location
-                            exit 1
-                        }
-                        Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
-                    }
-                    default {
-                        Write-Host ""
-                        Write-Host "Changes and tag are saved locally. Push manually with:" -ForegroundColor Yellow
-                        Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
-                        Write-Host "  git push origin $newVersion" -ForegroundColor Gray
-                        Pop-Location
-                        exit 0
-                    }
+                Write-Host "Push manually when ready with:" -ForegroundColor Cyan
+                if ($status) {
+                    Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
                 }
-                } else {
-                    Write-Host "✅ Commits pushed to GitHub" -ForegroundColor Green
-                }
-            }
-        }
-
-        # Only push tag separately if we didn't use --follow-tags
-        if (-not $pushTogether) {
-            # Give network a moment to stabilize after commit push
-            if ($status) {
-                Write-Host ""
-                Write-Host "Waiting for network to stabilize..." -ForegroundColor Gray
-                Start-Sleep -Seconds 3
-            }
-
-            Write-Host "Pushing tag to GitHub..." -ForegroundColor Yellow
-
-        # Auto-retry tag push (for intermittent connectivity)
-        $tagPushSuccess = $false
-        $maxTagRetries = 3
-
-        for ($retry = 0; $retry -le $maxTagRetries; $retry++) {
-            if ($retry -gt 0) {
-                $waitTime = 3 + ($retry * 2)  # Progressive delay: 3s, 5s, 7s
-                Write-Host "Waiting ${waitTime}s before retry..." -ForegroundColor Gray
-                Start-Sleep -Seconds $waitTime
-                Write-Host "Retrying tag push (attempt $($retry + 1)/$($maxTagRetries + 1))..." -ForegroundColor Yellow
-            }
-
-            # Use verbose mode to see what's happening
-            $env:GIT_CURL_VERBOSE = "1"
-            $env:GIT_TRACE = "0"  # Don't flood with trace info
-
-            git push origin $newVersion 2>&1 | Out-Null
-            $pushResult = $LASTEXITCODE
-
-            $env:GIT_CURL_VERBOSE = "0"
-
-            if ($pushResult -eq 0) {
-                $tagPushSuccess = $true
-                if ($retry -eq 0) {
-                    Write-Host "✅ Tag pushed successfully!" -ForegroundColor Green
-                } else {
-                    Write-Host "✅ Tag pushed successfully on retry $($retry + 1)!" -ForegroundColor Green
-                }
-                break
-            } else {
-                if ($retry -lt $maxTagRetries) {
-                    Write-Host "⚠️  Tag push failed (network issue), will retry..." -ForegroundColor Yellow
-                } else {
-                    Write-Host "❌ Tag push failed after all retries" -ForegroundColor Red
-                }
-            }
-        }
-
-            if ($tagPushSuccess) {
-                Write-Host ""
-                Write-Host "════════════════════════════════════════" -ForegroundColor Green
-                Write-Host "✅ Release Complete!" -ForegroundColor Green
-                Write-Host "════════════════════════════════════════" -ForegroundColor Green
-                Write-Host ""
-                Write-Host "Version: " -NoNewline -ForegroundColor Cyan
-                Write-Host $newVersion -ForegroundColor Green
-                Write-Host "Branch: " -NoNewline -ForegroundColor Cyan
-                Write-Host $currentBranch -ForegroundColor White
-                Write-Host ""
-                Write-Host "Railway will auto-deploy from $currentBranch branch" -ForegroundColor Gray
-                Write-Host ""
-                Write-Host "To restore this version later:" -ForegroundColor Cyan
-                Write-Host "  git checkout $newVersion" -ForegroundColor Gray
-                Write-Host ""
-            } else {
-                Write-Host ""
-                Write-Host "❌ Failed to push tag after $($maxTagRetries + 1) attempts" -ForegroundColor Red
-                Write-Host ""
-                Write-Host "The tag was created locally. You can push it later with:" -ForegroundColor Yellow
                 Write-Host "  git push origin $newVersion" -ForegroundColor Gray
                 Write-Host ""
-                Write-Host "This is often due to intermittent network issues." -ForegroundColor Gray
-                Write-Host "When connectivity is restored, the tag can be pushed manually." -ForegroundColor Gray
-                Write-Host ""
+                Pop-Location
+                exit 0
             }
         } else {
-            # pushTogether was used, show success
-            Write-Host ""
-            Write-Host "════════════════════════════════════════" -ForegroundColor Green
-            Write-Host "✅ Release Complete!" -ForegroundColor Green
-            Write-Host "════════════════════════════════════════" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "Version: " -NoNewline -ForegroundColor Cyan
-            Write-Host $newVersion -ForegroundColor Green
-            Write-Host "Branch: " -NoNewline -ForegroundColor Cyan
-            Write-Host $currentBranch -ForegroundColor White
-            Write-Host ""
-            Write-Host "Railway will auto-deploy from $currentBranch branch" -ForegroundColor Gray
-            Write-Host ""
-            Write-Host "To restore this version later:" -ForegroundColor Cyan
-            Write-Host "  git checkout $newVersion" -ForegroundColor Gray
-            Write-Host ""
+            Write-Host "✅ Pushed to GitHub successfully!" -ForegroundColor Green
         }
+
+        # Success message
+        Write-Host ""
+        Write-Host "════════════════════════════════════════" -ForegroundColor Green
+        Write-Host "✅ Release Complete!" -ForegroundColor Green
+        Write-Host "════════════════════════════════════════" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Version: " -NoNewline -ForegroundColor Cyan
+        Write-Host $newVersion -ForegroundColor Green
+        Write-Host "Branch: " -NoNewline -ForegroundColor Cyan
+        Write-Host $currentBranch -ForegroundColor White
+        Write-Host ""
+        Write-Host "Railway will auto-deploy from $currentBranch branch" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "To restore this version later:" -ForegroundColor Cyan
+        Write-Host "  git checkout $newVersion" -ForegroundColor Gray
+        Write-Host ""
     } else {
         Write-Host ""
         Write-Host "════════════════════════════════════════" -ForegroundColor Green
