@@ -11,58 +11,88 @@ function Show-Header {
 }
 
 function Test-GitHubConnection {
+    param([int]$Retries = 2)
+    
     Write-Host "Testing connection to GitHub..." -ForegroundColor Yellow
     
-    # Test 1: HTTP connectivity to github.com (optional check - git connectivity is what matters)
+    # Test 1: HTTP connectivity to github.com (with retries)
     $httpOk = $false
-    try {
-        $response = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 7 -UseBasicParsing -ErrorAction Stop
-        $httpOk = $true
-        Write-Host "  ✓ HTTP connection to github.com: OK" -ForegroundColor Green
-    }
-    catch {
-        Write-Host "  ℹ HTTP connection to github.com: FAILED (not critical)" -ForegroundColor Yellow
-        Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Gray
-    }
-    
-    # Test 2: Git remote connectivity (THIS IS WHAT MATTERS for push to work)
-    $gitOk = $false
-    try {
-        # Check if we can reach the git remote (this tests actual git protocol)
-        $remoteUrl = git remote get-url origin 2>$null
-        if ($remoteUrl) {
-            Write-Host "  ℹ Checking git remote: $remoteUrl" -ForegroundColor Gray
-            # Try a simple git command that connects to remote (5 second timeout via git config)
-            $env:GIT_TERMINAL_PROMPT = "0"  # Prevent hanging on auth prompts
-            $gitOutput = git ls-remote --heads origin 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                $gitOk = $true
-                Write-Host "  ✓ Git remote connectivity: OK (you can push!)" -ForegroundColor Green
-            } else {
-                Write-Host "  ✗ Git remote connectivity: FAILED" -ForegroundColor Red
-                Write-Host "    This might indicate authentication or network issues" -ForegroundColor Gray
+    $httpError = $null
+    for ($i = 0; $i -le $Retries; $i++) {
+        if ($i -gt 0) {
+            Write-Host "  Retrying HTTP connection (attempt $($i + 1)/$($Retries + 1))..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 2
+        }
+        try {
+            $response = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 20 -UseBasicParsing -ErrorAction Stop
+            $httpOk = $true
+            Write-Host "  ✓ HTTP connection to github.com: OK" -ForegroundColor Green
+            break
+        }
+        catch {
+            $httpError = $_.Exception.Message
+            if ($i -eq $Retries) {
+                Write-Host "  ℹ HTTP connection to github.com: FAILED (not critical)" -ForegroundColor Yellow
+                Write-Host "    Error: $httpError" -ForegroundColor Gray
             }
-        } else {
-            Write-Host "  ⚠ No git remote configured" -ForegroundColor Yellow
         }
-    }
-    catch {
-        Write-Host "  ✗ Git remote connectivity: FAILED" -ForegroundColor Red
-        Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Gray
     }
     
-    # Test 3: DNS resolution
-    $dnsOk = $false
-    try {
-        $dnsResult = Resolve-DnsName -Name "github.com" -ErrorAction Stop
-        if ($dnsResult) {
-            $dnsOk = $true
-            Write-Host "  ✓ DNS resolution: OK" -ForegroundColor Green
+    # Test 2: Git remote connectivity (THIS IS WHAT MATTERS for push to work) - with retries
+    $gitOk = $false
+    $remoteUrl = git remote get-url origin 2>$null
+    if ($remoteUrl) {
+        Write-Host "  ℹ Checking git remote: $remoteUrl" -ForegroundColor Gray
+        
+        for ($i = 0; $i -le $Retries; $i++) {
+            if ($i -gt 0) {
+                Write-Host "  Retrying git connectivity (attempt $($i + 1)/$($Retries + 1))..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+            }
+            
+            try {
+                # Prevent hanging on auth prompts during test
+                $env:GIT_TERMINAL_PROMPT = "0"
+                $gitOutput = git ls-remote --heads origin 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    $gitOk = $true
+                    Write-Host "  ✓ Git remote connectivity: OK (you can push!)" -ForegroundColor Green
+                    break
+                } else {
+                    if ($i -eq $Retries) {
+                        Write-Host "  ✗ Git remote connectivity: FAILED (after $($Retries + 1) attempts)" -ForegroundColor Red
+                        Write-Host "    This might indicate authentication or network issues" -ForegroundColor Gray
+                        if ($gitOutput) {
+                            Write-Host "    Git output: $($gitOutput -join ', ')" -ForegroundColor Gray
+                        }
+                    }
+                }
+            }
+            catch {
+                if ($i -eq $Retries) {
+                    Write-Host "  ✗ Git remote connectivity: FAILED" -ForegroundColor Red
+                    Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Gray
+                }
+            }
         }
+    } else {
+        Write-Host "  ⚠ No git remote configured" -ForegroundColor Yellow
     }
-    catch {
-        Write-Host "  ✗ DNS resolution: FAILED" -ForegroundColor Red
-        Write-Host "    This might indicate network/VPN issues" -ForegroundColor Gray
+    
+    # Test 3: DNS resolution (if HTTP failed, this helps diagnose)
+    $dnsOk = $false
+    if (-not $httpOk) {
+        try {
+            $dnsResult = Resolve-DnsName -Name "github.com" -ErrorAction Stop
+            if ($dnsResult) {
+                $dnsOk = $true
+                Write-Host "  ✓ DNS resolution: OK" -ForegroundColor Green
+            }
+        }
+        catch {
+            Write-Host "  ✗ DNS resolution: FAILED" -ForegroundColor Red
+            Write-Host "    This might indicate network/VPN issues" -ForegroundColor Gray
+        }
     }
     
     Write-Host ""
@@ -119,28 +149,42 @@ function Handle-GitHubAuth {
     }
     
     if (-not $ghInstalled) {
-        Write-Host "Installing GitHub CLI (recommended)..." -ForegroundColor Yellow
-        try {
-            winget install --id GitHub.cli --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ GitHub CLI installed successfully" -ForegroundColor Green
-                $ghInstalled = $true
-            } else {
-                Write-Host "⚠️  GitHub CLI installation failed (may already be installed)" -ForegroundColor Yellow
-                # Try to use it anyway
-                try {
+        Write-Host "Checking if GitHub CLI is available..." -ForegroundColor Yellow
+        # First, try checking PATH more thoroughly
+        $ghPath = Get-Command gh -ErrorAction SilentlyContinue
+        if ($ghPath) {
+            $ghInstalled = $true
+            Write-Host "✓ GitHub CLI found in PATH" -ForegroundColor Green
+        } else {
+            Write-Host "Installing GitHub CLI (recommended)..." -ForegroundColor Yellow
+            try {
+                # Check if winget is available
+                $wingetAvailable = Get-Command winget -ErrorAction SilentlyContinue
+                if ($wingetAvailable) {
+                    winget install --id GitHub.cli --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "✅ GitHub CLI installed successfully" -ForegroundColor Green
+                        # Refresh PATH and check again
+                        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+                        $ghPath = Get-Command gh -ErrorAction SilentlyContinue
+                        if ($ghPath) {
+                            $ghInstalled = $true
+                        }
+                    }
+                }
+                
+                # Final check - maybe it's installed but not in PATH yet
+                if (-not $ghInstalled) {
                     $ghVersion = gh --version 2>$null
                     if ($LASTEXITCODE -eq 0) {
                         $ghInstalled = $true
+                        Write-Host "✓ GitHub CLI is available" -ForegroundColor Green
                     }
                 }
-                catch {
-                    # Still not available
-                }
             }
-        }
-        catch {
-            Write-Host "⚠️  Could not install GitHub CLI automatically" -ForegroundColor Yellow
+            catch {
+                Write-Host "⚠️  Could not verify GitHub CLI installation" -ForegroundColor Yellow
+            }
         }
     }
     
@@ -491,17 +535,26 @@ try {
                 Write-Host ""
                 Write-Host "Connection still failing after authentication attempt." -ForegroundColor Yellow
                 Write-Host ""
+                Write-Host "⚠️  INTERMITTENT CONNECTIVITY DETECTED" -ForegroundColor Yellow
+                Write-Host "   If this worked earlier, it's likely a network/VPN issue." -ForegroundColor Gray
+                Write-Host ""
                 Write-Host "Possible causes:" -ForegroundColor Cyan
-                Write-Host "  • No internet connection" -ForegroundColor Gray
-                Write-Host "  • VPN not connected" -ForegroundColor Gray
-                Write-Host "  • Firewall blocking GitHub (port 443/22)" -ForegroundColor Gray
-                Write-Host "  • Proxy settings blocking git protocol" -ForegroundColor Gray
+                Write-Host "  • VPN disconnected or unstable" -ForegroundColor Gray
+                Write-Host "  • Corporate firewall blocking GitHub intermittently" -ForegroundColor Gray
+                Write-Host "  • Network proxy timeout or rate limiting" -ForegroundColor Gray
+                Write-Host "  • Windows Firewall or antivirus interference" -ForegroundColor Gray
                 Write-Host "  • GitHub is down (check: https://www.githubstatus.com)" -ForegroundColor Gray
                 Write-Host ""
-                Write-Host "Quick checks:" -ForegroundColor Cyan
-                Write-Host "  1. Try: ping github.com" -ForegroundColor Gray
-                Write-Host "  2. Check: git remote -v (verify remote URL)" -ForegroundColor Gray
-                Write-Host "  3. Test: git ls-remote origin (tests git connectivity)" -ForegroundColor Gray
+                Write-Host "Quick fixes to try:" -ForegroundColor Cyan
+                Write-Host "  1. Reconnect your VPN" -ForegroundColor Gray
+                Write-Host "  2. Disable Windows Firewall temporarily (test)" -ForegroundColor Gray
+                Write-Host "  3. Check proxy settings: git config --global http.proxy" -ForegroundColor Gray
+                Write-Host "  4. Try from a different network (mobile hotspot)" -ForegroundColor Gray
+                Write-Host ""
+                Write-Host "Manual connectivity tests:" -ForegroundColor Cyan
+                Write-Host "  • ping github.com" -ForegroundColor Gray
+                Write-Host "  • git remote -v (verify remote URL)" -ForegroundColor Gray
+                Write-Host "  • git ls-remote origin (tests git connectivity)" -ForegroundColor Gray
                 Write-Host ""
                 Write-Host "Options:" -ForegroundColor Cyan
                 Write-Host "  1. Continue anyway (will try to push later)" -ForegroundColor White
