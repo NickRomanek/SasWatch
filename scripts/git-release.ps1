@@ -912,9 +912,33 @@ try {
         }
         
         Write-Host "Pushing tag to GitHub..." -ForegroundColor Yellow
-        git push origin $newVersion
-
-        if ($LASTEXITCODE -eq 0) {
+        
+        # Auto-retry tag push (for intermittent connectivity)
+        $tagPushSuccess = $false
+        $maxTagRetries = 3
+        
+        for ($retry = 0; $retry -le $maxTagRetries; $retry++) {
+            if ($retry -gt 0) {
+                Write-Host "Retrying tag push (attempt $($retry + 1)/$($maxTagRetries + 1))..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+            }
+            
+            git push origin $newVersion
+            
+            if ($LASTEXITCODE -eq 0) {
+                $tagPushSuccess = $true
+                if ($retry -gt 0) {
+                    Write-Host "✅ Tag pushed successfully on retry!" -ForegroundColor Green
+                }
+                break
+            } else {
+                if ($retry -lt $maxTagRetries) {
+                    Write-Host "⚠️  Tag push failed, will retry..." -ForegroundColor Yellow
+                }
+            }
+        }
+        
+        if ($tagPushSuccess) {
             Write-Host ""
             Write-Host "════════════════════════════════════════" -ForegroundColor Green
             Write-Host "✅ Release Complete!" -ForegroundColor Green
@@ -932,29 +956,13 @@ try {
             Write-Host ""
         } else {
             Write-Host ""
-            Write-Host "❌ Failed to push tag" -ForegroundColor Red
+            Write-Host "❌ Failed to push tag after $($maxTagRetries + 1) attempts" -ForegroundColor Red
             Write-Host ""
-            Write-Host "Options:" -ForegroundColor Cyan
-            Write-Host "  1. Keep tag local (you can push manually later)" -ForegroundColor White
-            Write-Host "  2. Retry push now" -ForegroundColor White
-            Write-Host ""
-            $tagPushChoice = Read-Host "Enter choice (1-2)"
-
-            if ($tagPushChoice -eq "2") {
-                Write-Host ""
-                Write-Host "Retrying tag push..." -ForegroundColor Yellow
-                git push origin $newVersion
-
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "✅ Tag pushed successfully!" -ForegroundColor Green
-                } else {
-                    Write-Host "❌ Tag push still failed" -ForegroundColor Red
-                }
-            }
-
-            Write-Host ""
-            Write-Host "Tag is saved locally. Push manually when ready with:" -ForegroundColor Yellow
+            Write-Host "The tag was created locally. You can push it later with:" -ForegroundColor Yellow
             Write-Host "  git push origin $newVersion" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "This is often due to intermittent network issues." -ForegroundColor Gray
+            Write-Host "When connectivity is restored, the tag can be pushed manually." -ForegroundColor Gray
             Write-Host ""
         }
     } else {
