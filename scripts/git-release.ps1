@@ -12,14 +12,77 @@ function Show-Header {
 
 function Test-GitHubConnection {
     Write-Host "Testing connection to GitHub..." -ForegroundColor Yellow
+    
+    # Test 1: HTTP connectivity to github.com
+    $httpOk = $false
     try {
-        $response = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
-        Write-Host "✅ Connection to GitHub successful" -ForegroundColor Green
-        return $true
+        $response = Invoke-WebRequest -Uri "https://github.com" -TimeoutSec 15 -UseBasicParsing -ErrorAction Stop
+        $httpOk = $true
+        Write-Host "  ✓ HTTP connection to github.com: OK" -ForegroundColor Green
     }
     catch {
+        Write-Host "  ✗ HTTP connection to github.com: FAILED" -ForegroundColor Red
+        Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Gray
+    }
+    
+    # Test 2: Git remote connectivity (actual git push test)
+    $gitOk = $false
+    try {
+        # Check if we can reach the git remote (this tests actual git protocol)
+        $remoteUrl = git remote get-url origin 2>$null
+        if ($remoteUrl) {
+            Write-Host "  ℹ Checking git remote: $remoteUrl" -ForegroundColor Gray
+            # Try a simple git command that connects to remote
+            git ls-remote --heads origin 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $gitOk = $true
+                Write-Host "  ✓ Git remote connectivity: OK" -ForegroundColor Green
+            } else {
+                Write-Host "  ✗ Git remote connectivity: FAILED" -ForegroundColor Red
+                Write-Host "    This might indicate authentication or network issues" -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "  ⚠ No git remote configured" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "  ✗ Git remote connectivity: FAILED" -ForegroundColor Red
+        Write-Host "    Error: $($_.Exception.Message)" -ForegroundColor Gray
+    }
+    
+    # Test 3: DNS resolution
+    $dnsOk = $false
+    try {
+        $dnsResult = Resolve-DnsName -Name "github.com" -ErrorAction Stop
+        if ($dnsResult) {
+            $dnsOk = $true
+            Write-Host "  ✓ DNS resolution: OK" -ForegroundColor Green
+        }
+    }
+    catch {
+        Write-Host "  ✗ DNS resolution: FAILED" -ForegroundColor Red
+        Write-Host "    This might indicate network/VPN issues" -ForegroundColor Gray
+    }
+    
+    Write-Host ""
+    
+    # Return true only if we have basic HTTP connectivity
+    # Git connectivity might fail due to auth, but HTTP is a good baseline
+    if ($httpOk) {
+        if (-not $gitOk) {
+            Write-Host "⚠️  HTTP connection works, but git connectivity failed." -ForegroundColor Yellow
+            Write-Host "   This usually means:" -ForegroundColor Gray
+            Write-Host "   • Authentication needed (credentials expired/changed)" -ForegroundColor Gray
+            Write-Host "   • Network firewall blocking git protocol" -ForegroundColor Gray
+            Write-Host "   • VPN or proxy configuration issue" -ForegroundColor Gray
+            Write-Host ""
+        }
+        return $true
+    } else {
         Write-Host "❌ Cannot reach GitHub" -ForegroundColor Red
-        Write-Host "   Error: $($_.Exception.Message)" -ForegroundColor Gray
+        if (-not $dnsOk) {
+            Write-Host "   DNS resolution failed - check your network/VPN" -ForegroundColor Yellow
+        }
         return $false
     }
 }
@@ -190,6 +253,93 @@ try {
     }
 
     Write-Host ""
+
+    # ============================================
+    # Step 0.5: Test GitHub Connection (for Full Release only)
+    # ============================================
+    if ($mode -eq "full") {
+        Write-Host "Testing GitHub connection..." -ForegroundColor Yellow
+        $connectionOk = Test-GitHubConnection
+        
+        if (-not $connectionOk) {
+            Write-Host ""
+            Write-Host "⚠️  Cannot connect to GitHub" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "Possible causes:" -ForegroundColor Cyan
+            Write-Host "  • No internet connection" -ForegroundColor Gray
+            Write-Host "  • VPN not connected" -ForegroundColor Gray
+            Write-Host "  • Firewall blocking GitHub" -ForegroundColor Gray
+            Write-Host "  • GitHub authentication needed (credentials expired)" -ForegroundColor Gray
+            Write-Host "  • Proxy settings changed" -ForegroundColor Gray
+            Write-Host "  • GitHub is down (check: https://www.githubstatus.com)" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "Quick checks:" -ForegroundColor Cyan
+            Write-Host "  1. Try: ping github.com" -ForegroundColor Gray
+            Write-Host "  2. Check: git remote -v (verify remote URL)" -ForegroundColor Gray
+            Write-Host "  3. Test: git ls-remote origin (tests git connectivity)" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "Options:" -ForegroundColor Cyan
+            Write-Host "  1. Try GitHub authentication setup (recommended)" -ForegroundColor White
+            Write-Host "  2. Continue anyway (will try to push later)" -ForegroundColor White
+            Write-Host "  3. Switch to Local Only mode" -ForegroundColor White
+            Write-Host "  4. Cancel" -ForegroundColor White
+            Write-Host ""
+            $connectionChoice = Read-Host "Enter choice (1-4)"
+            
+            switch ($connectionChoice) {
+                "1" {
+                    Write-Host ""
+                    $authAction = Handle-GitHubAuth
+                    if ($authAction -eq "skip") {
+                        Write-Host "Authentication skipped. Switching to Local Only mode..." -ForegroundColor Yellow
+                        $mode = "local"
+                        $modeDisplay = "Local Only"
+                    } else {
+                        Write-Host ""
+                        Write-Host "Retesting GitHub connection..." -ForegroundColor Yellow
+                        $connectionOk = Test-GitHubConnection
+                        if (-not $connectionOk) {
+                            Write-Host "Connection still failing. Options:" -ForegroundColor Yellow
+                            Write-Host "  1. Continue anyway (will try to push later)" -ForegroundColor White
+                            Write-Host "  2. Switch to Local Only mode" -ForegroundColor White
+                            $retryChoice = Read-Host "Enter choice (1-2)"
+                            if ($retryChoice -eq "2") {
+                                $mode = "local"
+                                $modeDisplay = "Local Only"
+                            }
+                        } else {
+                            Write-Host "✅ Connection successful after authentication!" -ForegroundColor Green
+                        }
+                        Write-Host ""
+                    }
+                }
+                "2" {
+                    Write-Host "Continuing with Full Release mode..." -ForegroundColor Yellow
+                    Write-Host ""
+                }
+                "3" {
+                    Write-Host "Switching to Local Only mode..." -ForegroundColor Yellow
+                    $mode = "local"
+                    $modeDisplay = "Local Only"
+                    Write-Host ""
+                }
+                "4" {
+                    Write-Host "Release cancelled." -ForegroundColor Yellow
+                    Pop-Location
+                    exit
+                }
+                default {
+                    Write-Host "Invalid choice. Switching to Local Only mode..." -ForegroundColor Yellow
+                    $mode = "local"
+                    $modeDisplay = "Local Only"
+                    Write-Host ""
+                }
+            }
+        } else {
+            Write-Host "✅ Connection successful" -ForegroundColor Green
+            Write-Host ""
+        }
+    }
 
     # ============================================
     # Step 1: Check for Database Schema Changes (FIRST - Before Committing)
@@ -426,35 +576,10 @@ try {
     # ============================================
     # Step 11: Push Commits and Tag (ONLY for Full Release mode)
     # ============================================
-    # Note: Connection test and push only happen for "Full Release" (option 1)
+    # Note: Push only happens for "Full Release" (option 1)
     # "Local Only" (option 2) and "Dry Run" (option 3) skip this entire section
+    # Connection was already tested in Step 0.5
     if ($mode -eq "full") {
-        # Test GitHub connection before attempting push
-        Write-Host ""
-        $connectionOk = Test-GitHubConnection
-        Write-Host ""
-        
-        if (-not $connectionOk) {
-            Write-Host "⚠️  Cannot connect to GitHub" -ForegroundColor Yellow
-            Write-Host ""
-            Write-Host "Possible causes:" -ForegroundColor Cyan
-            Write-Host "  • No internet connection" -ForegroundColor Gray
-            Write-Host "  • VPN not connected" -ForegroundColor Gray
-            Write-Host "  • Firewall blocking GitHub" -ForegroundColor Gray
-            Write-Host "  • GitHub is down" -ForegroundColor Gray
-            Write-Host ""
-            $retry = Read-Host "Try anyway? (y/n)"
-            if ($retry -ne "y" -and $retry -ne "Y") {
-                Write-Host ""
-                Write-Host "Changes and tag are local. Push manually later with:" -ForegroundColor Yellow
-                Write-Host "  git push origin $currentBranch" -ForegroundColor Gray
-                Write-Host "  git push origin $newVersion" -ForegroundColor Gray
-                Pop-Location
-                exit 1
-            }
-            Write-Host ""
-        }
-        
         if ($status) {
             Write-Host "Pushing commits to GitHub..." -ForegroundColor Yellow
             git push origin $currentBranch
