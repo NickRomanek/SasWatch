@@ -889,6 +889,11 @@ try {
         }
     }
 
+    # Refresh git status after Prisma sync (migration files may have been created)
+    if ($schemaSyncRan) {
+        $status = git status --short
+    }
+
     # ============================================
     # Step 2: Show Changes (if any)
     # ============================================

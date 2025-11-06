@@ -500,31 +500,26 @@ function editUser(user) {
                     </div>
                     
                     <div class="form-group">
-                        <label>Windows Usernames</label>
-                        <div id="usernames-container">
-                            ${usernamesHTML}
+                        <div class="form-group-header">
+                            <label>Licenses</label>
+                            <button type="button" class="btn btn-secondary btn-compact" onclick="addLicense()">➕ Add License</button>
                         </div>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="addUsername()">➕ Add Username</button>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Licenses</label>
                         <div id="licenses-container">
                             ${licensesHTML}
                         </div>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="addLicense()">➕ Add License</button>
                     </div>
-                    
-                    <div class="form-group">
-                        <label>Admin Roles</label>
-                        <input type="text" id="edit-adminRoles" class="form-input" value="${user.adminRoles || ''}" placeholder="e.g., System Administrator">
+
+                    <div class="form-group" id="windows-usernames-section">
+                        <div class="form-group-header">
+                            <label>Windows Usernames</label>
+                            <button type="button" class="btn btn-secondary btn-compact" onclick="addUsername()">➕ Add Username</button>
+                        </div>
+                        <div id="usernames-container">
+                            ${usernamesHTML}
+                        </div>
+                        <p class="form-helper-text">Optional: manage alternate workstation logins mapped to this user.</p>
                     </div>
-                    
-                    <div class="form-group">
-                        <label>User Groups</label>
-                        <input type="text" id="edit-userGroups" class="form-input" value="${user.userGroups || ''}" placeholder="e.g., IT Department">
-                    </div>
-                    
+
                     <div class="form-info">
                         <p><strong>Activity Count:</strong> ${user.activityCount || 0} events</p>
                         <p><strong>Last Activity:</strong> ${user.lastActivity ? new Date(user.lastActivity).toLocaleString() : 'Never'}</p>

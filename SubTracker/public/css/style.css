@@ -2213,6 +2213,20 @@ nav a.active {
     font-size: 0.875rem;
 }
 
+.form-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.btn-compact {
+    padding: 0.35rem 0.85rem;
+    font-size: 0.8rem;
+    line-height: 1.2;
+}
+
 /* Download buttons */
 .download-buttons {
     display: flex;
@@ -2309,4 +2323,10 @@ nav a.active {
         left: 1rem;
         bottom: 1rem;
     }
+}
+
+.form-helper-text {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
 }
