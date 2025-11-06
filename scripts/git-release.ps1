@@ -237,7 +237,9 @@ function Show-Summary {
         [string]$TagMessage,
         [string]$CommitMessage,
         [bool]$HasChanges,
-        [bool]$SchemaChanged
+        [bool]$SchemaChanged,
+        [bool]$SchemaSyncRan = $false,
+        [string]$SchemaSyncInfo = ""
     )
     
     Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
@@ -261,11 +263,111 @@ function Show-Summary {
     }
     if ($SchemaChanged) {
         Write-Host "  ⚠️  Database Schema Changed!" -ForegroundColor Red
+        if ($SchemaSyncRan) {
+            Write-Host "     Prisma command: $SchemaSyncInfo" -ForegroundColor Green
+        } elseif ($SchemaSyncInfo) {
+            Write-Host "     Prisma: $SchemaSyncInfo" -ForegroundColor Yellow
+        }
     }
     Write-Host ""
 }
 
+function Get-PrismaProjectRoot {
+    if (Test-Path "SubTracker/prisma/schema.prisma") {
+        return "SubTracker"
+    }
+    elseif (Test-Path "prisma/schema.prisma") {
+        return "."
+    }
+    return $null
+}
+
+function Invoke-PrismaSchemaSync {
+    param(
+        [string]$ProjectPath
+    )
+
+    $result = @{
+        Ran = $false
+        Command = ""
+        Notes = ""
+    }
+
+    Write-Host "Prisma schema changes detected." -ForegroundColor Cyan
+    Write-Host "Select how you'd like to sync the database schema:" -ForegroundColor Cyan
+    Write-Host "  1. Generate migration (npx prisma migrate dev --name <name>)" -ForegroundColor White
+    Write-Host "  2. Push schema directly (npx prisma db push)" -ForegroundColor White
+    Write-Host "  3. Skip (I will handle manually)" -ForegroundColor White
+    Write-Host ""
+
+    do {
+        $selection = Read-Host "Enter choice (1-3)"
+    } until ($selection -in @("1", "2", "3"))
+
+    if ($selection -eq "3") {
+        Write-Host "Skipping automatic Prisma sync." -ForegroundColor Yellow
+        $result.Notes = "Skipped (user choice)"
+        return $result
+    }
+
+    $npmExecutable = if ($IsWindows) { "npx.cmd" } else { "npx" }
+
+    if (-not (Get-Command $npmExecutable -ErrorAction SilentlyContinue)) {
+        throw "❌ Unable to locate 'npx'. Install Node.js or ensure npx is in PATH."
+    }
+
+    $pushedLocation = $false
+    if ($ProjectPath -and $ProjectPath -ne ".") {
+        Push-Location $ProjectPath
+        $pushedLocation = $true
+    }
+
+    try {
+        switch ($selection) {
+            "1" {
+                do {
+                    $migrationName = Read-Host "Migration name (kebab-case recommended)"
+                    if ([string]::IsNullOrWhiteSpace($migrationName)) {
+                        Write-Host "Migration name cannot be empty." -ForegroundColor Yellow
+                    }
+                } until (-not [string]::IsNullOrWhiteSpace($migrationName))
+
+                Write-Host "Running: $npmExecutable prisma migrate dev --name $migrationName" -ForegroundColor Gray
+                & $npmExecutable prisma migrate dev --name $migrationName
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Prisma migrate failed (exit code $LASTEXITCODE)."
+                }
+
+                $result.Ran = $true
+                $result.Command = "prisma migrate dev --name $migrationName"
+                $result.Notes = "Migration generated"
+            }
+            "2" {
+                Write-Host "Running: $npmExecutable prisma db push" -ForegroundColor Gray
+                & $npmExecutable prisma db push
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Prisma db push failed (exit code $LASTEXITCODE)."
+                }
+
+                $result.Ran = $true
+                $result.Command = "prisma db push"
+                $result.Notes = "Schema pushed"
+            }
+        }
+    }
+    finally {
+        if ($pushedLocation) {
+            Pop-Location
+        }
+    }
+
+    return $result
+}
+
 Show-Header
+
+# Determine platform
+$IsWindows = $env:OS -eq "Windows_NT"
 
 # ============================================
 # Configure git timeouts (reduce hanging)
@@ -709,6 +811,8 @@ try {
     # ============================================
     $schemaChanged = $false
     $schemaPath = $null
+    $schemaSyncRan = $false
+    $schemaSyncInfo = ""
 
     # Check for schema file in different possible locations
     if (Test-Path "SubTracker/prisma/schema.prisma") {
@@ -751,6 +855,37 @@ try {
         } else {
             Write-Host "(Dry run - no action will be taken)" -ForegroundColor Gray
             Write-Host ""
+        }
+    }
+
+    if ($schemaChanged) {
+        if ($mode -eq "dryrun") {
+            $schemaSyncInfo = "Dry run - Prisma commands not executed"
+        } elseif ($mode -ne "dryrun") {
+            $prismaRoot = Get-PrismaProjectRoot
+            if ($null -eq $prismaRoot) {
+                Write-Host "⚠️  Prisma project path not found; skipping automatic schema sync." -ForegroundColor Yellow
+                $schemaSyncInfo = "Auto sync skipped (schema path not found)"
+            } else {
+                try {
+                    $syncResult = Invoke-PrismaSchemaSync -ProjectPath $prismaRoot
+                    $schemaSyncRan = $syncResult.Ran
+                    if ($syncResult.Ran) {
+                        $schemaSyncInfo = $syncResult.Command
+                        if ($syncResult.Notes) {
+                            $schemaSyncInfo = "$schemaSyncInfo ($($syncResult.Notes))"
+                        }
+                    } else {
+                        $schemaSyncInfo = $syncResult.Notes
+                    }
+                }
+                catch {
+                    Write-Host $_.Exception.Message -ForegroundColor Red
+                    Write-Host "Release cancelled due to Prisma command failure." -ForegroundColor Red
+                    Pop-Location
+                    exit 1
+                }
+            }
         }
     }
 
@@ -842,7 +977,8 @@ try {
     # ============================================
     Show-Summary -Mode $modeDisplay -Version $newVersion -Type $releaseType `
         -TagMessage $tagMessage -CommitMessage $commitMsg `
-        -HasChanges ([bool]$status) -SchemaChanged $schemaChanged
+        -HasChanges ([bool]$status) -SchemaChanged $schemaChanged `
+        -SchemaSyncRan $schemaSyncRan -SchemaSyncInfo $schemaSyncInfo
 
     Write-Host ""
     if ($mode -eq "full") {
