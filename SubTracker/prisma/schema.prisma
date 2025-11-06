@@ -27,7 +27,9 @@ model Account {
   users             User[]
   usageEvents       UsageEvent[]
   unmappedUsernames UnmappedUsername[]
-  
+  appOverrides      AppOverride[]
+  applications      Application[]
+
   @@index([email])
   @@index([apiKey])
   @@map("accounts")
@@ -120,4 +122,41 @@ model UsageEvent {
   @@index([source])
   @@index([event])
   @@map("usage_events")
+}
+
+// Application model - tracks software applications
+model Application {
+  id               String   @id @default(uuid())
+  accountId        String   // Links to account (multi-tenant)
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  vendor           String   // e.g., "Adobe", "Microsoft"
+  name             String   // e.g., "Acrobat Pro", "Photoshop"
+  detectedUsers    Int      @default(0) // Number of users detected using this app
+  licensesOwned    Int      @default(0) // Total licenses purchased for this app
+  isHidden         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([accountId, vendor, name]) // Unique app per account
+  @@index([accountId])
+  @@index([vendor])
+  @@map("applications")
+}
+
+// Application display overrides for auto-detected events
+model AppOverride {
+  id          String   @id @default(uuid())
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  sourceKey   String
+  vendor      String
+  name        String
+  licensesOwned Int    @default(0)
+  isHidden    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([accountId, sourceKey])
+  @@index([accountId])
+  @@map("app_overrides")
 }

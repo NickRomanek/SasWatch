@@ -858,12 +858,140 @@ function setupDashboardRoutes(app) {
 }
 
 // ============================================
+// Apps Routes (Account-Scoped)
+// ============================================
+
+function setupAppsRoutes(app) {
+    // Apps page
+    app.get('/apps', auth.requireAuth, auth.attachAccount, async (req, res) => {
+        try {
+            const appsData = await db.getAppsData(req.session.accountId);
+            res.render('apps', {
+                title: 'SubTracker - Applications',
+                apps: appsData.apps || [],
+                stats: appsData.stats || {},
+                account: req.account
+            });
+        } catch (error) {
+            console.error('Apps page error:', error);
+            res.status(500).send('Error loading apps page');
+        }
+    });
+
+    // Get apps API endpoint
+    app.get('/api/apps', auth.requireAuth, async (req, res) => {
+        try {
+            const appsData = await db.getAppsData(req.session.accountId);
+            res.json(appsData);
+        } catch (error) {
+            console.error('Get apps error:', error);
+            res.status(500).json({ error: 'Failed to get apps' });
+        }
+    });
+
+    // Create app
+    app.post('/api/apps', auth.requireAuth, async (req, res) => {
+        try {
+            const app = await db.createApp(req.session.accountId, req.body);
+            res.json(app);
+        } catch (error) {
+            console.error('Create app error:', error);
+            res.status(500).json({ error: 'Failed to create app' });
+        }
+    });
+
+    // Update app
+    app.put('/api/apps/:id', auth.requireAuth, async (req, res) => {
+        try {
+            const app = await db.updateApp(req.session.accountId, req.params.id, req.body);
+            res.json(app);
+        } catch (error) {
+            console.error('Update app error:', error);
+            res.status(500).json({ error: 'Failed to update app' });
+        }
+    });
+
+    // Create or update override for auto-detected app
+    app.post('/api/apps/override', auth.requireAuth, async (req, res) => {
+        try {
+            const { sourceKey, vendor, name, licensesOwned } = req.body || {};
+
+            if (!sourceKey || !vendor || !name) {
+                return res.status(400).json({ error: 'sourceKey, vendor, and name are required' });
+            }
+
+            const override = await db.upsertAppOverride(req.session.accountId, sourceKey, {
+                vendor,
+                name,
+                licensesOwned
+            });
+
+            res.json({ success: true, override });
+        } catch (error) {
+            console.error('Upsert app override error:', error);
+            res.status(500).json({ error: 'Failed to update app' });
+        }
+    });
+
+    // Hide application from listing
+    app.post('/api/apps/hide', auth.requireAuth, async (req, res) => {
+        try {
+            const { id, sourceKey, vendor, name, licensesOwned } = req.body || {};
+
+            if (id) {
+                await db.hideApp(req.session.accountId, { id });
+            } else if (sourceKey) {
+                if (!vendor || !name) {
+                    return res.status(400).json({ error: 'vendor and name required when hiding detected apps' });
+                }
+
+                await db.hideApp(req.session.accountId, {
+                    sourceKey,
+                    vendor,
+                    name,
+                    licensesOwned
+                });
+            } else {
+                return res.status(400).json({ error: 'id or sourceKey required' });
+            }
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Hide app error:', error);
+            res.status(500).json({ error: 'Failed to hide app' });
+        }
+    });
+
+    // Delete app
+    app.delete('/api/apps/:id', auth.requireAuth, async (req, res) => {
+        try {
+            await db.deleteApp(req.session.accountId, req.params.id);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Delete app error:', error);
+            res.status(500).json({ error: 'Failed to delete app' });
+        }
+    });
+
+    // Delete all apps
+    app.delete('/api/apps', auth.requireAuth, async (req, res) => {
+        try {
+            await db.deleteAllApps(req.session.accountId);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Delete all apps error:', error);
+            res.status(500).json({ error: 'Failed to delete all apps' });
+        }
+    });
+}
+
+// ============================================
 // Main Setup Function
 // ============================================
 
 function setupMultiTenantRoutes(app) {
     console.log('Setting up multi-tenant routes...');
-    
+
     setupSession(app);
     setupAuthRoutes(app);
     setupAccountRoutes(app);
@@ -871,7 +999,8 @@ function setupMultiTenantRoutes(app) {
     setupTrackingAPI(app);
     setupDataRoutes(app);
     setupDashboardRoutes(app);
-    
+    setupAppsRoutes(app);
+
     console.log('✓ Multi-tenant routes configured');
 }
 
@@ -884,6 +1013,7 @@ module.exports = {
     setupApiRoutes: setupTrackingAPI,  // Alias for consistency
     setupUserManagementRoutes: setupDataRoutes,  // Alias for consistency
     setupDashboardRoutes,
+    setupAppsRoutes,
     // Original names for backward compatibility
     setupScriptRoutes,
     setupTrackingAPI,

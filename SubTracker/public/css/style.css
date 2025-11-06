@@ -1051,10 +1051,22 @@ nav a.active {
     border-color: var(--success);
 }
 
+.status-neutral {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+
 .status-warning {
     background: var(--warning-light);
     color: var(--warning);
     border-color: var(--warning);
+}
+
+.status-danger {
+    background: var(--danger-light);
+    color: var(--danger);
+    border-color: var(--danger);
 }
 
 .status-active {
@@ -2022,8 +2034,17 @@ nav a.active {
     padding: 1.5rem;
     border-top: 1px solid var(--border-color);
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.modal-footer-left,
+.modal-footer-right {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
 }
 
 /* Notifications */

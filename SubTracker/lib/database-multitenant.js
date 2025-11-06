@@ -3,6 +3,155 @@
 
 const prisma = require('./prisma');
 
+const PROCESS_APP_MAP = {
+    'acrobat.exe': { vendor: 'Adobe', name: 'Acrobat Pro' },
+    'acrord32.exe': { vendor: 'Adobe', name: 'Acrobat Reader' },
+    'illustrator.exe': { vendor: 'Adobe', name: 'Illustrator' },
+    'photoshop.exe': { vendor: 'Adobe', name: 'Photoshop' },
+    'indesign.exe': { vendor: 'Adobe', name: 'InDesign' },
+    'afterfx.exe': { vendor: 'Adobe', name: 'After Effects' },
+    'premiere pro.exe': { vendor: 'Adobe', name: 'Premiere Pro' }
+};
+
+const DOMAIN_MATCHERS = [
+    { pattern: /(documentcloud|acrobat)/, vendor: 'Adobe', name: 'Acrobat Web' },
+    { pattern: /(express\.adobe|adobeexpress)/, vendor: 'Adobe', name: 'Adobe Express' },
+    { pattern: /(photoshop)/, vendor: 'Adobe', name: 'Photoshop' },
+    { pattern: /(illustrator)/, vendor: 'Adobe', name: 'Illustrator' },
+    { pattern: /(indesign)/, vendor: 'Adobe', name: 'InDesign' },
+    { pattern: /(lightroom)/, vendor: 'Adobe', name: 'Lightroom' },
+    { pattern: /(premiere)/, vendor: 'Adobe', name: 'Premiere Pro' },
+    { pattern: /(aftereffects|afterfx)/, vendor: 'Adobe', name: 'After Effects' },
+    { pattern: /(creativecloud|creativeclouddesktop)/, vendor: 'Adobe', name: 'Creative Cloud Desktop' }
+];
+
+function toTitleCase(value = '') {
+    return value
+        .split(' ')
+        .filter(Boolean)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
+function deriveFallbackName(raw = '') {
+    if (!raw) {
+        return 'Unknown Application';
+    }
+
+    const sanitized = raw
+        .replace(/^https?:\/\//i, '')
+        .replace(/^www\./i, '')
+        .replace(/\.adobe\.com$/i, '')
+        .replace(/\.html?$/i, '')
+        .replace(/[?#].*$/, '')
+        .replace(/[\/_-]+/g, ' ')
+        .trim();
+
+    if (!sanitized) {
+        return 'Unknown Application';
+    }
+
+    return toTitleCase(sanitized);
+}
+
+function deriveSourceKey(event = {}) {
+    const source = (event.source || '').toLowerCase();
+    const rawUrl = (event.url || '').trim();
+
+    if (source === 'wrapper') {
+        const processName = (rawUrl || event.event || 'unknown').toLowerCase();
+        return `wrapper:${processName}`;
+    }
+
+    if (rawUrl) {
+        try {
+            const normalized = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+            const url = new URL(normalized);
+            const path = url.pathname === '/' ? '' : url.pathname;
+            return `web:${url.hostname.toLowerCase()}${path.toLowerCase()}`;
+        } catch (error) {
+            return `web:${rawUrl.toLowerCase()}`;
+        }
+    }
+
+    const eventName = (event.event || event.why || 'unknown').toLowerCase();
+    return `event:${eventName}`;
+}
+
+function resolveAppMetadataFromEvent(event = {}) {
+    const source = (event.source || '').toLowerCase();
+    const rawUrl = (event.url || '').trim();
+    const rawEvent = (event.event || '').trim();
+    const key = deriveSourceKey(event);
+
+    if (!rawUrl && !rawEvent) {
+        return null;
+    }
+
+    if (source === 'wrapper') {
+        const processKey = rawUrl.toLowerCase();
+        if (PROCESS_APP_MAP[processKey]) {
+            return { ...PROCESS_APP_MAP[processKey], key };
+        }
+
+        const fallbackName = toTitleCase(rawUrl.replace(/\.exe$/i, '').replace(/[._-]+/g, ' '));
+        const name = fallbackName || 'Adobe Desktop App';
+        const vendor = name === 'System' ? 'SubTracker' : 'Adobe';
+
+        return {
+            vendor,
+            name: name === 'System' ? 'System Activity' : name,
+            key
+        };
+    }
+
+    let lookup = rawUrl || rawEvent;
+    let context = lookup.toLowerCase();
+
+    try {
+        const normalized = lookup.startsWith('http') ? lookup : `https://${lookup}`;
+        const url = new URL(normalized);
+        context = `${url.hostname}${url.pathname}`.toLowerCase();
+    } catch (error) {
+        // Fall back to raw lower-cased string
+    }
+
+    for (const matcher of DOMAIN_MATCHERS) {
+        if (matcher.pattern.test(context)) {
+            return { vendor: matcher.vendor, name: matcher.name, key };
+        }
+    }
+
+    const name = deriveFallbackName(lookup);
+    const vendor = context.includes('adobe') ? 'Adobe' : 'Uncategorized';
+
+    return {
+        vendor,
+        name: name === 'System' ? 'System Activity' : name,
+        key
+    };
+}
+
+function createAppKey(vendor = '', name = '') {
+    return `${vendor.toLowerCase()}::${name.toLowerCase()}`;
+}
+
+function normalizeAppInput(appData = {}) {
+    const vendor = toTitleCase((appData.vendor || '').trim());
+    const name = toTitleCase((appData.name || '').trim());
+
+    if (!vendor || !name) {
+        throw new Error('Vendor and name are required');
+    }
+
+    return {
+        vendor,
+        name,
+        licensesOwned: Number.isFinite(appData.licensesOwned) ? appData.licensesOwned : (parseInt(appData.licensesOwned, 10) || 0),
+        detectedUsers: Number.isFinite(appData.detectedUsers) ? appData.detectedUsers : (parseInt(appData.detectedUsers, 10) || 0)
+    };
+}
+
 // ============================================
 // User Operations (Account-Scoped)
 // ============================================
@@ -427,6 +576,260 @@ async function importUsersFromCSV(accountId, csvData) {
     return users;
 }
 
+// ============================================
+// Application Operations (Account-Scoped)
+// ============================================
+
+async function getAppsData(accountId) {
+    try {
+        const [manualApps, overrides, usageEvents] = await Promise.all([
+            prisma.application.findMany({
+                where: { accountId, isHidden: false },
+                orderBy: [
+                    { vendor: 'asc' },
+                    { name: 'asc' }
+                ]
+            }),
+            prisma.appOverride.findMany({
+                where: { accountId }
+            }),
+            prisma.usageEvent.findMany({
+                where: { accountId },
+                select: {
+                    event: true,
+                    url: true,
+                    source: true,
+                    windowsUser: true,
+                    clientId: true,
+                    computerName: true
+                }
+            })
+        ]);
+
+        const overrideMap = new Map();
+        overrides.forEach(override => {
+            overrideMap.set(override.sourceKey, override);
+        });
+
+        const appMap = new Map();
+
+        manualApps.forEach(app => {
+            const key = `manual:${app.id}`;
+            appMap.set(key, {
+                id: app.id,
+                sourceKey: null,
+                vendor: app.vendor,
+                name: app.name,
+                licensesOwned: app.licensesOwned || 0,
+                detectedUsers: app.detectedUsers || 0,
+                userIdentifiers: new Set(),
+                isManual: true,
+                hasOverride: false
+            });
+        });
+
+        usageEvents.forEach(event => {
+            const metadata = resolveAppMetadataFromEvent(event);
+            if (!metadata || !metadata.key) {
+                return;
+            }
+
+            const override = overrideMap.get(metadata.key);
+            if (override && override.isHidden) {
+                return;
+            }
+            const vendor = override ? override.vendor : metadata.vendor;
+            const name = override ? override.name : metadata.name;
+            const licensesOwned = override ? override.licensesOwned : 0;
+
+            if (!appMap.has(metadata.key)) {
+                appMap.set(metadata.key, {
+                    id: null,
+                    sourceKey: metadata.key,
+                    vendor,
+                    name,
+                    licensesOwned,
+                    detectedUsers: 0,
+                    userIdentifiers: new Set(),
+                    isManual: false,
+                    hasOverride: !!override
+                });
+            }
+
+            const entry = appMap.get(metadata.key);
+            entry.vendor = vendor;
+            entry.name = name;
+            if (override) {
+                entry.licensesOwned = override.licensesOwned;
+                entry.hasOverride = true;
+            }
+
+            const identifier = (event.windowsUser || event.clientId || event.computerName || '').trim().toLowerCase();
+            if (identifier) {
+                entry.userIdentifiers.add(identifier);
+            }
+        });
+
+        const apps = Array.from(appMap.values())
+            .map(entry => {
+                const detectedUsers = entry.isManual ? entry.detectedUsers : entry.userIdentifiers.size;
+                const licensesOwned = entry.licensesOwned || 0;
+                const unusedLicenses = licensesOwned - detectedUsers;
+
+                return {
+                    id: entry.isManual ? entry.id : null,
+                    sourceKey: entry.sourceKey,
+                    vendor: entry.vendor,
+                    name: entry.name,
+                    detectedUsers,
+                    licensesOwned,
+                    unusedLicenses,
+                    isManual: entry.isManual,
+                    hasOverride: entry.hasOverride
+                };
+            })
+            .sort((a, b) => a.vendor.localeCompare(b.vendor) || a.name.localeCompare(b.name));
+
+        const stats = {
+            totalApps: apps.length,
+            totalLicenses: apps.reduce((sum, app) => sum + (app.licensesOwned || 0), 0),
+            totalDetected: apps.reduce((sum, app) => sum + (app.detectedUsers || 0), 0),
+            totalUnused: apps.reduce((sum, app) => sum + Math.max(app.unusedLicenses, 0), 0)
+        };
+
+        stats.totalUsers = stats.totalDetected;
+
+        return { apps, stats };
+    } catch (error) {
+        console.error('Error getting apps data:', error);
+        return { apps: [], stats: {} };
+    }
+}
+
+async function createApp(accountId, appData) {
+    const payload = normalizeAppInput(appData);
+
+    return prisma.application.create({
+        data: {
+            accountId,
+            vendor: payload.vendor,
+            name: payload.name,
+            licensesOwned: payload.licensesOwned,
+            detectedUsers: payload.detectedUsers
+        }
+    });
+}
+
+async function updateApp(accountId, appId, updates) {
+    const existing = await prisma.application.findFirst({
+        where: { id: appId, accountId }
+    });
+
+    if (!existing) {
+        throw new Error('Application not found');
+    }
+
+    const payload = normalizeAppInput({
+        vendor: updates.vendor ?? existing.vendor,
+        name: updates.name ?? existing.name,
+        licensesOwned: updates.licensesOwned ?? existing.licensesOwned,
+        detectedUsers: updates.detectedUsers ?? existing.detectedUsers
+    });
+
+    return prisma.application.update({
+        where: { id: appId },
+        data: payload
+    });
+}
+
+async function upsertAppOverride(accountId, sourceKey, appData) {
+    if (!sourceKey) {
+        throw new Error('sourceKey is required');
+    }
+
+    const payload = normalizeAppInput({
+        vendor: appData.vendor,
+        name: appData.name,
+        licensesOwned: appData.licensesOwned,
+        detectedUsers: 0
+    });
+    const isHidden = appData.isHidden === true;
+
+    const existing = await prisma.appOverride.findFirst({
+        where: { accountId, sourceKey }
+    });
+
+    if (existing) {
+        return prisma.appOverride.update({
+            where: { id: existing.id },
+            data: {
+                vendor: payload.vendor,
+                name: payload.name,
+                licensesOwned: payload.licensesOwned,
+                isHidden
+            }
+        });
+    }
+
+    return prisma.appOverride.create({
+        data: {
+            accountId,
+            sourceKey,
+            vendor: payload.vendor,
+            name: payload.name,
+            licensesOwned: payload.licensesOwned,
+            isHidden
+        }
+    });
+}
+
+async function deleteAppOverride(accountId, sourceKey) {
+    await prisma.appOverride.deleteMany({
+        where: { accountId, sourceKey }
+    });
+}
+
+async function hideApp(accountId, { id, sourceKey, vendor, name, licensesOwned }) {
+    if (id) {
+        return prisma.application.updateMany({
+            where: { id, accountId },
+            data: { isHidden: true }
+        });
+    }
+
+    if (sourceKey) {
+        return upsertAppOverride(accountId, sourceKey, {
+            vendor,
+            name,
+            licensesOwned,
+            isHidden: true
+        });
+    }
+
+    throw new Error('Either application id or sourceKey is required to hide app');
+}
+
+async function deleteApp(accountId, appId) {
+    // Verify app belongs to account
+    const app = await prisma.application.findFirst({
+        where: { id: appId, accountId }
+    });
+
+    if (!app) {
+        throw new Error('Application not found');
+    }
+
+    await prisma.application.delete({
+        where: { id: appId }
+    });
+}
+
+async function deleteAllApps(accountId) {
+    await prisma.application.deleteMany({
+        where: { accountId }
+    });
+}
+
 module.exports = {
     // User operations (all account-scoped)
     getUsersData,
@@ -447,7 +850,17 @@ module.exports = {
     // Utility (account-scoped)
     getDatabaseStats,
     importUsersFromCSV,
-    
+
+    // Application operations (all account-scoped)
+    getAppsData,
+    createApp,
+    updateApp,
+    upsertAppOverride,
+    deleteAppOverride,
+    hideApp,
+    deleteApp,
+    deleteAllApps,
+
     // Direct prisma access if needed
     prisma
 };

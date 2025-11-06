@@ -27,6 +27,12 @@
                 </a>
             </div>
             <div class="sidebar-nav-item">
+                <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
+                    <span class="nav-icon">📦</span>
+                    <span>Apps</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
                 <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
                     <span class="nav-icon">📊</span>
                     <span>Activity</span>
@@ -295,6 +301,7 @@
         </div>
     </main>
 
+    <script src="/js/theme.js"></script>
     <script src="/js/ui-components.js"></script>
     <script>
         // Pass server data to JavaScript
@@ -302,51 +309,6 @@
     </script>
     <script src="/js/users.js"></script>
     <script src="/js/azure-sync.js"></script>
-    <script>
-        // Sidebar toggle functionality
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const icon = document.getElementById('sidebar-toggle-icon');
-            sidebar.classList.toggle('collapsed');
-            
-            // Save state
-            const isCollapsed = sidebar.classList.contains('collapsed');
-            localStorage.setItem('sidebarCollapsed', isCollapsed);
-            icon.textContent = isCollapsed ? '▶' : '◀';
-        }
-
-        // Theme toggle functionality
-        function toggleTheme() {
-            const html = document.documentElement;
-            const currentTheme = html.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            
-            html.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-            
-            // Update icon
-            const icon = document.getElementById('theme-icon');
-            icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
-        }
-
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            // Initialize theme (default to dark)
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-            const themeIcon = document.getElementById('theme-icon');
-            themeIcon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
-            
-            // Initialize sidebar state
-            const sidebar = document.getElementById('sidebar');
-            const sidebarIcon = document.getElementById('sidebar-toggle-icon');
-            const savedSidebarState = localStorage.getItem('sidebarCollapsed') === 'true';
-            if (savedSidebarState) {
-                sidebar.classList.add('collapsed');
-                sidebarIcon.textContent = '▶';
-            }
-        });
-    </script>
 </body>
 </html>
 
