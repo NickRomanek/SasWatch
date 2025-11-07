@@ -1304,7 +1304,7 @@ nav a.active {
 
 .users-header {
     display: flex;
-    justify-content: flex-start;
+    justify-content: space-between;
     align-items: center;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
@@ -1315,6 +1315,12 @@ nav a.active {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+}
+
+.users-header-right {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
 }
 
 .users-header h2 {
@@ -2357,6 +2363,12 @@ nav a.active {
 .btn-sm {
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
+}
+
+.btn-xs {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
 }
 
 .form-group-header {

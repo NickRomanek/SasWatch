@@ -234,10 +234,18 @@ function setupAccountRoutes(app) {
                 }
 
                 // Build admin consent URL
-                const redirectUri = encodeURIComponent(`${req.protocol}://${req.get('host')}/integrations/entra/callback`);
+                // Use environment variable if set, otherwise construct dynamically
+                let redirectUri;
+                if (process.env.ENTRA_REDIRECT_URI) {
+                    redirectUri = process.env.ENTRA_REDIRECT_URI;
+                } else {
+                    // Construct from request (works for both local and production)
+                    redirectUri = `${req.protocol}://${req.get('host')}/integrations/entra/callback`;
+                }
+                const encodedRedirectUri = encodeURIComponent(redirectUri);
                 const adminConsentUrl = `https://login.microsoftonline.com/common/adminconsent?` +
                     `client_id=${clientId}&` +
-                    `redirect_uri=${redirectUri}&` +
+                    `redirect_uri=${encodedRedirectUri}&` +
                     `state=${state}`;
 
                 res.redirect(adminConsentUrl);
@@ -280,7 +288,7 @@ function setupAccountRoutes(app) {
                 }
             });
 
-            res.redirect('/account?success=entra_connected');
+            res.redirect('/?success=entra_connected');
         } catch (error) {
             console.error('Entra callback error:', error);
             res.redirect('/account?error=callback_failed');
@@ -888,6 +896,104 @@ function setupDataRoutes(app) {
         } catch (error) {
             console.error('Get stats error:', error);
             res.status(500).json({ error: 'Failed to get stats' });
+        }
+    });
+
+    // Get all detected licenses (account-scoped)
+    app.get('/api/licenses', auth.requireAuth, async (req, res) => {
+        try {
+            const prisma = require('./lib/prisma');
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { hiddenLicenses: true }
+            });
+
+            // Get all unique licenses from users
+            const users = await prisma.user.findMany({
+                where: { accountId: req.session.accountId },
+                select: { licenses: true, entraLicenses: true }
+            });
+
+            const allLicenses = new Set();
+            users.forEach(user => {
+                if (user.licenses && Array.isArray(user.licenses)) {
+                    user.licenses.forEach(license => allLicenses.add(license));
+                }
+                if (user.entraLicenses && Array.isArray(user.entraLicenses)) {
+                    user.entraLicenses.forEach(license => allLicenses.add(license));
+                }
+            });
+
+            const hiddenLicenses = account?.hiddenLicenses || [];
+            const licensesList = Array.from(allLicenses).sort().map(license => ({
+                name: license,
+                hidden: hiddenLicenses.includes(license)
+            }));
+
+            res.json({ success: true, licenses: licensesList, hiddenLicenses });
+        } catch (error) {
+            console.error('Get licenses error:', error);
+            res.status(500).json({ error: 'Failed to get licenses' });
+        }
+    });
+
+    // Hide a license
+    app.post('/api/licenses/hide', auth.requireAuth, async (req, res) => {
+        try {
+            const { license } = req.body;
+            if (!license) {
+                return res.status(400).json({ error: 'License name is required' });
+            }
+
+            const prisma = require('./lib/prisma');
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { hiddenLicenses: true }
+            });
+
+            const hiddenLicenses = account?.hiddenLicenses || [];
+            if (!hiddenLicenses.includes(license)) {
+                await prisma.account.update({
+                    where: { id: req.session.accountId },
+                    data: {
+                        hiddenLicenses: [...hiddenLicenses, license]
+                    }
+                });
+            }
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Hide license error:', error);
+            res.status(500).json({ error: 'Failed to hide license' });
+        }
+    });
+
+    // Show a license (unhide)
+    app.post('/api/licenses/show', auth.requireAuth, async (req, res) => {
+        try {
+            const { license } = req.body;
+            if (!license) {
+                return res.status(400).json({ error: 'License name is required' });
+            }
+
+            const prisma = require('./lib/prisma');
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { hiddenLicenses: true }
+            });
+
+            const hiddenLicenses = (account?.hiddenLicenses || []).filter(l => l !== license);
+            await prisma.account.update({
+                where: { id: req.session.accountId },
+                data: {
+                    hiddenLicenses: hiddenLicenses
+                }
+            });
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Show license error:', error);
+            res.status(500).json({ error: 'Failed to show license' });
         }
     });
 }

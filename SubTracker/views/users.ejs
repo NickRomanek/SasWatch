@@ -81,6 +81,10 @@
                         </div>
                     </div>
                     
+                    <button class="btn btn-secondary" onclick="toggleImportSection('licenses')">
+                        📋 Licenses
+                    </button>
+                    
                     <div class="dropdown-wrapper">
                         <button class="btn btn-secondary dropdown-btn" onclick="toggleDropdown('import-dropdown')">
                             📥 Import <span class="dropdown-arrow">▼</span>
@@ -93,6 +97,23 @@
                     </div>
                 </div>
             </header>
+
+            <!-- Licenses Management Section (collapsible) -->
+            <div class="import-section" id="licenses-import-section" style="display: none;">
+                <div class="upload-card">
+                    <div class="upload-header" style="display: flex !important; flex-direction: row !important; justify-content: center !important; align-items: center !important; gap: 1rem;">
+                        <h2 style="margin: 0;">📋 Manage Licenses</h2>
+                        <button class="btn btn-primary" onclick="closeLicensesSection()">
+                            Close
+                        </button>
+                    </div>
+                    <div id="licenses-list" style="margin-top: 1.5rem;">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            Loading licenses...
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Adobe Import Section (collapsible) -->
             <div class="import-section" id="adobe-import-section" style="display: none;">
@@ -274,13 +295,6 @@
         <!-- Users Table Section -->
         <div class="users-section">
             <div class="users-header">
-                <div class="users-header-left">
-                    <% if (users && users.length > 0) { %>
-                    <button class="btn btn-danger btn-sm" onclick="deleteAllUsers()">
-                        🗑️ Delete All
-                    </button>
-                    <% } %>
-                </div>
                 <div class="users-controls">
                     <input type="text" id="search-input" placeholder="Search by name or email..." class="search-box">
                     <select id="license-filter" class="filter-select">
@@ -296,6 +310,13 @@
                         <option value="unknown">Pending Sync</option>
                     </select>
                 </div>
+                <% if (users && users.length > 0) { %>
+                <div class="users-header-right">
+                    <button class="btn btn-danger btn-xs" onclick="deleteAllUsers()">
+                        🗑️ Delete All
+                    </button>
+                </div>
+                <% } %>
             </div>
 
             <% if (!users || users.length === 0) { %>
@@ -357,13 +378,124 @@
                 const isVisible = section.style.display !== 'none';
                 section.style.display = isVisible ? 'none' : 'block';
                 
-                // Close dropdown after selection
-                const dropdown = document.getElementById('import-dropdown');
-                if (dropdown) {
-                    dropdown.classList.remove('active');
+                // Close dropdown after selection (only for import)
+                if (sectionName !== 'licenses') {
+                    const dropdown = document.getElementById('import-dropdown');
+                    if (dropdown) {
+                        dropdown.classList.remove('active');
+                    }
+                }
+                
+                // Load licenses when section is opened
+                if (sectionName === 'licenses' && !isVisible) {
+                    loadLicenses();
                 }
             }
         }
+        
+        // Load and display licenses
+        async function loadLicenses() {
+            const licensesList = document.getElementById('licenses-list');
+            if (!licensesList) return;
+            
+            licensesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading licenses...</div>';
+            
+            try {
+                const response = await fetch('/api/licenses');
+                const data = await response.json();
+                
+                if (data.success && data.licenses) {
+                    if (data.licenses.length === 0) {
+                        licensesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No licenses detected yet. Import users or connect Microsoft 365 to see licenses.</div>';
+                        return;
+                    }
+                    
+                    const licensesHtml = data.licenses.map(license => {
+                        const badgeClass = license.hidden ? 'status-neutral' : 'status-success';
+                        const buttonText = license.hidden ? 'Show' : 'Hide';
+                        const buttonClass = license.hidden ? 'btn-secondary' : 'btn-danger';
+                        return `
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <span class="status-badge ${badgeClass}">${license.hidden ? '👁️‍🗨️ Hidden' : '✓ Visible'}</span>
+                                    <span style="font-weight: 500; color: var(--text-primary);">${license.name}</span>
+                                </div>
+                                <button class="btn ${buttonClass} btn-xs license-toggle-btn" data-license="${license.name.replace(/"/g, '&quot;')}" data-hidden="${license.hidden}">
+                                    ${buttonText}
+                                </button>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    licensesList.innerHTML = `
+                        <div style="background: var(--bg-secondary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+                            ${licensesHtml}
+                        </div>
+                    `;
+                    
+                    // Attach event listeners to buttons
+                    licensesList.querySelectorAll('.license-toggle-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            const licenseName = this.getAttribute('data-license');
+                            const isHidden = this.getAttribute('data-hidden') === 'true';
+                            toggleLicenseVisibility(licenseName, isHidden);
+                        });
+                    });
+                } else {
+                    licensesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--danger);">Failed to load licenses.</div>';
+                }
+            } catch (error) {
+                console.error('Error loading licenses:', error);
+                licensesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--danger);">Error loading licenses.</div>';
+            }
+        }
+        
+        // Toggle license visibility (make it globally accessible)
+        window.toggleLicenseVisibility = async function(licenseName, currentlyHidden) {
+            console.log('Toggling license:', licenseName, 'currentlyHidden:', currentlyHidden);
+            try {
+                const endpoint = currentlyHidden ? '/api/licenses/show' : '/api/licenses/hide';
+                console.log('Calling endpoint:', endpoint);
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ license: licenseName })
+                });
+                
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (data.success) {
+                    if (typeof Toast !== 'undefined') {
+                        Toast.success(`License ${currentlyHidden ? 'shown' : 'hidden'} successfully`);
+                    } else {
+                        alert(`License ${currentlyHidden ? 'shown' : 'hidden'} successfully`);
+                    }
+                    // Reload licenses list to update the UI
+                    loadLicenses();
+                } else {
+                    throw new Error(data.error || 'Failed to update license');
+                }
+            } catch (error) {
+                console.error('Error toggling license:', error);
+                if (typeof Toast !== 'undefined') {
+                    Toast.error('Failed to update license: ' + error.message);
+                } else {
+                    alert('Failed to update license: ' + error.message);
+                }
+            }
+        };
+        
+        // Close licenses section and reload page to show changes
+        window.closeLicensesSection = function() {
+            const section = document.getElementById('licenses-import-section');
+            if (section) {
+                section.style.display = 'none';
+            }
+            // Reload page to show updated license visibility in user list
+            window.location.reload();
+        };
         
         // Close dropdowns when clicking outside
         document.addEventListener('click', function(event) {
@@ -373,6 +505,16 @@
                 });
             }
         });
+        
+        // Check for success message from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('success') === 'entra_connected') {
+            if (typeof Toast !== 'undefined') {
+                Toast.success('Microsoft 365 connected successfully! User sync will begin automatically.');
+            }
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
     </script>
     <script src="/js/users.js"></script>
     <script src="/js/azure-sync.js"></script>

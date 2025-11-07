@@ -25,6 +25,7 @@ model Account {
   entraLastSyncAt   DateTime?
   entraTenantId     String?              // Tenant ID from admin consent
   entraConnectedAt  DateTime?             // When admin consent was granted
+  hiddenLicenses    String[]             @default([]) // Licenses to hide from user display
   
   // Relations
   users             User[]

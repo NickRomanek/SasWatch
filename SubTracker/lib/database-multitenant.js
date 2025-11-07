@@ -161,6 +161,13 @@ function normalizeAppInput(appData = {}) {
 
 async function getUsersData(accountId) {
     try {
+        // Get account to retrieve hidden licenses
+        const account = await prisma.account.findUnique({
+            where: { id: accountId },
+            select: { hiddenLicenses: true }
+        });
+        const hiddenLicenses = account?.hiddenLicenses || [];
+
         const users = await prisma.user.findMany({
             where: { accountId },
             include: {
@@ -184,6 +191,12 @@ async function getUsersData(accountId) {
             where: { accountId }
         });
         
+        // Filter out hidden licenses
+        const filterLicenses = (licenses) => {
+            if (!Array.isArray(licenses)) return [];
+            return licenses.filter(license => !hiddenLicenses.includes(license));
+        };
+        
         // Transform to match JSON structure
         const transformedUsers = users.map(user => ({
             email: user.email,
@@ -191,8 +204,8 @@ async function getUsersData(accountId) {
             lastName: user.lastName,
             adminRoles: user.adminRoles || '',
             userGroups: user.userGroups || '',
-            licenses: user.licenses,
-            entraLicenses: user.entraLicenses || [],
+            licenses: filterLicenses(user.licenses),
+            entraLicenses: filterLicenses(user.entraLicenses),
             entraId: user.entraId || null,
             entraAccountEnabled: user.entraAccountEnabled,
             entraLastSyncedAt: user.entraLastSyncedAt,
