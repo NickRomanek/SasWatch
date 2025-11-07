@@ -2492,6 +2492,14 @@ nav a.active {
     text-align: center;
 }
 
+/* Center numeric columns in apps table */
+.apps-table th:nth-child(3),
+.apps-table td:nth-child(3),
+.apps-table th:nth-child(4),
+.apps-table td:nth-child(4) {
+    text-align: center;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .azure-sync-section {

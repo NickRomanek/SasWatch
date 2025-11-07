@@ -114,8 +114,8 @@
                                 <th>Application</th>
                                 <th>Vendor</th>
                                 <th>Detected Users</th>
-                                <th>Unused Licenses</th>
                                 <th>Licenses Owned</th>
+                                <th>Unused Licenses</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -137,13 +137,13 @@
                                         <td><%= app.name %></td>
                                         <td><%= app.vendor %></td>
                                         <td><%= app.detectedUsers || 0 %></td>
+                                        <td><%= app.licensesOwned || 0 %></td>
                                         <td>
                                             <span class="<%= diffClass %>">
                                                 <span><%= diffIcon %></span>
                                                 <span><%= diffLabel %></span>
                                             </span>
                                         </td>
-                                        <td><%= app.licensesOwned || 0 %></td>
                                         <td>
                                             <button class="btn btn-icon" onclick="openAppEditModal('<%= app.id || '' %>', '<%= app.sourceKey || '' %>')" title="Edit application">
                                                 ✏️

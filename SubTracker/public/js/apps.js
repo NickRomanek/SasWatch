@@ -126,13 +126,13 @@ function renderAppsTable(apps) {
             <td>${escapeHtml(app.name)}</td>
             <td>${escapeHtml(app.vendor)}</td>
             <td>${app.detectedUsers ?? 0}</td>
+            <td>${app.licensesOwned ?? 0}</td>
             <td>
                 <span class="${badgeClass}">
                     <span>${icon}</span>
                     <span>${label}</span>
                 </span>
             </td>
-            <td>${app.licensesOwned ?? 0}</td>
             <td>
                 <button class="btn btn-icon" onclick="openAppEditModal('${app.id || ''}', '${app.sourceKey || ''}')" title="Edit application">
                     ✏️
