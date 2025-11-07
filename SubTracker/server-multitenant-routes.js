@@ -637,6 +637,42 @@ function setupDataRoutes(app) {
         }
     });
 
+    // Merge users (account-scoped)
+    // IMPORTANT: This route must be defined BEFORE app.delete('/api/users') to avoid route conflicts
+    app.post('/api/users/merge', auth.requireAuth, async (req, res) => {
+        console.log('Merge users endpoint called:', { targetEmail: req.body.targetEmail, sourceEmails: req.body.sourceEmails });
+        try {
+            const { targetEmail, sourceEmails } = req.body;
+            
+            if (!targetEmail || !sourceEmails || !Array.isArray(sourceEmails) || sourceEmails.length === 0) {
+                return res.status(400).json({ error: 'targetEmail and sourceEmails array are required' });
+            }
+            
+            const result = await db.mergeUsers(req.session.accountId, targetEmail, sourceEmails);
+            res.json({ success: true, ...result });
+        } catch (error) {
+            console.error('Merge users error:', error);
+            res.status(500).json({ error: 'Failed to merge users: ' + error.message });
+        }
+    });
+
+    // Bulk delete users (account-scoped)
+    app.delete('/api/users/bulk', auth.requireAuth, async (req, res) => {
+        try {
+            const { emails } = req.body;
+            
+            if (!emails || !Array.isArray(emails) || emails.length === 0) {
+                return res.status(400).json({ error: 'emails array is required' });
+            }
+            
+            const deletedCount = await db.deleteUsersBulk(req.session.accountId, emails);
+            res.json({ success: true, deletedCount });
+        } catch (error) {
+            console.error('Bulk delete users error:', error);
+            res.status(500).json({ error: 'Failed to delete users: ' + error.message });
+        }
+    });
+
     // Clear all usage data (account-scoped)
     app.delete('/api/usage', auth.requireAuth, async (req, res) => {
         try {

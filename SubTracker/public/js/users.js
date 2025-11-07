@@ -221,7 +221,7 @@ function renderUsersTable() {
     tbody.innerHTML = '';
 
     if (filteredUsers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-secondary);">No users match the current filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-secondary);">No users match the current filters</td></tr>';
         return;
     }
     
@@ -230,6 +230,9 @@ function renderUsersTable() {
         row.className = getStatusClass(user);
         
         row.innerHTML = `
+            <td>
+                <input type="checkbox" class="user-checkbox" data-email="${user.email.replace(/"/g, '&quot;')}" onchange="handleCheckboxChange()">
+            </td>
             <td><strong>${user.firstName} ${user.lastName}</strong></td>
             <td>${user.email}</td>
             <td>${renderLicenses(getDisplayLicenses(user))}</td>
@@ -249,6 +252,9 @@ function renderUsersTable() {
         
         tbody.appendChild(row);
     });
+    
+    // Setup select all checkbox
+    setupSelectAllCheckbox();
     
     // Update count
     const userCount = filteredUsers.length;
@@ -318,8 +324,8 @@ function renderLastActivity(lastActivity) {
 function renderStatusBadge(user) {
     const status = getUserStatus(user);
     const badges = {
-        active: '<span class="status-badge status-active">Active</span>',
-        inactive: '<span class="status-badge status-inactive">Inactive</span>',
+        active: '<span class="status-badge status-active">Enabled</span>',
+        inactive: '<span class="status-badge status-inactive">Disabled</span>',
         unknown: '<span class="status-badge status-neutral">Pending Sync</span>'
     };
     return badges[status] || '<span class="status-badge status-neutral">Pending Sync</span>';
@@ -672,6 +678,237 @@ async function saveUserEdit(event) {
     } catch (error) {
         console.error('Update error:', error);
         alert('✗ Error: ' + error.message);
+    }
+}
+
+// ============================================
+// User Selection and Merge Functionality
+// ============================================
+
+function setupSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    if (!selectAllCheckbox) return;
+    
+    selectAllCheckbox.addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.user-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        handleCheckboxChange();
+    });
+}
+
+function handleCheckboxChange() {
+    const checkboxes = document.querySelectorAll('.user-checkbox');
+    const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+    const deleteAllBtn = document.getElementById('delete-all-btn');
+    const selectedActions = document.getElementById('selected-actions');
+    
+    if (checkedCount > 0) {
+        // Hide "Delete All" button, show "Merge Selected" and "Delete Selected"
+        if (deleteAllBtn) deleteAllBtn.style.display = 'none';
+        if (selectedActions) {
+            selectedActions.style.display = 'flex';
+        }
+    } else {
+        // Show "Delete All" button, hide selection actions
+        if (deleteAllBtn) deleteAllBtn.style.display = 'inline-block';
+        if (selectedActions) {
+            selectedActions.style.display = 'none';
+        }
+    }
+    
+    // Update select all checkbox state
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    if (selectAllCheckbox) {
+        const allChecked = checkedCount === checkboxes.length && checkboxes.length > 0;
+        selectAllCheckbox.checked = allChecked;
+        selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    }
+}
+
+function getSelectedUserEmails() {
+    const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.getAttribute('data-email'));
+}
+
+async function mergeSelectedUsers() {
+    const selectedEmails = getSelectedUserEmails();
+    
+    if (selectedEmails.length < 2) {
+        if (typeof Toast !== 'undefined') {
+            Toast.error('Please select at least 2 users to merge');
+        } else {
+            alert('Please select at least 2 users to merge');
+        }
+        return;
+    }
+    
+    // Find which user has Entra data (should be the target)
+    const users = selectedEmails.map(email => usersData.find(u => u.email === email)).filter(Boolean);
+    const entraUser = users.find(u => u.entraId || u.entraAccountEnabled !== null);
+    
+    if (!entraUser) {
+        if (typeof Toast !== 'undefined') {
+            Toast.error('At least one selected user must have Entra data to merge into');
+        } else {
+            alert('At least one selected user must have Entra data to merge into');
+        }
+        return;
+    }
+    
+    const targetEmail = entraUser.email;
+    const sourceEmails = selectedEmails.filter(email => email !== targetEmail);
+    
+    // Create detailed message for the merge - show all info without dropdown
+    const sourceUsersInfo = sourceEmails.map(email => {
+        const user = usersData.find(u => u.email === email);
+        const licenses = user ? (getDisplayLicenses(user) || []).join(', ') || 'No License' : 'Unknown';
+        return `<div style="padding: 8px; margin-bottom: 8px; background: var(--bg-secondary); border-radius: 6px;">
+            <div style="font-weight: 500; margin-bottom: 4px;">${user ? `${user.firstName} ${user.lastName}` : email}</div>
+            <div style="font-size: 0.875rem; color: var(--text-secondary);">${email}</div>
+            <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 4px;">Licenses: ${licenses}</div>
+        </div>`;
+    }).join('');
+    
+    const targetUser = usersData.find(u => u.email === targetEmail);
+    const targetLicenses = targetUser ? (getDisplayLicenses(targetUser) || []).join(', ') || 'No License' : 'Unknown';
+    
+    const detailsMessage = `
+        <div style="text-align: left; margin-top: 16px;">
+            <div style="margin-bottom: 16px; padding: 12px; background: var(--accent-light); border-left: 3px solid var(--accent-primary); border-radius: 6px;">
+                <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 4px;">Merging into:</div>
+                <div style="font-weight: 600; font-size: 1.1rem; color: var(--accent-primary); margin-bottom: 4px;">
+                    ${targetUser ? `${targetUser.firstName} ${targetUser.lastName}` : targetEmail}
+                </div>
+                <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 4px;">${targetEmail}</div>
+                <div style="font-size: 0.875rem; color: var(--text-secondary);">Licenses: ${targetLicenses}</div>
+            </div>
+            
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 8px;">
+                    ${sourceEmails.length} user(s) will be merged:
+                </div>
+                ${sourceUsersInfo}
+            </div>
+            
+            <div style="margin-top: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                <div style="font-weight: 500; margin-bottom: 8px;">This will:</div>
+                <ul style="margin-left: 20px; margin-bottom: 0; line-height: 1.8; font-size: 0.938rem;">
+                    <li>Keep all data from <strong>${targetEmail}</strong></li>
+                    <li>Add licenses from the other user(s)</li>
+                    <li>Delete the other user(s)</li>
+                </ul>
+            </div>
+        </div>
+    `;
+    
+    const confirmed = await ConfirmModal.show({
+        title: 'Merge Users?',
+        message: detailsMessage,
+        confirmText: 'Merge',
+        cancelText: 'Cancel',
+        type: 'warning'
+    });
+    
+    if (!confirmed) return;
+    
+    try {
+        const response = await fetch('/api/users/merge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                targetEmail: targetEmail,
+                sourceEmails: sourceEmails
+            })
+        });
+        
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Non-JSON response:', text);
+            throw new Error('Server returned an error. Please check the console for details.');
+        }
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (typeof Toast !== 'undefined') {
+                Toast.success(`Successfully merged ${sourceEmails.length} user(s) into ${targetEmail}`);
+            } else {
+                alert(`✓ Successfully merged ${sourceEmails.length} user(s) into ${targetEmail}`);
+            }
+            
+            // Reload the page to show updated data
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            throw new Error(data.error || 'Merge failed');
+        }
+    } catch (error) {
+        console.error('Merge error:', error);
+        if (typeof Toast !== 'undefined') {
+            Toast.error('Failed to merge users: ' + error.message);
+        } else {
+            alert('✗ Error: ' + error.message);
+        }
+    }
+}
+
+async function deleteSelectedUsers() {
+    const selectedEmails = getSelectedUserEmails();
+    
+    if (selectedEmails.length === 0) {
+        if (typeof Toast !== 'undefined') {
+            Toast.error('Please select at least one user to delete');
+        } else {
+            alert('Please select at least one user to delete');
+        }
+        return;
+    }
+    
+    const confirmed = await ConfirmModal.show({
+        title: 'Delete Selected Users?',
+        message: `Delete ${selectedEmails.length} selected user(s)?\n\nThis action cannot be undone.`,
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        type: 'danger'
+    });
+    
+    if (!confirmed) return;
+    
+    try {
+        const response = await fetch('/api/users/bulk', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: selectedEmails })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (typeof Toast !== 'undefined') {
+                Toast.success(`Successfully deleted ${selectedEmails.length} user(s)`);
+            } else {
+                alert(`✓ Successfully deleted ${selectedEmails.length} user(s)`);
+            }
+            
+            // Reload the page to show updated data
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            throw new Error(data.error || 'Delete failed');
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        if (typeof Toast !== 'undefined') {
+            Toast.error('Failed to delete users: ' + error.message);
+        } else {
+            alert('✗ Error: ' + error.message);
+        }
     }
 }
 

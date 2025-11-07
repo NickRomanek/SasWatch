@@ -1321,6 +1321,13 @@ nav a.active {
     display: flex;
     align-items: center;
     margin-left: auto;
+    gap: 0.5rem;
+}
+
+#selected-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .users-header h2 {
@@ -1383,6 +1390,43 @@ nav a.active {
     padding: 1rem;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
+}
+
+/* Checkbox column styling */
+.users-table th:first-child,
+.users-table td:first-child {
+    width: 40px;
+    text-align: center;
+    padding: 1rem 0.5rem;
+}
+
+.user-checkbox,
+#select-all-checkbox {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: var(--accent-primary);
+}
+
+/* Light mode - darker checkboxes for better visibility */
+:root .user-checkbox,
+:root #select-all-checkbox {
+    accent-color: #2563eb; /* Darker blue for light mode */
+    filter: contrast(1.1);
+}
+
+/* Dark mode - darker, less bright checkboxes */
+[data-theme="dark"] .user-checkbox,
+[data-theme="dark"] #select-all-checkbox {
+    accent-color: #475569; /* Dark grey for dark mode - less bright */
+    filter: brightness(0.7) contrast(1.2);
+    opacity: 0.8;
+}
+
+.user-checkbox:hover,
+#select-all-checkbox:hover {
+    transform: scale(1.1);
+    transition: transform 0.2s;
 }
 
 .users-table th {

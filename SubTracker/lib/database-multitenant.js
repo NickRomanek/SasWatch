@@ -345,6 +345,99 @@ async function deleteAllUsers(accountId) {
     });
 }
 
+async function mergeUsers(accountId, targetEmail, sourceEmails) {
+    // Find target user (should have Entra data)
+    const targetUser = await prisma.user.findFirst({
+        where: { accountId, email: targetEmail },
+        include: { windowsUsernames: true }
+    });
+    
+    if (!targetUser) {
+        throw new Error(`Target user ${targetEmail} not found`);
+    }
+    
+    // Find all source users
+    const sourceUsers = await prisma.user.findMany({
+        where: {
+            accountId,
+            email: { in: sourceEmails }
+        },
+        include: { windowsUsernames: true }
+    });
+    
+    if (sourceUsers.length !== sourceEmails.length) {
+        const foundEmails = sourceUsers.map(u => u.email);
+        const missing = sourceEmails.filter(e => !foundEmails.includes(e));
+        throw new Error(`Source user(s) not found: ${missing.join(', ')}`);
+    }
+    
+    // Collect all licenses from source users (non-Entra licenses)
+    const allLicenses = new Set(targetUser.licenses || []);
+    sourceUsers.forEach(sourceUser => {
+        if (sourceUser.licenses && Array.isArray(sourceUser.licenses)) {
+            sourceUser.licenses.forEach(license => {
+                if (license && !allLicenses.has(license)) {
+                    allLicenses.add(license);
+                }
+            });
+        }
+    });
+    
+    // Collect all Windows usernames from source users
+    const allWindowsUsernames = new Set();
+    (targetUser.windowsUsernames || []).forEach(wu => allWindowsUsernames.add(wu.username));
+    sourceUsers.forEach(sourceUser => {
+        (sourceUser.windowsUsernames || []).forEach(wu => {
+            if (wu.username) {
+                allWindowsUsernames.add(wu.username);
+            }
+        });
+    });
+    
+    // Update target user with merged data
+    // Keep all Entra data, add licenses from source users
+    await prisma.user.update({
+        where: { id: targetUser.id },
+        data: {
+            licenses: Array.from(allLicenses),
+            windowsUsernames: {
+                deleteMany: {}, // Delete existing
+                create: Array.from(allWindowsUsernames).map(username => ({ username }))
+            }
+        }
+    });
+    
+    // Usage events are already linked via windowsUser field, which is now mapped to target user
+    // No need to update usage events - they'll be associated via the merged windowsUsernames
+    
+    // Delete source users (cascades to windowsUsernames)
+    await prisma.user.deleteMany({
+        where: {
+            accountId,
+            email: { in: sourceEmails }
+        }
+    });
+    
+    return {
+        targetEmail,
+        sourceEmails,
+        mergedLicenses: Array.from(allLicenses).length - (targetUser.licenses?.length || 0),
+        mergedUsernames: Array.from(allWindowsUsernames).length - (targetUser.windowsUsernames?.length || 0)
+    };
+}
+
+async function deleteUsersBulk(accountId, emails) {
+    // Delete multiple users by email
+    const result = await prisma.user.deleteMany({
+        where: {
+            accountId,
+            email: { in: emails }
+        }
+    });
+    
+    return result.count;
+}
+
 async function addUsernameMapping(accountId, username, email) {
     const user = await prisma.user.findFirst({ 
         where: { accountId, email } 
@@ -992,6 +1085,8 @@ module.exports = {
     updateUser,
     deleteUser,
     deleteAllUsers,
+    mergeUsers,
+    deleteUsersBulk,
     addUsernameMapping,
     addUnmappedUsername,
     

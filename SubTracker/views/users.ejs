@@ -305,16 +305,24 @@
                     </select>
                     <select id="status-filter" class="filter-select">
                         <option value="">All Entra Status</option>
-                        <option value="active">Active (Entra)</option>
-                        <option value="inactive">Inactive (Entra)</option>
+                        <option value="active">Enabled (Entra)</option>
+                        <option value="inactive">Disabled (Entra)</option>
                         <option value="unknown">Pending Sync</option>
                     </select>
                 </div>
                 <% if (users && users.length > 0) { %>
                 <div class="users-header-right">
-                    <button class="btn btn-danger btn-xs" onclick="deleteAllUsers()">
+                    <button class="btn btn-danger btn-xs" id="delete-all-btn" onclick="deleteAllUsers()">
                         🗑️ Delete All
                     </button>
+                    <div id="selected-actions" style="display: none; gap: 0.5rem; align-items: center;">
+                        <button class="btn btn-primary btn-xs" onclick="mergeSelectedUsers()">
+                            🔀 Merge Selected
+                        </button>
+                        <button class="btn btn-danger btn-xs" onclick="deleteSelectedUsers()">
+                            🗑️ Delete Selected
+                        </button>
+                    </div>
                 </div>
                 <% } %>
             </div>
@@ -329,6 +337,9 @@
             <table class="users-table" id="users-table">
                 <thead>
                     <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="select-all-checkbox" title="Select all users">
+                        </th>
                         <th onclick="sortTable('name')">Name <span class="sort-icon">↕</span></th>
                         <th onclick="sortTable('email')">Email <span class="sort-icon">↕</span></th>
                         <th onclick="sortTable('licenses')">Licenses <span class="sort-icon">↕</span></th>

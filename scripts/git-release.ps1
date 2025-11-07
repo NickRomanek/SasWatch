@@ -454,6 +454,7 @@ function Invoke-PrismaDatabaseUpdate {
             }
             
             # Try to get from Railway CLI (handles multi-line DATABASE_URL)
+            $railwayCredentials = $null
             if (-not $railwayDbUrl -and (Get-Command railway -ErrorAction SilentlyContinue)) {
                 try {
                     $railwayVars = railway variables 2>&1 | Out-String
@@ -472,10 +473,45 @@ function Invoke-PrismaDatabaseUpdate {
                             $host = $matches[3]
                             $db = $matches[4]
                             $railwayDbUrl = "postgresql://${user}:${pass}@${host}/${db}"
+                            # Store credentials for later use if we have proxy hostname
+                            $railwayCredentials = @{
+                                User = $user
+                                Pass = $pass
+                                Db = $db
+                            }
                         }
                     }
                 } catch {
                     # Railway CLI might not be configured
+                }
+            }
+            
+            # If we have stored proxy hostname but no URL yet, try to construct from credentials
+            if (-not $railwayDbUrl -and $railwayProxyHost) {
+                # Try to get credentials from Railway CLI if we don't have them yet
+                if (-not $railwayCredentials -and (Get-Command railway -ErrorAction SilentlyContinue)) {
+                    try {
+                        $railwayVars = railway variables 2>&1 | Out-String
+                        $dbUrlSection = $railwayVars | Select-String -Pattern "DATABASE_URL" -Context 0, 5
+                        if ($dbUrlSection) {
+                            $fullSection = ($dbUrlSection.Line + ($dbUrlSection.Context.PostContext -join " ")) -join " "
+                            if ($fullSection -match "postgresql://([^:]+):([^@]+)@([^/\s]+)/([^\s]+)") {
+                                $railwayCredentials = @{
+                                    User = $matches[1]
+                                    Pass = $matches[2]
+                                    Db = $matches[4]
+                                }
+                            }
+                        }
+                    } catch {
+                        # Railway CLI might not be configured
+                    }
+                }
+                
+                # Construct URL from proxy hostname + credentials
+                if ($railwayCredentials) {
+                    $railwayDbUrl = "postgresql://$($railwayCredentials.User):$($railwayCredentials.Pass)@${railwayProxyHost}/$($railwayCredentials.Db)"
+                    Write-Host "   ✓ Constructed URL from stored proxy hostname + Railway credentials" -ForegroundColor Green
                 }
             }
             
@@ -485,14 +521,67 @@ function Invoke-PrismaDatabaseUpdate {
             
             # If still no URL, prompt user
             if (-not $railwayDbUrl) {
-                Write-Host "⚠️  Railway DATABASE_URL not found. Please enter it manually:" -ForegroundColor Yellow
-                Write-Host "   Use the PUBLIC proxy URL (e.g., postgresql://user:pass@shortline.proxy.rlwy.net:45995/railway)" -ForegroundColor Cyan
-                $railwayDbUrl = Read-Host "Railway DATABASE_URL"
+                Write-Host "⚠️  Railway DATABASE_URL not found. Please provide it:" -ForegroundColor Yellow
+                Write-Host "   Option 1: Full URL (e.g., postgresql://user:pass@shortline.proxy.rlwy.net:45995/railway)" -ForegroundColor Cyan
+                Write-Host "   Option 2: Just proxy hostname (e.g., shortline.proxy.rlwy.net:45995) - we'll get credentials from Railway" -ForegroundColor Cyan
+                $userInput = Read-Host "Railway DATABASE_URL or proxy hostname"
+                
+                # Check if user entered just hostname:port (no postgresql:// prefix)
+                if ($userInput -notmatch "^postgresql://|^postgres://") {
+                    # User entered just hostname:port, try to get credentials
+                    if ($railwayCredentials) {
+                        # Use credentials we already have
+                        $railwayDbUrl = "postgresql://$($railwayCredentials.User):$($railwayCredentials.Pass)@${userInput}/$($railwayCredentials.Db)"
+                        Write-Host "   ✓ Constructed URL from hostname + cached Railway credentials" -ForegroundColor Green
+                    } elseif (Get-Command railway -ErrorAction SilentlyContinue) {
+                        try {
+                            Write-Host "   Getting credentials from Railway..." -ForegroundColor Gray
+                            $railwayVars = railway variables 2>&1 | Out-String
+                            $dbUrlSection = $railwayVars | Select-String -Pattern "DATABASE_URL" -Context 0, 5
+                            if ($dbUrlSection) {
+                                $fullSection = ($dbUrlSection.Line + ($dbUrlSection.Context.PostContext -join " ")) -join " "
+                                if ($fullSection -match "postgresql://([^:]+):([^@]+)@([^/\s]+)/([^\s]+)") {
+                                    $user = $matches[1]
+                                    $pass = $matches[2]
+                                    $db = $matches[4]
+                                    $railwayDbUrl = "postgresql://${user}:${pass}@${userInput}/${db}"
+                                    Write-Host "   ✓ Constructed URL from hostname + Railway credentials" -ForegroundColor Green
+                                } else {
+                                    throw "Could not extract credentials from Railway. Please provide full URL."
+                                }
+                            } else {
+                                throw "Could not find DATABASE_URL in Railway. Please provide full URL."
+                            }
+                        } catch {
+                            Write-Host "   ❌ Could not get credentials from Railway: $_" -ForegroundColor Red
+                            throw "Please provide the full DATABASE_URL (postgresql://user:pass@host:port/db)"
+                        }
+                    } else {
+                        throw "Railway CLI not found. Please provide the full DATABASE_URL (postgresql://user:pass@host:port/db)"
+                    }
+                    
+                    # Save proxy hostname to .env for future use
+                    if ($railwayDbUrl -and (Test-Path $envFile)) {
+                        $envContent = Get-Content $envFile
+                        $hasProxyHost = $envContent | Select-String "^RAILWAY_PROXY_HOST="
+                        if (-not $hasProxyHost) {
+                            $envContent += ""
+                            $envContent += "# Railway Database Proxy (for local schema updates)"
+                            $envContent += "RAILWAY_PROXY_HOST=$userInput"
+                            $envContent | Set-Content $envFile
+                            Write-Host "   ✓ Saved proxy hostname to .env for future use" -ForegroundColor Green
+                        }
+                    }
+                } else {
+                    # User entered full URL
+                    $railwayDbUrl = $userInput
+                }
+                
+                # Convert internal URL to proxy if needed
+                $proxyHostRef = [ref]$railwayProxyHost
+                $railwayDbUrl = Convert-RailwayInternalUrl -RailwayUrl $railwayDbUrl -RailwayProxyHost $proxyHostRef -EnvFile $envFile
+                $railwayProxyHost = $proxyHostRef.Value
             }
-
-            $proxyHostRef = [ref]$railwayProxyHost
-            $railwayDbUrl = Convert-RailwayInternalUrl -RailwayUrl $railwayDbUrl -RailwayProxyHost $proxyHostRef -EnvFile $envFile
-            $railwayProxyHost = $proxyHostRef.Value
             
             if ($railwayDbUrl -and $railwayDbUrl -match "^postgresql://|^postgres://") {
                 $env:DATABASE_URL = $railwayDbUrl.Trim()
@@ -704,7 +793,16 @@ function Invoke-PrismaSchemaSync {
 Show-Header
 
 # Determine platform
-$IsWindows = $env:OS -eq "Windows_NT"
+# In PowerShell 6+, $IsWindows is an automatic read-only variable
+# In PowerShell 5.1, we need to determine it manually
+# We'll use a script-scoped variable to avoid conflicts
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    # PowerShell 6+ - $IsWindows is automatic, just use it
+    # No assignment needed, it's available globally
+} else {
+    # PowerShell 5.1 - create our own variable
+    Set-Variable -Name IsWindows -Value ($env:OS -eq "Windows_NT") -Scope Script
+}
 
 # ============================================
 # Configure git timeouts (reduce hanging)

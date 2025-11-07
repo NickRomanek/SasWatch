@@ -172,7 +172,7 @@ const ConfirmModal = {
                 <div style="text-align: center; margin-bottom: 24px;">
                     <div style="font-size: 3rem; margin-bottom: 16px;">${typeIcons[type] || '❓'}</div>
                     <h3 style="margin: 0 0 12px 0; color: var(--text-primary); font-size: 1.5rem;">${title}</h3>
-                    <p style="margin: 0; color: var(--text-secondary); line-height: 1.5;">${message}</p>
+                    <div style="margin: 0; color: var(--text-secondary); line-height: 1.5;">${message}</div>
                 </div>
                 <div style="display: flex; gap: 12px; justify-content: center;">
                     <button id="modal-cancel" style="
