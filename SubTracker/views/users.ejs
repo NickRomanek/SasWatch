@@ -65,96 +65,87 @@
         <div class="container">
             <header>
                 <div class="header-content">
-                    <h1>👥 Users</h1>
+                    <h1>👥 Users <span class="user-count-badge">(<span id="header-user-count"><%= users ? users.length : 0 %></span>)</span></h1>
                     <p class="subtitle">User Management</p>
+                </div>
+                <!-- Action Buttons -->
+                <div class="action-buttons-container">
+                    <div class="dropdown-wrapper">
+                        <button class="btn btn-primary dropdown-btn" onclick="toggleDropdown('connectors-dropdown')">
+                            🔌 Connectors <span class="dropdown-arrow">▼</span>
+                        </button>
+                        <div class="dropdown-menu" id="connectors-dropdown">
+                            <a href="/integrations/entra/connect" class="dropdown-item">
+                                ☁️ Microsoft Entra
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="dropdown-wrapper">
+                        <button class="btn btn-secondary dropdown-btn" onclick="toggleDropdown('import-dropdown')">
+                            📥 Import <span class="dropdown-arrow">▼</span>
+                        </button>
+                        <div class="dropdown-menu" id="import-dropdown">
+                            <a href="#" class="dropdown-item" onclick="event.preventDefault(); toggleImportSection('adobe'); return false;">
+                                📁 Adobe
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            <% if (azureSyncEnabled) { %>
-            <div class="sync-alert sync-alert-info">
-                <span class="sync-alert-icon">🔄</span>
-                <div class="sync-alert-body">
-                    <span class="sync-alert-title">Entra directory sync enabled</span>
-                    <span class="sync-alert-meta">
-                        <% if (entraSync && entraSync.error) { %>
-                            Sync failed: <%= entraSync.error %>
-                        <% } else if (entraSync && entraSync.synced) { %>
-                            Synced <%= entraSync.count || 0 %> users on <%= entraSync.lastSync ? new Date(entraSync.lastSync).toLocaleString() : 'the last run' %>.
-                        <% } else if (entraSync && entraSync.reason === 'throttled') { %>
-                            Last sync <%= entraSync.lastSync ? new Date(entraSync.lastSync).toLocaleString() : 'recently' %>. Updates run hourly.
-                        <% } else { %>
-                            Preparing first sync… this may take a moment.
-                        <% } %>
-                    </span>
-                </div>
-            </div>
-            <% } else { %>
-            <div class="sync-alert sync-alert-warning">
-                <span class="sync-alert-icon">⚠️</span>
-                <div class="sync-alert-body">
-                    <span class="sync-alert-title">Microsoft 365 not connected</span>
-                    <span class="sync-alert-meta">Visit <a href="/account" style="color: var(--accent-primary); text-decoration: underline;">Account Settings</a> to connect your Microsoft 365 directory for automatic user sync.</span>
-                </div>
-            </div>
-            <% } %>
-
-        <!-- Upload + Unmapped Grid -->
-        <div class="upload-section">
-            <div class="upload-unmapped-grid">
+            <!-- Adobe Import Section (collapsible) -->
+            <div class="import-section" id="adobe-import-section" style="display: none;">
                 <div class="upload-card">
-                <div class="upload-header">
-                    <div class="upload-info">
-                        <h2>
-                            <span style="white-space: nowrap;">📁 Import Adobe User List</span>
-                            <% if (users && users.length > 0) { %>
-                                <div class="upload-status-inline">
-                                    <span class="status-badge status-success">✓ Imported</span>
-                                    <span class="upload-count"><strong><%= users.length %></strong> users loaded</span>
-                                </div>
+                    <div class="upload-header">
+                        <div class="upload-info">
+                            <h2>
+                                <span style="white-space: nowrap;">📁 Import Adobe User List</span>
+                                <% if (users && users.length > 0) { %>
+                                    <div class="upload-status-inline">
+                                        <span class="status-badge status-success">✓ Imported</span>
+                                        <span class="upload-count"><strong><%= users.length %></strong> users loaded</span>
+                                    </div>
+                                <% } %>
+                            </h2>
+                            <% if (!users || users.length === 0) { %>
+                                <p style="margin-top: 0.25rem; font-size: 0.875rem; color: var(--text-secondary);">Upload your Adobe Admin Console user export to begin tracking license usage.</p>
                             <% } %>
-                        </h2>
-                        <% if (!users || users.length === 0) { %>
-                            <p style="margin-top: 0.25rem; font-size: 0.875rem; color: var(--text-secondary);">Upload your Adobe Admin Console user export to begin tracking license usage.</p>
+                        </div>
+                        <% if (users && users.length > 0) { %>
+                        <div class="upload-actions">
+                            <button class="btn btn-secondary" onclick="document.getElementById('csv-upload-form').style.display='block'">
+                                📤 Upload New CSV
+                            </button>
+                        </div>
+                        <% } %>
+                        
+                        <% if (users && users.length > 0 && unmappedUsernames && unmappedUsernames.length > 0) { %>
+                        <div class="unmapped-info-notice">
+                            <span class="info-icon-small">ℹ️</span>
+                            <span>We detected Windows usernames sending activity that aren't linked to any imported user. Map them to ensure activity is attributed correctly.</span>
+                        </div>
                         <% } %>
                     </div>
-                    <% if (users && users.length > 0) { %>
-                    <div class="upload-actions">
-                        <button class="btn btn-secondary" onclick="document.getElementById('csv-upload-form').style.display='block'">
-                            📤 Upload New CSV
-                        </button>
-                        <button class="btn btn-danger" onclick="deleteAllUsers()">
-                            🗑️ Delete All
-                        </button>
-                    </div>
-                    <% } %>
                     
-                    <% if (users && users.length > 0 && unmappedUsernames && unmappedUsernames.length > 0) { %>
-                    <div class="unmapped-info-notice">
-                        <span class="info-icon-small">ℹ️</span>
-                        <span>We detected Windows usernames sending activity that aren't linked to any imported user. Map them to ensure activity is attributed correctly.</span>
-                    </div>
-                    <% } %>
-                </div>
-                
-                <form id="csv-upload-form" style="<%= users && users.length > 0 ? 'display:none' : '' %>" enctype="multipart/form-data">
-                    <div class="upload-dropzone" id="upload-dropzone">
-                        <input type="file" id="csv-file-input" name="csvFile" accept=".csv" style="display:none">
-                        <div class="upload-prompt">
-                            <span class="upload-icon">📄</span>
-                            <p>Drag and drop CSV file here or click to browse</p>
-                            <small>Expected format: Email, First Name, Last Name, Admin Roles, User Groups, Team Products</small>
+                    <form id="csv-upload-form" style="<%= users && users.length > 0 ? 'display:none' : '' %>" enctype="multipart/form-data">
+                        <div class="upload-dropzone" id="upload-dropzone">
+                            <input type="file" id="csv-file-input" name="csvFile" accept=".csv" style="display:none">
+                            <div class="upload-prompt">
+                                <span class="upload-icon">📄</span>
+                                <p>Drag and drop CSV file here or click to browse</p>
+                                <small>Expected format: Email, First Name, Last Name, Admin Roles, User Groups, Team Products</small>
+                            </div>
                         </div>
-                    </div>
-                    <div id="upload-progress" style="display:none">
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progress-fill"></div>
+                        <div id="upload-progress" style="display:none">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill"></div>
+                            </div>
+                            <p id="upload-status">Uploading...</p>
                         </div>
-                        <p id="upload-status">Uploading...</p>
-                    </div>
-                </form>
+                    </form>
                 </div>
             </div>
-        </div>
 
         <!-- Azure Sync Section -->
         <div class="azure-sync-section">
@@ -283,7 +274,13 @@
         <!-- Users Table Section -->
         <div class="users-section">
             <div class="users-header">
-                <h2>👥 Users (<span id="user-count"><%= users ? users.length : 0 %></span>)</h2>
+                <div class="users-header-left">
+                    <% if (users && users.length > 0) { %>
+                    <button class="btn btn-danger btn-sm" onclick="deleteAllUsers()">
+                        🗑️ Delete All
+                    </button>
+                    <% } %>
+                </div>
                 <div class="users-controls">
                     <input type="text" id="search-input" placeholder="Search by name or email..." class="search-box">
                     <select id="license-filter" class="filter-select">
@@ -336,6 +333,46 @@
         const usersData = <%- JSON.stringify(users || []) %>;
         const entraSyncMeta = <%- JSON.stringify(entraSync || {}) %>;
         const entraSyncEnabled = <%= azureSyncEnabled ? 'true' : 'false' %>;
+        
+        // Dropdown functionality
+        function toggleDropdown(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            const allDropdowns = document.querySelectorAll('.dropdown-menu');
+            
+            // Close all other dropdowns
+            allDropdowns.forEach(d => {
+                if (d.id !== dropdownId) {
+                    d.classList.remove('active');
+                }
+            });
+            
+            // Toggle current dropdown
+            dropdown.classList.toggle('active');
+        }
+        
+        // Toggle import sections
+        function toggleImportSection(sectionName) {
+            const section = document.getElementById(`${sectionName}-import-section`);
+            if (section) {
+                const isVisible = section.style.display !== 'none';
+                section.style.display = isVisible ? 'none' : 'block';
+                
+                // Close dropdown after selection
+                const dropdown = document.getElementById('import-dropdown');
+                if (dropdown) {
+                    dropdown.classList.remove('active');
+                }
+            }
+        }
+        
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.dropdown-wrapper')) {
+                document.querySelectorAll('.dropdown-menu').forEach(dropdown => {
+                    dropdown.classList.remove('active');
+                });
+            }
+        });
     </script>
     <script src="/js/users.js"></script>
     <script src="/js/azure-sync.js"></script>

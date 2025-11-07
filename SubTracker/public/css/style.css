@@ -321,7 +321,7 @@ header {
     align-items: center;
     gap: 2rem;
     margin-bottom: 30px;
-    padding: 0;
+    padding: 0 3rem 0 0;
     flex-wrap: wrap;
 }
 
@@ -334,6 +334,13 @@ header h1 {
     margin-bottom: 5px;
     color: var(--text-primary);
     font-weight: 700;
+}
+
+.user-count-badge {
+    font-size: 0.7em;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-left: 0.25rem;
 }
 
 .subtitle {
@@ -512,6 +519,94 @@ header h1 {
 
 .btn-danger:hover {
     background: #dc2626;
+}
+
+/* Action Buttons Container */
+.action-buttons-container {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Dropdown Wrapper */
+.dropdown-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-btn {
+    position: relative;
+    padding: 10px 2rem 10px 16px;
+    min-width: auto;
+    white-space: nowrap;
+}
+
+.dropdown-arrow {
+    position: absolute;
+    right: 0.75rem;
+    font-size: 0.75em;
+    transition: transform 0.2s;
+}
+
+.dropdown-wrapper:has(.dropdown-menu.active) .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+/* Dropdown Menu */
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 0.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    min-width: 180px;
+    z-index: 1000;
+    display: none;
+    overflow: hidden;
+}
+
+.dropdown-menu.active {
+    display: block;
+}
+
+.dropdown-item {
+    display: block;
+    padding: 0.75rem 1rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: all 0.2s;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.dropdown-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Import Section */
+.import-section {
+    margin-bottom: 1.5rem;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .tabs {
@@ -1209,15 +1304,22 @@ nav a.active {
 
 .users-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
     gap: 1rem;
 }
 
+.users-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .users-header h2 {
     font-size: 1.25rem;
+    margin: 0;
 }
 
 .users-controls {

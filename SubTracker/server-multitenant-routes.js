@@ -31,6 +31,7 @@ function setupSession(app) {
     // Use PostgreSQL session store in production
     if (process.env.DATABASE_URL) {
         console.log('Configuring PostgreSQL session store...');
+        console.log('Session store DATABASE_URL:', process.env.DATABASE_URL);
         const pgSession = require('connect-pg-simple')(session);
         sessionConfig.store = new pgSession({
             conString: process.env.DATABASE_URL,

@@ -46,17 +46,29 @@ Write-Host ""
 # Get root directory (parent of scripts folder)
 $rootDir = Split-Path $PSScriptRoot -Parent
 
-# Start Receiver in new window
-Write-Host "Starting Receiver on port 8080..." -ForegroundColor Yellow
-Start-Process pwsh -ArgumentList "-NoExit", "-Command", "cd '$rootDir\receiver'; Write-Host '=== RECEIVER SERVER ===' -ForegroundColor Green; node server.js"
+# Resolve service paths
+$receiverPath = Join-Path $rootDir "receiver"
+$subtrackerPath = Join-Path $rootDir "SubTracker"
 
-Start-Sleep -Seconds 2
+# Start Receiver in new window (if present)
+if (Test-Path $receiverPath) {
+    Write-Host "Starting Receiver on port 8080..." -ForegroundColor Yellow
+    Start-Process pwsh -ArgumentList "-NoExit", "-Command", "cd '$receiverPath'; Write-Host '=== RECEIVER SERVER ===' -ForegroundColor Green; node server.js"
+    Start-Sleep -Seconds 2
+} else {
+    Write-Host "Receiver directory not found. Skipping Receiver server start." -ForegroundColor DarkYellow
+}
 
 # Start SubTracker in new window
-Write-Host "Starting SubTracker on port 3000..." -ForegroundColor Yellow
-Start-Process pwsh -ArgumentList "-NoExit", "-Command", "cd '$rootDir\SubTracker'; Write-Host '=== SUBTRACKER SERVER ===' -ForegroundColor Cyan; node server.js"
+if (Test-Path $subtrackerPath) {
+    Write-Host "Starting SubTracker on port 3000..." -ForegroundColor Yellow
+    Start-Process pwsh -ArgumentList "-NoExit", "-Command", "cd '$subtrackerPath'; Write-Host '=== SUBTRACKER SERVER ===' -ForegroundColor Cyan; node server.js"
+    Start-Sleep -Seconds 2
+} else {
+    Write-Host "❌ SubTracker directory not found at '$subtrackerPath'. Cannot start SubTracker server." -ForegroundColor Red
+    Write-Host "Please verify the project structure and try again." -ForegroundColor Red
+}
 
-Start-Sleep -Seconds 2
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green

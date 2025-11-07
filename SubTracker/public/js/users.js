@@ -251,7 +251,15 @@ function renderUsersTable() {
     });
     
     // Update count
-    document.getElementById('user-count').textContent = filteredUsers.length;
+    const userCount = filteredUsers.length;
+    const userCountElement = document.getElementById('user-count');
+    const headerUserCountElement = document.getElementById('header-user-count');
+    if (userCountElement) {
+        userCountElement.textContent = userCount;
+    }
+    if (headerUserCountElement) {
+        headerUserCountElement.textContent = userCount;
+    }
 }
 
 function getDisplayLicenses(user) {
@@ -310,8 +318,8 @@ function renderLastActivity(lastActivity) {
 function renderStatusBadge(user) {
     const status = getUserStatus(user);
     const badges = {
-        active: '<span class="status-badge status-active">✓ Active in Entra</span>',
-        inactive: '<span class="status-badge status-inactive">⚠ Inactive in Entra</span>',
+        active: '<span class="status-badge status-active">Active</span>',
+        inactive: '<span class="status-badge status-inactive">Inactive</span>',
         unknown: '<span class="status-badge status-neutral">Pending Sync</span>'
     };
     return badges[status] || '<span class="status-badge status-neutral">Pending Sync</span>';
