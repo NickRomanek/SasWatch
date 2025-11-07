@@ -1164,27 +1164,30 @@ nav a.active {
     border-color: var(--danger);
 }
 
-.status-active {
+/* Status badge styles - preserve colors for badges */
+.status-badge.status-active {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.15) 100%);
     color: var(--success);
     border-color: var(--success);
 }
 
-.status-active:hover {
+.status-badge.status-active:hover {
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
 }
 
-.status-inactive {
+.status-badge.status-inactive {
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.15) 100%);
     color: var(--warning);
     border-color: var(--warning);
 }
 
-.status-inactive:hover {
+.status-badge.status-inactive:hover {
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
 }
+
+/* Status badge colors are preserved via .status-badge.status-active above */
 
 .status-unused {
     background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.15) 100%);
@@ -1460,6 +1463,24 @@ nav a.active {
 
 .users-table tbody tr {
     transition: all 0.2s;
+}
+
+/* Override status-based colors for table rows - keep standard theme colors */
+.users-table tbody tr.status-active,
+.users-table tbody tr.status-inactive,
+.users-table tbody tr.status-unknown {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+}
+
+/* Ensure name and email columns use standard colors */
+.users-table tbody tr.status-active td:nth-child(2),
+.users-table tbody tr.status-active td:nth-child(3),
+.users-table tbody tr.status-inactive td:nth-child(2),
+.users-table tbody tr.status-inactive td:nth-child(3),
+.users-table tbody tr.status-unknown td:nth-child(2),
+.users-table tbody tr.status-unknown td:nth-child(3) {
+    color: var(--text-primary) !important;
 }
 
 .users-table tbody tr:hover {
