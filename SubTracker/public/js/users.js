@@ -232,7 +232,7 @@ function renderUsersTable() {
         row.innerHTML = `
             <td><strong>${user.firstName} ${user.lastName}</strong></td>
             <td>${user.email}</td>
-            <td>${renderLicenses(user.licenses)}</td>
+            <td>${renderLicenses(getDisplayLicenses(user))}</td>
             <td>${renderLastActivity(user.lastActivity)}</td>
             <td>
                 <a href="/user/${encodeURIComponent(user.email)}/activity" class="activity-count-link" title="View activity details">
@@ -252,6 +252,13 @@ function renderUsersTable() {
     
     // Update count
     document.getElementById('user-count').textContent = filteredUsers.length;
+}
+
+function getDisplayLicenses(user) {
+    if (user.entraLicenses && user.entraLicenses.length > 0) {
+        return user.entraLicenses;
+    }
+    return user.licenses;
 }
 
 function renderLicenses(licenses) {
@@ -303,35 +310,26 @@ function renderLastActivity(lastActivity) {
 function renderStatusBadge(user) {
     const status = getUserStatus(user);
     const badges = {
-        'active': '<span class="status-badge status-active">✓ Active</span>',
-        'inactive': '<span class="status-badge status-inactive">⚠ Inactive</span>',
-        'unused': '<span class="status-badge status-unused">Unused</span>',
-        'no-license': '<span class="status-badge status-no-license">○ No License</span>'
+        active: '<span class="status-badge status-active">✓ Active in Entra</span>',
+        inactive: '<span class="status-badge status-inactive">⚠ Inactive in Entra</span>',
+        unknown: '<span class="status-badge status-neutral">Pending Sync</span>'
     };
-    return badges[status] || '';
+    return badges[status] || '<span class="status-badge status-neutral">Pending Sync</span>';
 }
 
 function getUserStatus(user) {
-    if (!user.licenses || user.licenses.length === 0) {
-        return 'no-license';
+    if (user.entraAccountEnabled === true) {
+        return 'active';
     }
-    
-    if (!user.lastActivity) {
-        return 'unused';
+    if (user.entraAccountEnabled === false) {
+        return 'inactive';
     }
-    
-    const now = new Date();
-    const lastActivity = new Date(user.lastActivity);
-    const diffDays = Math.floor((now - lastActivity) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays <= 7) return 'active';
-    if (diffDays <= 30) return 'inactive';
-    return 'unused';
+    return 'unknown';
 }
 
 function getStatusClass(user) {
     const status = getUserStatus(user);
-    return `user-row user-${status}`;
+    return `user-row status-${status}`;
 }
 
 // ============================================
@@ -374,9 +372,11 @@ function applyFilters() {
         let matchesLicense = true;
         if (licenseFilter) {
             if (licenseFilter === 'no-license') {
-                matchesLicense = !user.licenses || user.licenses.length === 0;
+                const displayLicenses = getDisplayLicenses(user);
+                matchesLicense = !displayLicenses || displayLicenses.length === 0;
             } else {
-                matchesLicense = user.licenses && user.licenses.some(l => l.includes(licenseFilter));
+                const displayLicenses = getDisplayLicenses(user) || [];
+                matchesLicense = displayLicenses.some(l => l.toLowerCase().includes(licenseFilter.toLowerCase()));
             }
         }
         
@@ -413,8 +413,8 @@ function sortTable(column) {
                 bVal = b.email.toLowerCase();
                 break;
             case 'licenses':
-                aVal = a.licenses ? a.licenses.length : 0;
-                bVal = b.licenses ? b.licenses.length : 0;
+                aVal = getDisplayLicenses(a)?.length || 0;
+                bVal = getDisplayLicenses(b)?.length || 0;
                 break;
             case 'lastActivity':
                 aVal = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;

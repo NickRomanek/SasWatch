@@ -264,7 +264,20 @@ function Show-Summary {
     if ($SchemaChanged) {
         Write-Host "  ⚠️  Database Schema Changed!" -ForegroundColor Red
         if ($SchemaSyncRan) {
-            Write-Host "     Prisma command: $SchemaSyncInfo" -ForegroundColor Green
+            if ($SchemaSyncInfo -match "Local:") {
+                Write-Host "     Database Updates:" -ForegroundColor Green
+                if ($SchemaSyncInfo -match "Local: True") {
+                    Write-Host "       ✓ Local database updated" -ForegroundColor Green
+                }
+                if ($SchemaSyncInfo -match "Railway: True") {
+                    Write-Host "       ✓ Railway database updated" -ForegroundColor Green
+                }
+                if ($SchemaSyncInfo -match "Local: False" -and $SchemaSyncInfo -match "Railway: False") {
+                    Write-Host "       ⚠ No databases were updated" -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "     Prisma command: $SchemaSyncInfo" -ForegroundColor Green
+            }
         } elseif ($SchemaSyncInfo) {
             Write-Host "     Prisma: $SchemaSyncInfo" -ForegroundColor Yellow
         }
@@ -282,33 +295,86 @@ function Get-PrismaProjectRoot {
     return $null
 }
 
-function Invoke-PrismaSchemaSync {
+function Convert-RailwayInternalUrl {
     param(
-        [string]$ProjectPath
+        [string]$RailwayUrl,
+        [ref]$RailwayProxyHost,
+        [string]$EnvFile
     )
 
-    $result = @{
-        Ran = $false
-        Command = ""
-        Notes = ""
+    if ([string]::IsNullOrWhiteSpace($RailwayUrl)) {
+        return $RailwayUrl
     }
 
-    Write-Host "Prisma schema changes detected." -ForegroundColor Cyan
-    Write-Host "Select how you'd like to sync the database schema:" -ForegroundColor Cyan
-    Write-Host "  1. Generate migration (npx prisma migrate dev --name <name>)" -ForegroundColor White
-    Write-Host "  2. Push schema directly (npx prisma db push)" -ForegroundColor White
-    Write-Host "  3. Skip (I will handle manually)" -ForegroundColor White
+    if ($RailwayUrl -notmatch "postgres\.railway\.internal") {
+        return $RailwayUrl
+    }
+
+    Write-Host "⚠️  Internal Railway hostname detected!" -ForegroundColor Yellow
+    Write-Host "   Internal hostnames (postgres.railway.internal) won't work from your local machine." -ForegroundColor Yellow
+    Write-Host "   You need to use the PUBLIC proxy URL instead." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "   To find your public proxy URL:" -ForegroundColor Cyan
+    Write-Host "   1. Go to Railway dashboard → Your database service" -ForegroundColor White
+    Write-Host "   2. Look for 'Public Networking' section" -ForegroundColor White
+    Write-Host "   3. Copy the proxy hostname (e.g., shortline.proxy.rlwy.net:45995)" -ForegroundColor White
     Write-Host ""
 
-    do {
-        $selection = Read-Host "Enter choice (1-3)"
-    } until ($selection -in @("1", "2", "3"))
+    if ($RailwayUrl -match "postgresql://([^:]+):([^@]+)@postgres\.railway\.internal:(\d+)/(.+)") {
+        $user = $matches[1]
+        $pass = $matches[2]
+        $port = $matches[3]
+        $db = $matches[4]
 
-    if ($selection -eq "3") {
-        Write-Host "Skipping automatic Prisma sync." -ForegroundColor Yellow
-        $result.Notes = "Skipped (user choice)"
-        return $result
+        $proxyHost = $RailwayProxyHost.Value
+        if ([string]::IsNullOrWhiteSpace($proxyHost)) {
+            $proxyHost = Read-Host "   Enter proxy hostname (e.g., shortline.proxy.rlwy.net:45995)"
+            if ([string]::IsNullOrWhiteSpace($proxyHost)) {
+                throw "Proxy hostname is required to connect to the Railway database from your local machine."
+            }
+
+            if (Test-Path $EnvFile) {
+                $saveProxy = Read-Host "   Save proxy hostname to .env for future use? (y/n)"
+                if ($saveProxy -eq "y" -or $saveProxy -eq "Y") {
+                    $envContent = Get-Content $EnvFile
+                    $hasProxyHost = $envContent | Select-String "^RAILWAY_PROXY_HOST="
+                    if ($hasProxyHost) {
+                        $envContent = $envContent | ForEach-Object {
+                            if ($_ -match "^RAILWAY_PROXY_HOST=") {
+                                "RAILWAY_PROXY_HOST=$proxyHost"
+                            } else {
+                                $_
+                            }
+                        }
+                    } else {
+                        $envContent += ""
+                        $envContent += "# Railway Database Proxy (for local schema updates)"
+                        $envContent += "RAILWAY_PROXY_HOST=$proxyHost"
+                    }
+                    $envContent | Set-Content $EnvFile
+                    Write-Host "   ✓ Saved proxy hostname to .env" -ForegroundColor Green
+                }
+            }
+        } else {
+            Write-Host "   Converted to proxy URL using stored hostname" -ForegroundColor Green
+        }
+
+        $RailwayProxyHost.Value = $proxyHost.Trim()
+        $proxyHostSafe = $RailwayProxyHost.Value
+        Write-Host "   Using: postgresql://${user}:***@${proxyHostSafe}/${db}" -ForegroundColor Green
+        return "postgresql://${user}:${pass}@${proxyHostSafe}/${db}"
     }
+
+    return $RailwayUrl
+}
+
+function Invoke-PrismaDatabaseUpdate {
+    param(
+        [string]$ProjectPath,
+        [string]$DatabaseTarget,  # "local" or "railway"
+        [string]$CommandType,     # "migrate" or "push"
+        [string]$MigrationName    # Optional: migration name (if provided, won't prompt)
+    )
 
     $npmExecutable = if ($IsWindows) { "npx.cmd" } else { "npx" }
 
@@ -323,44 +389,315 @@ function Invoke-PrismaSchemaSync {
     }
 
     try {
-        switch ($selection) {
-            "1" {
-                do {
-                    $migrationName = Read-Host "Migration name (kebab-case recommended)"
-                    if ([string]::IsNullOrWhiteSpace($migrationName)) {
-                        Write-Host "Migration name cannot be empty." -ForegroundColor Yellow
+        # Save original DATABASE_URL
+        $originalDbUrl = $env:DATABASE_URL
+
+        # Set DATABASE_URL based on target
+        if ($DatabaseTarget -eq "local") {
+            # Use local database from .env or default
+            $envFile = Join-Path $ProjectPath ".env"
+            $localDbUrl = $null
+            if (Test-Path $envFile) {
+                $envContent = Get-Content $envFile
+                $localLine = $envContent | Select-String "^DATABASE_URL="
+                if ($localLine) {
+                    $localDbUrl = ($localLine.Line -split "=", 2)[1].Trim()
+                }
+            }
+            
+            if ($localDbUrl -and $localDbUrl -notmatch "railway|proxy\.rlwy" -and $localDbUrl -match "^postgresql://|^postgres://") {
+                $env:DATABASE_URL = $localDbUrl
+            } else {
+                # Default local database
+                $env:DATABASE_URL = "postgresql://postgres:password@localhost:5432/subtracker?schema=public"
+            }
+            Write-Host "📦 Updating LOCAL database..." -ForegroundColor Cyan
+            Write-Host "   Database: $($env:DATABASE_URL.Substring(0, [Math]::Min(50, $env:DATABASE_URL.Length)))..." -ForegroundColor Gray
+        } elseif ($DatabaseTarget -eq "railway") {
+            # Get Railway database URL
+            Write-Host "🔍 Detecting Railway database URL..." -ForegroundColor Cyan
+            $railwayDbUrl = $null
+            $railwayProxyHost = $null
+            $envFile = Join-Path $ProjectPath ".env"
+            
+            # First, check .env for stored proxy URL (RAILWAY_DATABASE_URL_PROXY or RAILWAY_PROXY_HOST)
+            if (Test-Path $envFile) {
+                $envContent = Get-Content $envFile
+                
+                # Check for stored proxy URL
+                $proxyUrlLine = $envContent | Select-String "^RAILWAY_DATABASE_URL_PROXY="
+                if ($proxyUrlLine) {
+                    $railwayDbUrl = ($proxyUrlLine.Line -split "=", 2)[1].Trim()
+                    if ($railwayDbUrl -match "^postgresql://|^postgres://") {
+                        Write-Host "   Found stored proxy URL in .env" -ForegroundColor Gray
+                    } else {
+                        $railwayDbUrl = $null
                     }
-                } until (-not [string]::IsNullOrWhiteSpace($migrationName))
+                }
+                
+                # Check for stored proxy hostname only
+                if (-not $railwayDbUrl) {
+                    $proxyHostLine = $envContent | Select-String "^RAILWAY_PROXY_HOST="
+                    if ($proxyHostLine) {
+                        $railwayProxyHost = ($proxyHostLine.Line -split "=", 2)[1].Trim()
+                        Write-Host "   Found stored proxy hostname in .env" -ForegroundColor Gray
+                    }
+                }
+                
+                # Check for any Railway URL in .env (prefer proxy over internal)
+                if (-not $railwayDbUrl) {
+                    $proxyLine = $envContent | Select-String "DATABASE_URL.*proxy\.rlwy"
+                    if ($proxyLine) {
+                        $railwayDbUrl = ($proxyLine.Line -split "=", 2)[1].Trim()
+                    }
+                }
+            }
+            
+            # Try to get from Railway CLI (handles multi-line DATABASE_URL)
+            if (-not $railwayDbUrl -and (Get-Command railway -ErrorAction SilentlyContinue)) {
+                try {
+                    $railwayVars = railway variables 2>&1 | Out-String
+                    
+                    # Handle multi-line DATABASE_URL - find the section and reconstruct
+                    $dbUrlSection = $railwayVars | Select-String -Pattern "DATABASE_URL" -Context 0, 5
+                    if ($dbUrlSection) {
+                        $lines = $dbUrlSection.Line
+                        $nextLines = $dbUrlSection.Context.PostContext
+                        
+                        # Try to extract full URL from the section
+                        $fullSection = ($lines + ($nextLines -join " ")) -join " "
+                        if ($fullSection -match "postgresql://([^:]+):([^@]+)@([^/\s]+)/([^\s]+)") {
+                            $user = $matches[1]
+                            $pass = $matches[2]
+                            $host = $matches[3]
+                            $db = $matches[4]
+                            $railwayDbUrl = "postgresql://${user}:${pass}@${host}/${db}"
+                        }
+                    }
+                } catch {
+                    # Railway CLI might not be configured
+                }
+            }
+            
+            $proxyHostRef = [ref]$railwayProxyHost
+            $railwayDbUrl = Convert-RailwayInternalUrl -RailwayUrl $railwayDbUrl -RailwayProxyHost $proxyHostRef -EnvFile $envFile
+            $railwayProxyHost = $proxyHostRef.Value
+            
+            # If still no URL, prompt user
+            if (-not $railwayDbUrl) {
+                Write-Host "⚠️  Railway DATABASE_URL not found. Please enter it manually:" -ForegroundColor Yellow
+                Write-Host "   Use the PUBLIC proxy URL (e.g., postgresql://user:pass@shortline.proxy.rlwy.net:45995/railway)" -ForegroundColor Cyan
+                $railwayDbUrl = Read-Host "Railway DATABASE_URL"
+            }
 
-                Write-Host "Running: $npmExecutable prisma migrate dev --name $migrationName" -ForegroundColor Gray
-                & $npmExecutable prisma migrate dev --name $migrationName
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Prisma migrate failed (exit code $LASTEXITCODE)."
+            $proxyHostRef = [ref]$railwayProxyHost
+            $railwayDbUrl = Convert-RailwayInternalUrl -RailwayUrl $railwayDbUrl -RailwayProxyHost $proxyHostRef -EnvFile $envFile
+            $railwayProxyHost = $proxyHostRef.Value
+            
+            if ($railwayDbUrl -and $railwayDbUrl -match "^postgresql://|^postgres://") {
+                $env:DATABASE_URL = $railwayDbUrl.Trim()
+                Write-Host "☁️  Updating RAILWAY database..." -ForegroundColor Cyan
+                Write-Host "   Database: $($railwayDbUrl.Substring(0, [Math]::Min(60, $railwayDbUrl.Length)))..." -ForegroundColor Gray
+            } else {
+                throw "Railway DATABASE_URL is invalid or missing. Expected format: postgresql://..."
+            }
+        }
+
+        # Execute the command
+        if ($CommandType -eq "migrate") {
+            if ($DatabaseTarget -eq "railway") {
+                Write-Host "Running: $npmExecutable prisma migrate deploy" -ForegroundColor Gray
+                & $npmExecutable prisma migrate deploy
+                $deployExitCode = $LASTEXITCODE
+                if ($deployExitCode -ne 0) {
+                    Write-Host "⚠️  Prisma migrate deploy failed (exit code $deployExitCode)." -ForegroundColor Yellow
+                    Write-Host "   Attempting fallback: prisma db push --accept-data-loss" -ForegroundColor Yellow
+                    & $npmExecutable prisma db push --accept-data-loss
+                    $pushExitCode = $LASTEXITCODE
+                    if ($pushExitCode -ne 0) {
+                        throw "Prisma migrate deploy failed (exit code $deployExitCode) and fallback prisma db push also failed (exit code $pushExitCode)."
+                    }
+                    return "prisma db push (fallback from migrate deploy)"
+                }
+                return "prisma migrate deploy"
+            } else {
+                if ([string]::IsNullOrWhiteSpace($MigrationName)) {
+                    do {
+                        $MigrationName = Read-Host "Migration name (kebab-case recommended)"
+                        if ([string]::IsNullOrWhiteSpace($MigrationName)) {
+                            Write-Host "Migration name cannot be empty." -ForegroundColor Yellow
+                        }
+                    } until (-not [string]::IsNullOrWhiteSpace($MigrationName))
                 }
 
-                $result.Ran = $true
-                $result.Command = "prisma migrate dev --name $migrationName"
-                $result.Notes = "Migration generated"
-            }
-            "2" {
-                Write-Host "Running: $npmExecutable prisma db push" -ForegroundColor Gray
-                & $npmExecutable prisma db push
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Prisma db push failed (exit code $LASTEXITCODE)."
+                Write-Host "Running: $npmExecutable prisma migrate dev --name $MigrationName" -ForegroundColor Gray
+                & $npmExecutable prisma migrate dev --name $MigrationName
+                $migrateExitCode = $LASTEXITCODE
+                if ($migrateExitCode -ne 0) {
+                    if ($migrateExitCode -eq 130) {
+                        Write-Host "⚠️  Prisma migrate detected schema drift or aborted (exit code 130)." -ForegroundColor Yellow
+                        Write-Host "   Attempting fallback: prisma db push --accept-data-loss" -ForegroundColor Yellow
+                        & $npmExecutable prisma db push --accept-data-loss
+                        $pushExitCode = $LASTEXITCODE
+                        if ($pushExitCode -ne 0) {
+                            throw "Prisma migrate failed (exit code 130) and fallback prisma db push also failed (exit code $pushExitCode)."
+                        }
+                        return "prisma db push (fallback from migrate dev)"
+                    }
+                    throw "Prisma migrate failed (exit code $migrateExitCode)."
                 }
-
-                $result.Ran = $true
-                $result.Command = "prisma db push"
-                $result.Notes = "Schema pushed"
+                return "prisma migrate dev --name $MigrationName"
             }
+        } else {
+            Write-Host "Running: $npmExecutable prisma db push --accept-data-loss" -ForegroundColor Gray
+            & $npmExecutable prisma db push --accept-data-loss
+            if ($LASTEXITCODE -ne 0) {
+                throw "Prisma db push failed (exit code $LASTEXITCODE)."
+            }
+            return "prisma db push"
         }
     }
     finally {
+        # Restore original DATABASE_URL
+        if ($originalDbUrl) {
+            $env:DATABASE_URL = $originalDbUrl
+        }
+        
         if ($pushedLocation) {
             Pop-Location
         }
     }
+}
 
+function Invoke-PrismaSchemaSync {
+    param(
+        [string]$ProjectPath
+    )
+
+    $result = @{
+        Ran = $false
+        Command = ""
+        Notes = ""
+        LocalUpdated = $false
+        RailwayUpdated = $false
+    }
+
+    Write-Host ""
+    Write-Host "═══════════════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "Database Schema Update" -ForegroundColor Cyan
+    Write-Host "═══════════════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host ""
+
+    # Ask which command type to use
+    Write-Host "Select how you'd like to sync the database schema:" -ForegroundColor Yellow
+    Write-Host "  1. Generate migration (npx prisma migrate dev --name <name>)" -ForegroundColor White
+    Write-Host "  2. Push schema directly (npx prisma db push)" -ForegroundColor White
+    Write-Host "  3. Skip database updates (I will handle manually)" -ForegroundColor White
+    Write-Host ""
+
+    do {
+        $commandChoice = Read-Host "Enter choice (1-3)"
+    } until ($commandChoice -in @("1", "2", "3"))
+
+    if ($commandChoice -eq "3") {
+        Write-Host "Skipping database updates." -ForegroundColor Yellow
+        $result.Notes = "Skipped (user choice)"
+        return $result
+    }
+
+    $commandType = if ($commandChoice -eq "1") { "migrate" } else { "push" }
+
+    # Detect if migration files are present; if not, fall back to db push
+    $migrationsPath = Join-Path $ProjectPath "prisma/migrations"
+    $hasMigrations = $false
+    if (Test-Path $migrationsPath) {
+        $migrationDirs = Get-ChildItem -Path $migrationsPath -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($migrationDirs) {
+            $hasMigrations = $true
+        }
+    }
+
+    if ($commandType -eq "migrate" -and -not $hasMigrations) {
+        Write-Host ""
+        Write-Host "⚠️  No Prisma migration files found in '$migrationsPath'." -ForegroundColor Yellow
+        Write-Host "   Falling back to 'prisma db push' for this release." -ForegroundColor Yellow
+        $commandType = "push"
+    }
+
+    # Ask for migration name once if using migrate command
+    $migrationName = $null
+    if ($commandType -eq "migrate") {
+        Write-Host ""
+        do {
+            $migrationName = Read-Host "Migration name (kebab-case recommended)"
+            if ([string]::IsNullOrWhiteSpace($migrationName)) {
+                Write-Host "Migration name cannot be empty." -ForegroundColor Yellow
+            }
+        } until (-not [string]::IsNullOrWhiteSpace($migrationName))
+    }
+
+    # Ask about local database
+    Write-Host ""
+    Write-Host "Update LOCAL database?" -ForegroundColor Yellow
+    Write-Host "  This will update your local development database." -ForegroundColor Gray
+    $updateLocal = Read-Host "Update local database? (y/n)"
+
+    if ($updateLocal -eq "y" -or $updateLocal -eq "Y") {
+        try {
+            $command = Invoke-PrismaDatabaseUpdate -ProjectPath $ProjectPath -DatabaseTarget "local" -CommandType $commandType -MigrationName $migrationName
+            Write-Host "✅ Local database updated successfully!" -ForegroundColor Green
+            $result.LocalUpdated = $true
+            if ($result.Command) {
+                $result.Command += " (local), "
+            } else {
+                $result.Command = "$command (local), "
+            }
+        } catch {
+            Write-Host "❌ Failed to update local database: $_" -ForegroundColor Red
+            Write-Host "Continue with Railway update? (y/n)" -ForegroundColor Yellow
+            $continue = Read-Host
+            if ($continue -ne "y" -and $continue -ne "Y") {
+                throw "Database update cancelled due to local database failure."
+            }
+        }
+    }
+
+    # Ask about Railway database
+    Write-Host ""
+    Write-Host "Update RAILWAY database?" -ForegroundColor Yellow
+    Write-Host "  This will update your production database on Railway." -ForegroundColor Gray
+    Write-Host "  ⚠️  Make sure you've backed up your production database!" -ForegroundColor Red
+    Write-Host "  ℹ️  Use the PUBLIC proxy URL (e.g., shortline.proxy.rlwy.net:45995)" -ForegroundColor Cyan
+    Write-Host "     NOT the internal hostname (postgres.railway.internal)" -ForegroundColor Cyan
+    $updateRailway = Read-Host "Update Railway database? (y/n)"
+
+    if ($updateRailway -eq "y" -or $updateRailway -eq "Y") {
+        try {
+            $command = Invoke-PrismaDatabaseUpdate -ProjectPath $ProjectPath -DatabaseTarget "railway" -CommandType $commandType -MigrationName $migrationName
+            Write-Host "✅ Railway database updated successfully!" -ForegroundColor Green
+            $result.RailwayUpdated = $true
+            if ($result.Command) {
+                $result.Command += "$command (railway)"
+            } else {
+                $result.Command = "$command (railway)"
+            }
+        } catch {
+            Write-Host "❌ Failed to update Railway database: $_" -ForegroundColor Red
+            throw "Railway database update failed. Please fix the issue before proceeding."
+        }
+    }
+
+    if ($result.LocalUpdated -or $result.RailwayUpdated) {
+        $result.Ran = $true
+        if (-not $result.Command) {
+            $result.Command = "Database updates skipped"
+        }
+        $result.Notes = "Local: $($result.LocalUpdated), Railway: $($result.RailwayUpdated)"
+    } else {
+        $result.Notes = "No databases updated"
+    }
+
+    Write-Host ""
     return $result
 }
 

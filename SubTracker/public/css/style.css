@@ -1109,6 +1109,50 @@ nav a.active {
     opacity: 0.8;
 }
 
+.sync-alert {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.sync-alert-info {
+    border-color: rgba(16, 185, 129, 0.35);
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.sync-alert-warning {
+    border-color: rgba(217, 119, 6, 0.35);
+    background: rgba(217, 119, 6, 0.08);
+}
+
+.sync-alert-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+    margin-top: 0.1rem;
+}
+
+.sync-alert-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.sync-alert-title {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.sync-alert-meta {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
 /* Unmapped Section */
 .unmapped-section {
     background: var(--bg-card);

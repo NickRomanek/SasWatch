@@ -138,6 +138,86 @@
             letter-spacing: 0.5px;
         }
 
+        .entra-status-connected,
+        .entra-status-disconnected {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 16px;
+        }
+
+        .status-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .status-icon {
+            font-size: 1.5rem;
+        }
+
+        .status-meta {
+            margin: 4px 0 0 0;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .btn-connect {
+            padding: 10px 20px;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-connect:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-disconnect {
+            padding: 10px 20px;
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-disconnect:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .info-box {
+            display: flex;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .info-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
         .api-key-display {
             display: flex;
             align-items: center;
@@ -461,6 +541,48 @@
             </div>
         </div>
 
+        <!-- Microsoft 365 Integration -->
+        <div class="account-section">
+            <h2>☁️ Microsoft 365 Integration</h2>
+            <p class="section-description">Connect your Microsoft 365 (Entra ID) directory to automatically sync user data, licenses, and account status.</p>
+            
+            <% if (account.entraTenantId) { %>
+                <div class="entra-status-connected">
+                    <div class="status-header">
+                        <span class="status-icon">✅</span>
+                        <div>
+                            <strong>Connected</strong>
+                            <p class="status-meta">
+                                Connected on <%= account.entraConnectedAt ? new Date(account.entraConnectedAt).toLocaleString() : 'recently' %>
+                                <% if (account.entraLastSyncAt) { %>
+                                    <br>Last sync: <%= new Date(account.entraLastSyncAt).toLocaleString() %>
+                                <% } %>
+                            </p>
+                        </div>
+                    </div>
+                    <button class="btn-disconnect" onclick="disconnectEntra()">🔌 Disconnect</button>
+                </div>
+            <% } else { %>
+                <div class="entra-status-disconnected">
+                    <div class="status-header">
+                        <span class="status-icon">⚠️</span>
+                        <div>
+                            <strong>Not Connected</strong>
+                            <p class="status-meta">Connect to automatically sync user data from your Microsoft 365 directory.</p>
+                        </div>
+                    </div>
+                    <a href="/integrations/entra/connect" class="btn-connect">🔗 Connect Microsoft 365</a>
+                </div>
+            <% } %>
+            
+            <div class="info-box" style="margin-top: 1rem;">
+                <span class="info-icon">ℹ️</span>
+                <div>
+                    <strong>What this does:</strong> When connected, we'll automatically sync user information, license assignments, and account status from your Microsoft 365 directory. This requires a global administrator to grant read-only permissions.
+                </div>
+            </div>
+        </div>
+
         <!-- Script Download -->
         <div class="account-section">
             <h2>📥 Downloads</h2>
@@ -575,6 +697,63 @@
                 removeButtonSpinner(button);
             }
         }
+
+        async function disconnectEntra() {
+            const confirmed = await ConfirmModal.show({
+                title: 'Disconnect Microsoft 365?',
+                message: 'This will stop automatic user syncing from your Microsoft 365 directory. You can reconnect at any time.',
+                confirmText: 'Disconnect',
+                cancelText: 'Cancel',
+                type: 'warning'
+            });
+
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch('/api/account/entra/disconnect', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    Toast.success('Microsoft 365 disconnected successfully');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    Toast.error('Failed to disconnect: ' + result.error);
+                }
+            } catch (error) {
+                Toast.error('Error: ' + error.message);
+            }
+        }
+
+        // Handle success/error messages from query params
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const success = urlParams.get('success');
+            const error = urlParams.get('error');
+            const message = urlParams.get('message');
+
+            if (success === 'entra_connected') {
+                Toast.success('✓ Microsoft 365 connected successfully! User sync will begin automatically.');
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else if (error) {
+                let errorMsg = 'Connection failed';
+                if (error === 'consent_denied') {
+                    errorMsg = message || 'Admin consent was denied or cancelled';
+                } else if (error === 'invalid_state') {
+                    errorMsg = 'Security validation failed. Please try again.';
+                } else if (error === 'no_tenant') {
+                    errorMsg = 'No tenant information received. Please try again.';
+                } else if (error === 'callback_failed') {
+                    errorMsg = 'Failed to process connection. Please try again.';
+                }
+                Toast.error('Microsoft 365 connection error: ' + errorMsg);
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
 
         // Theme toggle functionality
         function toggleTheme() {

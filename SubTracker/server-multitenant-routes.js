@@ -211,6 +211,103 @@ function setupAccountRoutes(app) {
             });
         }
     });
+
+    // Initiate Entra admin consent flow
+    app.get('/integrations/entra/connect', auth.requireAuth, async (req, res) => {
+        try {
+            const clientId = process.env.CLIENT_ID;
+            if (!clientId) {
+                return res.status(500).send('Microsoft 365 integration is not configured. Please contact support.');
+            }
+
+            // Generate state token for CSRF protection
+            const crypto = require('crypto');
+            const state = crypto.randomBytes(16).toString('hex');
+            
+            // Store state in session
+            req.session.entraConsentState = state;
+            req.session.save((err) => {
+                if (err) {
+                    console.error('Session save error:', err);
+                    return res.status(500).send('Failed to initiate connection');
+                }
+
+                // Build admin consent URL
+                const redirectUri = encodeURIComponent(`${req.protocol}://${req.get('host')}/integrations/entra/callback`);
+                const adminConsentUrl = `https://login.microsoftonline.com/common/adminconsent?` +
+                    `client_id=${clientId}&` +
+                    `redirect_uri=${redirectUri}&` +
+                    `state=${state}`;
+
+                res.redirect(adminConsentUrl);
+            });
+        } catch (error) {
+            console.error('Entra connect error:', error);
+            res.status(500).send('Failed to initiate Microsoft 365 connection');
+        }
+    });
+
+    // Handle Entra admin consent callback
+    app.get('/integrations/entra/callback', auth.requireAuth, async (req, res) => {
+        try {
+            const { admin_consent, tenant, state, error, error_description } = req.query;
+
+            // Verify state token
+            if (!req.session.entraConsentState || req.session.entraConsentState !== state) {
+                return res.redirect('/account?error=invalid_state');
+            }
+
+            // Clear state from session
+            delete req.session.entraConsentState;
+
+            if (error || !admin_consent || admin_consent !== 'True') {
+                console.error('Admin consent failed:', error, error_description);
+                return res.redirect('/account?error=consent_denied&message=' + encodeURIComponent(error_description || 'Admin consent was denied or cancelled'));
+            }
+
+            if (!tenant) {
+                return res.redirect('/account?error=no_tenant');
+            }
+
+            // Store tenant ID for this account
+            const prisma = require('./lib/prisma');
+            await prisma.account.update({
+                where: { id: req.session.accountId },
+                data: {
+                    entraTenantId: tenant,
+                    entraConnectedAt: new Date()
+                }
+            });
+
+            res.redirect('/account?success=entra_connected');
+        } catch (error) {
+            console.error('Entra callback error:', error);
+            res.redirect('/account?error=callback_failed');
+        }
+    });
+
+    // Disconnect Entra integration
+    app.post('/api/account/entra/disconnect', auth.requireAuth, async (req, res) => {
+        try {
+            const prisma = require('./lib/prisma');
+            await prisma.account.update({
+                where: { id: req.session.accountId },
+                data: {
+                    entraTenantId: null,
+                    entraConnectedAt: null,
+                    entraLastSyncAt: null
+                }
+            });
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Disconnect Entra error:', error);
+            res.status(500).json({ 
+                success: false, 
+                error: 'Failed to disconnect Microsoft 365' 
+            });
+        }
+    });
 }
 
 // ============================================
@@ -473,8 +570,13 @@ function setupDataRoutes(app) {
     // Get users (account-scoped)
     app.get('/api/users', auth.requireAuth, async (req, res) => {
         try {
+            const syncResult = await db.syncEntraUsersIfNeeded(req.session.accountId);
             const usersData = await db.getUsersData(req.session.accountId);
-            res.json(usersData);
+            res.json({
+                ...usersData,
+                entraSync: syncResult,
+                entraSyncEnabled: db.isEntraConfigured()
+            });
         } catch (error) {
             console.error('Get users error:', error);
             res.status(500).json({ error: 'Failed to get users' });
@@ -797,6 +899,8 @@ function setupDashboardRoutes(app) {
     // Users page (default landing page)
     app.get('/', auth.requireAuth, async (req, res) => {
         try {
+            const account = await auth.getAccountById(req.session.accountId);
+            const syncResult = await db.syncEntraUsersIfNeeded(req.session.accountId);
             const usersData = await db.getUsersData(req.session.accountId);
             
             res.render('users', { 
@@ -805,7 +909,8 @@ function setupDashboardRoutes(app) {
                 users: usersData.users || [],
                 unmappedUsernames: usersData.unmappedUsernames || [],
                 account: req.account,
-                azureSyncEnabled: false // Disabled for now
+                azureSyncEnabled: db.isEntraConfigured() && !!account.entraTenantId,
+                entraSync: syncResult
             });
         } catch (error) {
             console.error('Users page error:', error);

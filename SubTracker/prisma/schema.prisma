@@ -22,6 +22,9 @@ model Account {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   lastLoginAt       DateTime?
+  entraLastSyncAt   DateTime?
+  entraTenantId     String?              // Tenant ID from admin consent
+  entraConnectedAt  DateTime?             // When admin consent was granted
   
   // Relations
   users             User[]
@@ -51,6 +54,10 @@ model User {
   importedAt        DateTime           @default(now())
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  entraId           String?
+  entraAccountEnabled Boolean?
+  entraLicenses     String[]           @default([])
+  entraLastSyncedAt DateTime?
   
   // Relations
   windowsUsernames  WindowsUsername[]

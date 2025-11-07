@@ -2,6 +2,9 @@
 // All operations are account-scoped for data isolation
 
 const prisma = require('./prisma');
+const { isConfigured: isEntraConfigured, fetchEntraDirectory } = require('./entra-sync');
+
+const ENTRA_SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 const PROCESS_APP_MAP = {
     'acrobat.exe': { vendor: 'Adobe', name: 'Acrobat Pro' },
@@ -189,6 +192,10 @@ async function getUsersData(accountId) {
             adminRoles: user.adminRoles || '',
             userGroups: user.userGroups || '',
             licenses: user.licenses,
+            entraLicenses: user.entraLicenses || [],
+            entraId: user.entraId || null,
+            entraAccountEnabled: user.entraAccountEnabled,
+            entraLastSyncedAt: user.entraLastSyncedAt,
             windowsUsernames: user.windowsUsernames.map(wu => wu.username),
             lastActivity: user.lastActivity,
             activityCount: user.activityCount,
@@ -212,7 +219,20 @@ async function getUsersData(accountId) {
 }
 
 async function createUser(accountId, userData) {
-    const { email, firstName, lastName, adminRoles, userGroups, licenses, windowsUsernames, importedAt } = userData;
+    const {
+        email,
+        firstName,
+        lastName,
+        adminRoles,
+        userGroups,
+        licenses,
+        windowsUsernames,
+        importedAt,
+        entraId,
+        entraAccountEnabled,
+        entraLicenses,
+        entraLastSyncedAt
+    } = userData;
     
     const user = await prisma.user.create({
         data: {
@@ -223,6 +243,10 @@ async function createUser(accountId, userData) {
             adminRoles: adminRoles || null,
             userGroups: userGroups || null,
             licenses: licenses || [],
+            entraId: entraId || null,
+            entraAccountEnabled: entraAccountEnabled ?? null,
+            entraLicenses: entraLicenses || [],
+            entraLastSyncedAt: entraLastSyncedAt || null,
             activityCount: 0,
             importedAt: importedAt || new Date(),
             windowsUsernames: windowsUsernames && windowsUsernames.length > 0 ? {
@@ -830,6 +854,124 @@ async function deleteAllApps(accountId) {
     });
 }
 
+async function syncEntraUsersIfNeeded(accountId, options = {}) {
+    if (!isEntraConfigured()) {
+        return { synced: false, reason: 'not-configured' };
+    }
+
+    const account = await prisma.account.findUnique({
+        where: { id: accountId },
+        select: { entraLastSyncAt: true, entraTenantId: true }
+    });
+
+    if (!account?.entraTenantId) {
+        return { synced: false, reason: 'not-connected' };
+    }
+
+    const now = new Date();
+    if (!options.force && account?.entraLastSyncAt) {
+        const diff = now.getTime() - account.entraLastSyncAt.getTime();
+        if (diff < ENTRA_SYNC_INTERVAL_MS) {
+            return {
+                synced: false,
+                reason: 'throttled',
+                lastSync: account.entraLastSyncAt
+            };
+        }
+    }
+
+    try {
+        const directory = await fetchEntraDirectory(account.entraTenantId);
+        const syncedAt = directory.fetchedAt || new Date();
+        const seenEmails = new Set();
+
+        for (const graphUser of directory.users) {
+            const email = (graphUser.email || '').trim().toLowerCase();
+            if (!email || seenEmails.has(email)) {
+                continue;
+            }
+            seenEmails.add(email);
+
+            const licenseList = Array.isArray(graphUser.licenses) ? graphUser.licenses : [];
+            const existing = await prisma.user.findFirst({
+                where: { accountId, email }
+            });
+
+            if (existing) {
+                const updateData = {
+                    entraId: graphUser.entraId || existing.entraId,
+                    entraAccountEnabled: graphUser.accountEnabled,
+                    entraLicenses: licenseList,
+                    entraLastSyncedAt: syncedAt
+                };
+
+                if (graphUser.firstName) {
+                    updateData.firstName = graphUser.firstName;
+                }
+                if (graphUser.lastName) {
+                    updateData.lastName = graphUser.lastName;
+                }
+                if (!graphUser.firstName && !graphUser.lastName && graphUser.displayName) {
+                    const parts = graphUser.displayName.split(/\s+/);
+                    if (!existing.firstName && parts[0]) {
+                        updateData.firstName = parts[0];
+                    }
+                    if (!existing.lastName && parts.length > 1) {
+                        updateData.lastName = parts.slice(1).join(' ');
+                    }
+                }
+
+                if (licenseList.length > 0) {
+                    updateData.licenses = licenseList;
+                }
+
+                await prisma.user.update({
+                    where: { id: existing.id },
+                    data: updateData
+                });
+            } else {
+                const firstName = graphUser.firstName || (graphUser.displayName ? graphUser.displayName.split(/\s+/)[0] : 'Unknown');
+                const lastName = graphUser.lastName || (graphUser.displayName ? graphUser.displayName.split(/\s+/).slice(1).join(' ') : '');
+
+                await prisma.user.create({
+                    data: {
+                        accountId,
+                        email,
+                        firstName: firstName || 'Unknown',
+                        lastName: lastName || '',
+                        licenses: licenseList,
+                        entraId: graphUser.entraId || null,
+                        entraAccountEnabled: graphUser.accountEnabled,
+                        entraLicenses: licenseList,
+                        entraLastSyncedAt: syncedAt,
+                        activityCount: 0,
+                        importedAt: syncedAt
+                    }
+                });
+            }
+        }
+
+        await prisma.account.update({
+            where: { id: accountId },
+            data: {
+                entraLastSyncAt: syncedAt
+            }
+        });
+
+        return {
+            synced: true,
+            lastSync: syncedAt,
+            count: seenEmails.size
+        };
+    } catch (error) {
+        console.error('Entra sync error:', error);
+        return {
+            synced: false,
+            error: error.message || String(error)
+        };
+    }
+}
+
 module.exports = {
     // User operations (all account-scoped)
     getUsersData,
@@ -860,6 +1002,9 @@ module.exports = {
     hideApp,
     deleteApp,
     deleteAllApps,
+
+    syncEntraUsersIfNeeded,
+    isEntraConfigured,
 
     // Direct prisma access if needed
     prisma

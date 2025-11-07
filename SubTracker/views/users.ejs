@@ -70,6 +70,34 @@
                 </div>
             </header>
 
+            <% if (azureSyncEnabled) { %>
+            <div class="sync-alert sync-alert-info">
+                <span class="sync-alert-icon">🔄</span>
+                <div class="sync-alert-body">
+                    <span class="sync-alert-title">Entra directory sync enabled</span>
+                    <span class="sync-alert-meta">
+                        <% if (entraSync && entraSync.error) { %>
+                            Sync failed: <%= entraSync.error %>
+                        <% } else if (entraSync && entraSync.synced) { %>
+                            Synced <%= entraSync.count || 0 %> users on <%= entraSync.lastSync ? new Date(entraSync.lastSync).toLocaleString() : 'the last run' %>.
+                        <% } else if (entraSync && entraSync.reason === 'throttled') { %>
+                            Last sync <%= entraSync.lastSync ? new Date(entraSync.lastSync).toLocaleString() : 'recently' %>. Updates run hourly.
+                        <% } else { %>
+                            Preparing first sync… this may take a moment.
+                        <% } %>
+                    </span>
+                </div>
+            </div>
+            <% } else { %>
+            <div class="sync-alert sync-alert-warning">
+                <span class="sync-alert-icon">⚠️</span>
+                <div class="sync-alert-body">
+                    <span class="sync-alert-title">Microsoft 365 not connected</span>
+                    <span class="sync-alert-meta">Visit <a href="/account" style="color: var(--accent-primary); text-decoration: underline;">Account Settings</a> to connect your Microsoft 365 directory for automatic user sync.</span>
+                </div>
+            </div>
+            <% } %>
+
         <!-- Upload + Unmapped Grid -->
         <div class="upload-section">
             <div class="upload-unmapped-grid">
@@ -265,10 +293,10 @@
                         <option value="no-license">No License</option>
                     </select>
                     <select id="status-filter" class="filter-select">
-                        <option value="">All Status</option>
-                        <option value="active">Active (7 days)</option>
-                        <option value="inactive">Inactive (7-30 days)</option>
-                        <option value="unused">Unused (30+ days)</option>
+                        <option value="">All Entra Status</option>
+                        <option value="active">Active (Entra)</option>
+                        <option value="inactive">Inactive (Entra)</option>
+                        <option value="unknown">Pending Sync</option>
                     </select>
                 </div>
             </div>
@@ -288,7 +316,7 @@
                         <th onclick="sortTable('licenses')">Licenses <span class="sort-icon">↕</span></th>
                         <th onclick="sortTable('lastActivity')">Last Activity <span class="sort-icon">↕</span></th>
                         <th onclick="sortTable('activityCount')">Activity Count <span class="sort-icon">↕</span></th>
-                        <th>Status</th>
+                        <th>Entra Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -306,6 +334,8 @@
     <script>
         // Pass server data to JavaScript
         const usersData = <%- JSON.stringify(users || []) %>;
+        const entraSyncMeta = <%- JSON.stringify(entraSync || {}) %>;
+        const entraSyncEnabled = <%= azureSyncEnabled ? 'true' : 'false' %>;
     </script>
     <script src="/js/users.js"></script>
     <script src="/js/azure-sync.js"></script>
