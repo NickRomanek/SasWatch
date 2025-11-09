@@ -76,16 +76,22 @@
                 </div>
                 <!-- Action Buttons -->
                 <div class="action-buttons-container">
-                    <div class="dropdown-wrapper">
-                        <button class="btn btn-primary dropdown-btn" onclick="toggleDropdown('connectors-dropdown')">
-                            🔌 Connectors <span class="dropdown-arrow">▼</span>
+                    <% if (azureSyncEnabled) { %>
+                        <button class="btn btn-primary" id="entra-sync-btn" onclick="syncEntraUsers(event)">
+                            🔄 Sync
                         </button>
-                        <div class="dropdown-menu" id="connectors-dropdown">
-                            <a href="/integrations/entra/connect" class="dropdown-item">
-                                ☁️ Microsoft Entra
-                            </a>
+                    <% } else { %>
+                        <div class="dropdown-wrapper">
+                            <button class="btn btn-primary dropdown-btn" onclick="toggleDropdown('connectors-dropdown')">
+                                🔌 Connectors <span class="dropdown-arrow">▼</span>
+                            </button>
+                            <div class="dropdown-menu" id="connectors-dropdown">
+                                <a href="/integrations/entra/connect" class="dropdown-item">
+                                    ☁️ Microsoft Entra
+                                </a>
+                            </div>
                         </div>
-                    </div>
+                    <% } %>
                     
                     <button class="btn btn-secondary" onclick="toggleImportSection('licenses')">
                         📋 Licenses
@@ -374,6 +380,55 @@
         const entraSyncMeta = <%- JSON.stringify(entraSync || {}) %>;
         const entraSyncEnabled = <%= azureSyncEnabled ? 'true' : 'false' %>;
         
+        // Trigger a manual Microsoft 365 user sync
+        async function syncEntraUsers(event) {
+            const button = event?.currentTarget || event?.target;
+            if (!button) {
+                console.error('Sync button reference missing');
+                return;
+            }
+
+            addButtonSpinner(button, button.innerHTML);
+
+            try {
+                const response = await fetch('/api/account/entra/sync?mode=users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        includeUsers: true,
+                        includeSignIns: false
+                    })
+                });
+
+                const payload = await response.json().catch(() => ({}));
+
+                if (!response.ok || payload.success === false) {
+                    const errorMessage = payload.error || `Request failed with status ${response.status}`;
+                    console.error('User sync failed:', errorMessage);
+                    Toast.error(`Failed to sync Microsoft 365 users: ${errorMessage}`);
+                    return;
+                }
+
+                const usersResult = payload.users || {};
+                const count = usersResult.count ?? 0;
+                const synced = usersResult.synced === true;
+
+                if (synced) {
+                    Toast.success(`✓ Microsoft 365 user sync completed (${count} ${count === 1 ? 'user' : 'users'} updated)`);
+                } else {
+                    const reason = usersResult.reason ? ` (${usersResult.reason})` : '';
+                    Toast.info(`Microsoft 365 user sync finished with no changes${reason}`);
+                }
+
+                setTimeout(() => window.location.reload(), 1200);
+            } catch (error) {
+                console.error('User sync error:', error);
+                Toast.error(`Failed to sync Microsoft 365 users: ${error.message}`);
+            } finally {
+                removeButtonSpinner(button);
+            }
+        }
+
         // Dropdown functionality
         function toggleDropdown(dropdownId) {
             const dropdown = document.getElementById(dropdownId);

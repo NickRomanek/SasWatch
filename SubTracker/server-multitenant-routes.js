@@ -322,27 +322,120 @@ function setupAccountRoutes(app) {
     // Manually trigger Entra sync
     app.post('/api/account/entra/sync', auth.requireAuth, async (req, res) => {
         try {
-            const [userSync, signInSync] = await Promise.all([
-                db.syncEntraUsersIfNeeded(req.session.accountId, { force: true }),
-                db.syncEntraSignInsIfNeeded(req.session.accountId, { force: true })
-            ]);
+            const mode = typeof req.query.mode === 'string' ? req.query.mode.toLowerCase() : null;
+            const body = req.body || {};
+            const targets = Array.isArray(body.targets) ? body.targets.map(t => String(t).toLowerCase()) : null;
 
-            const userError = userSync?.error || (userSync?.reason === 'not-configured' ? 'Graph credentials not configured' : null);
-            const signInError = signInSync?.error || (signInSync?.reason === 'not-configured' ? 'Graph credentials not configured' : null);
+            const hasBool = (value) => typeof value === 'boolean';
+            const includes = (collection, key) => Array.isArray(collection) && collection.includes(key);
 
-            if (userError && signInError) {
+            let includeUsers;
+            let includeSignIns;
+
+            if (mode === 'activity') {
+                if (hasBool(body.includeUsers)) {
+                    includeUsers = body.includeUsers;
+                } else {
+                    includeUsers = false;
+                }
+                includeSignIns = true;
+            } else if (mode === 'users') {
+                includeUsers = true;
+                includeSignIns = false;
+            } else if (targets) {
+                includeUsers = includes(targets, 'users');
+                includeSignIns = includes(targets, 'signins') || includes(targets, 'sign-ins') || includes(targets, 'activity');
+            } else {
+                includeUsers = hasBool(body.includeUsers) ? body.includeUsers : true;
+                includeSignIns = hasBool(body.includeSignIns) ? body.includeSignIns : true;
+            }
+
+            if (!includeUsers && !includeSignIns) {
+                includeSignIns = true; // Always run sign-in sync if nothing explicitly requested
+            }
+
+            const runUsersInBackground = includeUsers && (body.backgroundUsers === true || mode === 'activity');
+
+            const results = {
+                users: {
+                    skipped: !includeUsers,
+                    reason: !includeUsers ? 'not-requested' : undefined
+                },
+                signIns: {
+                    skipped: !includeSignIns,
+                    reason: !includeSignIns ? 'not-requested' : undefined
+                }
+            };
+
+            const errors = [];
+
+            if (includeSignIns) {
+                try {
+                    results.signIns = await db.syncEntraSignInsIfNeeded(req.session.accountId, { force: true });
+                } catch (error) {
+                    console.error('Manual Entra sign-in sync error:', error);
+                    const message = error?.message || error?.code || 'Failed to sync sign-in logs';
+                    results.signIns = {
+                        synced: false,
+                        error: message
+                    };
+                    errors.push(`sign-ins: ${message}`);
+                }
+            }
+
+            if (includeUsers) {
+                if (runUsersInBackground) {
+                    results.users = {
+                        synced: false,
+                        queued: true,
+                        message: 'User sync running in background'
+                    };
+
+                    // Fire-and-forget background user sync
+                    db.syncEntraUsersIfNeeded(req.session.accountId, { force: true })
+                        .then((userResult) => {
+                            console.log('Background Entra user sync completed:', {
+                                synced: userResult?.synced,
+                                count: userResult?.count,
+                                lastSync: userResult?.lastSync
+                            });
+                        })
+                        .catch((error) => {
+                            console.error('Background Entra user sync failed:', error);
+                        });
+                } else {
+                    try {
+                        results.users = await db.syncEntraUsersIfNeeded(req.session.accountId, { force: true });
+                    } catch (error) {
+                        console.error('Manual Entra user sync error:', error);
+                        const message = error?.message || error?.code || 'Failed to sync directory users';
+                        results.users = {
+                            synced: false,
+                            error: message
+                        };
+                        errors.push(`users: ${message}`);
+                    }
+                }
+            }
+
+            const requestedOperations =
+                (includeSignIns ? 1 : 0) +
+                (includeUsers && !runUsersInBackground ? 1 : 0);
+            const failedOperations = errors.length;
+
+            if (requestedOperations > 0 && failedOperations === requestedOperations) {
                 return res.status(400).json({
                     success: false,
-                    error: `Sync failed: ${userError}; ${signInError}`,
-                    users: userSync,
-                    signIns: signInSync
+                    error: errors.join('; '),
+                    users: results.users,
+                    signIns: results.signIns
                 });
             }
 
             res.json({
                 success: true,
-                users: userSync,
-                signIns: signInSync
+                users: results.users,
+                signIns: results.signIns
             });
         } catch (error) {
             console.error('Manual Entra sync error:', error);
