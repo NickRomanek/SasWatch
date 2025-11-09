@@ -210,25 +210,6 @@
             box-shadow: var(--shadow-md);
         }
 
-        .btn-sync {
-            padding: 10px 20px;
-            background: var(--accent-primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .btn-sync:hover {
-            background: var(--accent-hover);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
 
         .info-box {
             display: flex;
@@ -619,7 +600,6 @@
                         </div>
                     </div>
                     <div class="status-actions">
-                        <button class="btn-sync" onclick="syncEntra(this)">🔄 Sync Now</button>
                         <button class="btn-disconnect" onclick="disconnectEntra()">🔌 Disconnect</button>
                     </div>
                 </div>
@@ -759,85 +739,6 @@
                 }
             } catch (error) {
                 Toast.error('Error: ' + error.message);
-            } finally {
-                removeButtonSpinner(button);
-            }
-        }
-
-        async function syncEntra(button) {
-            const confirmed = await ConfirmModal.show({
-                title: 'Sync Microsoft 365 Now?',
-                message: 'This will refresh Microsoft 365 activity and queue a user sync in the background.',
-                confirmText: 'Sync Now',
-                cancelText: 'Cancel',
-                type: 'info'
-            });
-
-            if (!confirmed) return;
-
-            addButtonSpinner(button, button.innerHTML);
-
-            try {
-                Toast.info('Starting Microsoft 365 activity sync...');
-
-                const response = await fetch('/api/account/entra/sync?mode=activity', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        includeSignIns: true,
-                        includeUsers: false
-                    })
-                });
-
-                console.log('Account sync response status:', response.status);
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Sync failed with status:', response.status, errorText);
-                    throw new Error(`Server returned ${response.status}: ${errorText.substring(0, 100)}`);
-                }
-
-                const result = await response.json();
-                console.log('Account sync result:', result);
-
-                if (result.success) {
-                    const pieces = [];
-                    const signIns = result.signIns || {};
-                    const users = result.users || {};
-
-                    if (signIns.error) {
-                        pieces.push(`Sign-ins error: ${signIns.error}`);
-                    } else if (signIns.synced) {
-                        pieces.push(`Sign-ins: ${signIns.count ?? 0} new events`);
-                    } else if (signIns.skipped) {
-                        pieces.push('Sign-ins: skipped');
-                    } else {
-                        pieces.push('Sign-ins: no new events');
-                    }
-
-                    if (users.error) {
-                        pieces.push(`Users error: ${users.error}`);
-                    } else if (users.queued) {
-                        pieces.push('Users: running in background');
-                    } else if (users.synced) {
-                        pieces.push(`Users: ${users.count ?? 0} updated`);
-                    } else if (users.skipped) {
-                        pieces.push('Users: skipped');
-                    }
-
-                    const summary = pieces.length > 0 ? pieces.join(' • ') : 'Microsoft 365 sync completed';
-                    Toast.success(`✓ ${summary}`);
-
-                } else {
-                    const errorMessage = result.error || 'Sync could not be completed';
-                    console.error('Sync returned error:', errorMessage);
-                    Toast.error('Failed to sync Microsoft 365: ' + errorMessage);
-                }
-            } catch (error) {
-                console.error('Sync error:', error);
-                Toast.error('Sync error: ' + error.message);
             } finally {
                 removeButtonSpinner(button);
             }

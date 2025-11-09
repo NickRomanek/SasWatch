@@ -42,27 +42,28 @@ const Toast = {
 
         const color = colors[type] || colors.info;
 
-        toast.style.cssText = `
-            background: white;
-            border-left: 4px solid ${color.bg};
-            padding: 16px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            animation: slideIn 0.3s ease;
-            min-width: 300px;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        `;
+        toast.style.padding = '16px 20px';
+        toast.style.borderRadius = '8px';
+        toast.style.display = 'flex';
+        toast.style.alignItems = 'center';
+        toast.style.gap = '12px';
+        toast.style.animation = 'slideIn 0.3s ease';
+        toast.style.minWidth = '300px';
+        toast.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        toast.style.borderLeft = `4px solid ${color.bg}`;
 
-        // Dark theme support
+        // Theme-aware colors
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        if (isDark) {
-            toast.style.background = 'var(--bg-card)';
-            toast.style.color = 'var(--text-primary)';
-            toast.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
-        }
+        const backgroundColor = isDark
+            ? 'var(--bg-card)'
+            : (color.light || '#eef2ff');
+        const textColor = isDark ? 'var(--text-primary)' : '#0f172a';
+        const shadowColor = isDark ? '0 6px 16px rgba(15, 23, 42, 0.4)' : '0 10px 30px rgba(15, 23, 42, 0.18)';
+
+        toast.style.background = backgroundColor;
+        toast.style.color = textColor;
+        toast.style.boxShadow = shadowColor;
+        toast.style.border = isDark ? '1px solid rgba(148, 163, 184, 0.25)' : '1px solid rgba(148, 163, 184, 0.2)';
 
         toast.innerHTML = `
             <span style="font-size: 1.25rem; flex-shrink: 0;">${icons[type]}</span>
