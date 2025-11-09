@@ -8,6 +8,7 @@ const auth = require('./lib/auth');
 const db = require('./lib/database-multitenant');
 const { generateMonitorScript, generateDeploymentInstructions } = require('./lib/script-generator');
 const { generateIntunePackage, getPackageFilename } = require('./lib/intune-package-generator');
+const { fetchEntraDirectory, fetchEntraSignIns, fetchEntraApplications } = require('./lib/entra-sync');
 const prisma = require('./lib/prisma');
 
 // ============================================
@@ -317,6 +318,40 @@ function setupAccountRoutes(app) {
             });
         }
     });
+
+    // Manually trigger Entra sync
+    app.post('/api/account/entra/sync', auth.requireAuth, async (req, res) => {
+        try {
+            const [userSync, signInSync] = await Promise.all([
+                db.syncEntraUsersIfNeeded(req.session.accountId, { force: true }),
+                db.syncEntraSignInsIfNeeded(req.session.accountId, { force: true })
+            ]);
+
+            const userError = userSync?.error || (userSync?.reason === 'not-configured' ? 'Graph credentials not configured' : null);
+            const signInError = signInSync?.error || (signInSync?.reason === 'not-configured' ? 'Graph credentials not configured' : null);
+
+            if (userError && signInError) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Sync failed: ${userError}; ${signInError}`,
+                    users: userSync,
+                    signIns: signInSync
+                });
+            }
+
+            res.json({
+                success: true,
+                users: userSync,
+                signIns: signInSync
+            });
+        } catch (error) {
+            console.error('Manual Entra sync error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to sync Microsoft 365 directory'
+            });
+        }
+    });
 }
 
 // ============================================
@@ -572,6 +607,180 @@ function setupTrackingAPI(app) {
 }
 
 // ============================================
+// Developer Diagnostics Routes
+// ============================================
+
+function setupDevRoutes(app) {
+    async function resolveAccount(req) {
+        if (req.account) {
+            return req.account;
+        }
+        if (req.session?.accountId) {
+            return await auth.getAccountById(req.session.accountId);
+        }
+        return null;
+    }
+
+    function ensureGraphReady(account) {
+        if (!db.isEntraConfigured()) {
+            return { error: 'Graph API credentials are not configured on this server.' };
+        }
+        if (!account?.entraTenantId) {
+            return { error: 'This account is not connected to Microsoft 365 (Entra ID).' };
+        }
+        return { tenantId: account.entraTenantId };
+    }
+
+    app.get('/dev', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await resolveAccount(req);
+            res.render('dev', {
+                title: 'Dev Diagnostics',
+                graphConfigured: db.isEntraConfigured(),
+                tenantConfigured: !!account?.entraTenantId,
+                account
+            });
+        } catch (error) {
+            console.error('Dev diagnostics page error:', error);
+            res.status(500).send('Failed to load Dev diagnostics');
+        }
+    });
+
+    app.get('/api/dev/graph/users', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await resolveAccount(req);
+            const graphState = ensureGraphReady(account);
+            if (graphState.error) {
+                return res.status(400).json({ success: false, error: graphState.error });
+            }
+
+            const limit = Number.parseInt(req.query.limit, 10) || 10;
+            const force = req.query.force === 'true';
+            const start = Date.now();
+
+            if (force) {
+                await db.syncEntraUsersIfNeeded(account.id, { force: true });
+            }
+
+            const result = await fetchEntraDirectory(graphState.tenantId, { limit });
+            const duration = Date.now() - start;
+
+            res.json({
+                success: true,
+                requestedAt: new Date(start),
+                durationMs: duration,
+                command: `GET /users?$top=${limit}&$select=id,displayName,givenName,surname,mail,userPrincipalName,accountEnabled,assignedLicenses`,
+                params: { limit, force },
+                data: result.users,
+                meta: {
+                    fetchedAt: result.fetchedAt,
+                    totalReturned: result.users.length
+                }
+            });
+        } catch (error) {
+            console.error('Dev users fetch error:', error);
+            res.status(500).json({ success: false, error: error.message || 'Failed to fetch users' });
+        }
+    });
+
+    app.get('/api/dev/graph/apps', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await resolveAccount(req);
+            const graphState = ensureGraphReady(account);
+            if (graphState.error) {
+                return res.status(400).json({ success: false, error: graphState.error });
+            }
+
+            const limit = Number.parseInt(req.query.limit, 10) || 10;
+            const start = Date.now();
+            const result = await fetchEntraApplications(graphState.tenantId, { limit });
+            const duration = Date.now() - start;
+
+            res.json({
+                success: true,
+                requestedAt: new Date(start),
+                durationMs: duration,
+                command: `GET /servicePrincipals?$top=${limit}&$select=id,displayName,appId,appOwnerOrganizationId,createdDateTime,servicePrincipalType,publisherName,tags&$orderby=createdDateTime desc`,
+                params: { limit },
+                data: result.apps,
+                meta: {
+                    fetchedAt: result.fetchedAt,
+                    totalReturned: result.apps.length,
+                    nextLink: result.nextLink
+                }
+            });
+        } catch (error) {
+            console.error('Dev apps fetch error:', error);
+            res.status(500).json({ success: false, error: error.message || 'Failed to fetch apps' });
+        }
+    });
+
+    app.get('/api/dev/graph/activity', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await resolveAccount(req);
+            const graphState = ensureGraphReady(account);
+            if (graphState.error) {
+                return res.status(400).json({ success: false, error: graphState.error });
+            }
+
+            const limit = Number.parseInt(req.query.limit, 10) || 10;
+            const hours = Number.parseInt(req.query.hours, 10) || 24;
+            const force = req.query.force === 'true';
+
+            const sinceDate = new Date(Date.now() - hours * 60 * 60 * 1000);
+            const start = Date.now();
+
+            if (force) {
+                await db.syncEntraSignInsIfNeeded(account.id, { force: true });
+            }
+
+            // For Dev view, don't pass 'since' to match Graph Explorer behavior
+            const result = await fetchEntraSignIns(graphState.tenantId, {
+                top: limit,
+                maxPages: 1
+            });
+            const duration = Date.now() - start;
+            const events = Array.isArray(result.events) ? result.events.slice(0, limit) : [];
+
+            res.json({
+                success: true,
+                requestedAt: new Date(start),
+                durationMs: duration,
+                command: `GET /auditLogs/signIns?$top=${limit}&$orderby=createdDateTime desc${sinceDate ? `&$filter=createdDateTime ge ${sinceDate.toISOString()}` : ''}`,
+                params: { limit, hours, force },
+                data: events,
+                meta: {
+                    fetchedAt: new Date(),
+                    latestTimestamp: result.latestTimestamp || null,
+                    totalReturned: events.length
+                }
+            });
+        } catch (error) {
+            console.error('Dev activity fetch error:', error);
+            
+            // Provide more detailed error information
+            const errorResponse = {
+                success: false,
+                error: error.message || 'Failed to fetch activity',
+                errorCode: error.statusCode || error.code,
+                details: {}
+            };
+
+            // Check for permission errors
+            if (error.statusCode === 403 || error.code === 'Forbidden') {
+                errorResponse.error = 'Permission denied: Admin consent required for AuditLog.Read.All';
+                errorResponse.details = {
+                    reason: 'The application does not have admin consent for AuditLog.Read.All permission',
+                    solution: 'Go to Azure Portal → App Registrations → Your App → API Permissions → Grant admin consent'
+                };
+            }
+
+            res.status(error.statusCode || 500).json(errorResponse);
+        }
+    });
+}
+
+// ============================================
 // Account-Scoped Data Routes (Update Existing)
 // ============================================
 
@@ -676,9 +885,7 @@ function setupDataRoutes(app) {
     // Clear all usage data (account-scoped)
     app.delete('/api/usage', auth.requireAuth, async (req, res) => {
         try {
-            await prisma.usageEvent.deleteMany({
-                where: { accountId: req.session.accountId }
-            });
+            await db.deleteAllUsageEvents(req.session.accountId);
             res.json({ success: true, message: 'Usage data cleared successfully' });
         } catch (error) {
             console.error('Clear usage data error:', error);
@@ -871,6 +1078,7 @@ function setupDataRoutes(app) {
     app.get('/api/usage', auth.requireAuth, async (req, res) => {
         try {
             const limit = parseInt(req.query.limit) || 1000;
+            await db.syncEntraSignInsIfNeeded(req.session.accountId);
             const usageData = await db.getUsageData(req.session.accountId, limit);
             res.json(usageData);
         } catch (error) {
@@ -883,9 +1091,14 @@ function setupDataRoutes(app) {
     app.get('/api/usage/recent', auth.requireAuth, async (req, res) => {
         try {
             const limit = parseInt(req.query.limit) || 100;
+            await db.syncEntraSignInsIfNeeded(req.session.accountId);
             // Returns shape: { adobe: [...], wrapper: [...] }
             const usageData = await db.getUsageData(req.session.accountId, limit);
-            res.json({ adobe: usageData.adobe || [], wrapper: usageData.wrapper || [] });
+            res.json({ 
+                adobe: usageData.adobe || [], 
+                wrapper: usageData.wrapper || [],
+                entra: usageData.entra || []
+            });
         } catch (error) {
             console.error('Get recent usage error:', error);
             res.status(500).json({ error: 'Failed to get recent activity' });
@@ -895,6 +1108,7 @@ function setupDataRoutes(app) {
     // Get stats (account-scoped) - for dashboard
     app.get('/api/stats', auth.requireAuth, async (req, res) => {
         try {
+            await db.syncEntraSignInsIfNeeded(req.session.accountId);
             const stats = await db.getDatabaseStats(req.session.accountId);
             const usageData = await db.getUsageData(req.session.accountId, 1000); // { adobe, wrapper }
 
@@ -905,15 +1119,19 @@ function setupDataRoutes(app) {
 
             const allAdobe = usageData.adobe || [];
             const allWrapper = usageData.wrapper || [];
+            const allEntra = usageData.entra || [];
 
             const adobeToday = allAdobe.filter(e => new Date(e.when || e.receivedAt) >= today).length;
             const wrapperToday = allWrapper.filter(e => new Date(e.when || e.receivedAt) >= today).length;
+            const entraToday = allEntra.filter(e => new Date(e.when || e.receivedAt) >= today).length;
 
             const adobeWeek = allAdobe.filter(e => new Date(e.when || e.receivedAt) >= weekAgo).length;
             const wrapperWeek = allWrapper.filter(e => new Date(e.when || e.receivedAt) >= weekAgo).length;
+            const entraWeek = allEntra.filter(e => new Date(e.when || e.receivedAt) >= weekAgo).length;
 
             const uniqueAdobeClients = new Set(allAdobe.map(e => e.clientId || e.tabId)).size;
             const uniqueWrapperClients = new Set(allWrapper.map(e => e.computerName || e.windowsUser)).size;
+            const uniqueEntraDevices = new Set(allEntra.map(e => e.computerName || e.windowsUser || e.userPrincipalName || e.ipAddress)).size;
 
             res.json({
                 adobe: {
@@ -927,6 +1145,12 @@ function setupDataRoutes(app) {
                     today: wrapperToday,
                     thisWeek: wrapperWeek,
                     uniqueClients: uniqueWrapperClients
+                },
+                entra: {
+                    total: stats.signInEvents || 0,
+                    today: entraToday,
+                    thisWeek: entraWeek,
+                    uniqueClients: uniqueEntraDevices
                 }
             });
         } catch (error) {
@@ -1246,6 +1470,7 @@ function setupMultiTenantRoutes(app) {
     setupScriptRoutes(app);
     setupTrackingAPI(app);
     setupDataRoutes(app);
+    setupDevRoutes(app);
     setupDashboardRoutes(app);
     setupAppsRoutes(app);
 
@@ -1257,6 +1482,7 @@ module.exports = {
     setupSession,
     setupAuthRoutes,
     setupAccountRoutes,
+    setupDevRoutes,
     setupDownloadRoutes: setupScriptRoutes,  // Alias for consistency
     setupApiRoutes: setupTrackingAPI,  // Alias for consistency
     setupUserManagementRoutes: setupDataRoutes,  // Alias for consistency

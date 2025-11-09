@@ -91,9 +91,10 @@ function normalizeNameParts({ givenName, surname, displayName }) {
     };
 }
 
-async function fetchEntraDirectory(tenantId) {
+async function fetchEntraDirectory(tenantId, options = {}) {
     const client = await getGraphClient(tenantId);
     const skuMap = await fetchSkuMap(client);
+    const limit = Number.isFinite(options.limit) && options.limit > 0 ? Math.floor(options.limit) : null;
 
     const users = [];
     let request = client
@@ -149,21 +150,148 @@ async function fetchEntraDirectory(tenantId) {
             });
         }
 
-        if (response && response['@odata.nextLink']) {
+        if (limit && users.length >= limit) {
+            break;
+        }
+
+        if (response && response['@odata.nextLink'] && (!limit || users.length < limit)) {
             request = client.api(response['@odata.nextLink']);
         } else {
             request = null;
         }
-    } while (request);
+    } while (request && (!limit || users.length < limit));
 
     return {
-        users,
+        users: limit ? users.slice(0, limit) : users,
         fetchedAt: new Date()
+    };
+}
+
+async function fetchEntraSignIns(tenantId, options = {}) {
+    const client = await getGraphClient(tenantId);
+    const events = [];
+    const maxPages = Number.isFinite(options.maxPages) ? options.maxPages : 10;
+    const pageSize = Number.isFinite(options.top) ? Math.max(1, Math.min(1000, options.top)) : 100;
+    const since = options.since ? new Date(options.since) : null;
+
+    let request = client
+        .api('/auditLogs/signIns')
+        .header('ConsistencyLevel', 'eventual')
+        .header('Prefer', `odata.maxpagesize=${pageSize}`)
+        .select([
+            'id',
+            'createdDateTime',
+            'appDisplayName',
+            'resourceDisplayName',
+            'userDisplayName',
+            'userPrincipalName',
+            'userId',
+            'clientAppUsed',
+            'ipAddress',
+            'deviceDetail',
+            'location',
+            'status',
+            'riskState',
+            'riskDetail',
+            'conditionalAccessStatus',
+            'correlationId',
+            'isInteractive'
+        ].join(','))
+        .orderby('createdDateTime desc')
+        .top(pageSize);
+
+    let response;
+    let page = 0;
+    let latestTimestamp = since ? since.getTime() : 0;
+    let shouldContinue = true;
+
+    try {
+        while (shouldContinue && request) {
+            response = await request.get();
+            page += 1;
+
+            if (Array.isArray(response?.value)) {
+                response.value.forEach((event) => {
+                    if (!event?.id || !event?.createdDateTime) {
+                        return;
+                    }
+                    const createdTime = new Date(event.createdDateTime).getTime();
+                    
+                    // Only include events newer than 'since' if specified, but don't stop processing
+                    if (since && createdTime < since.getTime()) {
+                        return; // Skip this event but continue processing others
+                    }
+                    
+                    events.push(event);
+                    if (createdTime > latestTimestamp) {
+                        latestTimestamp = createdTime;
+                    }
+                });
+            }
+
+            if (shouldContinue && response && response['@odata.nextLink'] && page < maxPages) {
+                request = client.api(response['@odata.nextLink']);
+            } else {
+                request = null;
+            }
+        }
+    } catch (error) {
+        console.error('❌ Failed to fetch Entra sign-ins:', error);
+        console.error('Error details:', {
+            message: error.message,
+            statusCode: error.statusCode,
+            code: error.code,
+            body: error.body
+        });
+        // Check for permission errors
+        if (error.statusCode === 403 || error.code === 'Forbidden') {
+            console.error('⚠️  PERMISSION ERROR: AuditLog.Read.All requires admin consent!');
+            console.error('   Go to Azure Portal → App Registrations → Your App → API Permissions');
+            console.error('   Click "Grant admin consent for [Your Organization]"');
+        }
+        throw error; // Re-throw to surface the error
+    }
+
+    return {
+        events,
+        latestTimestamp: latestTimestamp ? new Date(latestTimestamp) : since || null,
+        totalCount: events.length
+    };
+}
+
+async function fetchEntraApplications(tenantId, options = {}) {
+    const client = await getGraphClient(tenantId);
+    const limit = Number.isFinite(options.limit) && options.limit > 0 ? Math.floor(options.limit) : 10;
+
+    let request = client
+        .api('/servicePrincipals')
+        .select([
+            'id',
+            'displayName',
+            'appId',
+            'appOwnerOrganizationId',
+            'createdDateTime',
+            'servicePrincipalType',
+            'publisherName',
+            'tags'
+        ].join(','))
+        .orderby('createdDateTime desc')
+        .top(limit);
+
+    const response = await request.get();
+    const apps = Array.isArray(response?.value) ? response.value.slice(0, limit) : [];
+
+    return {
+        apps,
+        fetchedAt: new Date(),
+        nextLink: response?.['@odata.nextLink'] || null
     };
 }
 
 module.exports = {
     isConfigured,
-    fetchEntraDirectory
+    fetchEntraDirectory,
+    fetchEntraSignIns,
+    fetchEntraApplications
 };
 

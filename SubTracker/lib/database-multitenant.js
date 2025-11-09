@@ -2,9 +2,11 @@
 // All operations are account-scoped for data isolation
 
 const prisma = require('./prisma');
-const { isConfigured: isEntraConfigured, fetchEntraDirectory } = require('./entra-sync');
+const { isConfigured: isEntraConfigured, fetchEntraDirectory, fetchEntraSignIns } = require('./entra-sync');
 
 const ENTRA_SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const ENTRA_SIGNIN_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours (matches background sync schedule)
+const ENTRA_SIGNIN_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const PROCESS_APP_MAP = {
     'acrobat.exe': { vendor: 'Adobe', name: 'Acrobat Pro' },
@@ -133,6 +135,24 @@ function resolveAppMetadataFromEvent(event = {}) {
         name: name === 'System' ? 'System Activity' : name,
         key
     };
+}
+
+function classifySignInSource(clientAppUsed = '') {
+    const normalized = (clientAppUsed || '').toLowerCase();
+
+    if (!normalized) {
+        return 'entra-other';
+    }
+
+    if (normalized.includes('browser')) {
+        return 'entra-web';
+    }
+
+    if (normalized.includes('mobile') || normalized.includes('desktop') || normalized.includes('client')) {
+        return 'entra-desktop';
+    }
+
+    return 'entra-other';
 }
 
 function createAppKey(vendor = '', name = '') {
@@ -490,9 +510,46 @@ async function addUnmappedUsername(accountId, username) {
 // Usage Event Operations (Account-Scoped)
 // ============================================
 
+function mapSignInForResponse(signIn) {
+    const when = signIn.createdDateTime instanceof Date ? signIn.createdDateTime : new Date(signIn.createdDateTime);
+    const source = signIn.sourceChannel || classifySignInSource(signIn.clientAppUsed);
+    const appDisplayName = signIn.appDisplayName || signIn.resourceDisplayName || 'Unknown Application';
+    const clientApp = signIn.clientAppUsed ? signIn.clientAppUsed.trim() : '';
+    const why = clientApp ? `Sign-in via ${clientApp}` : null;
+
+    return {
+        id: signIn.id,
+        when,
+        receivedAt: when,
+        event: appDisplayName,
+        appDisplayName,
+        resourceDisplayName: signIn.resourceDisplayName || null,
+        source,
+        clientAppUsed: clientApp || null,
+        computerName: signIn.deviceDisplayName || null,
+        operatingSystem: signIn.operatingSystem || null,
+        browser: signIn.browser || null,
+        ipAddress: signIn.ipAddress || null,
+        windowsUser: signIn.userPrincipalName || signIn.userDisplayName || null,
+        userPrincipalName: signIn.userPrincipalName || null,
+        userDisplayName: signIn.userDisplayName || null,
+        locationCity: signIn.locationCity || null,
+        locationCountryOrRegion: signIn.locationCountryOrRegion || null,
+        statusErrorCode: signIn.statusErrorCode ?? null,
+        statusFailureReason: signIn.statusFailureReason || null,
+        riskState: signIn.riskState || null,
+        riskDetail: signIn.riskDetail || null,
+        conditionalAccessStatus: signIn.conditionalAccessStatus || null,
+        correlationId: signIn.correlationId || null,
+        isInteractive: signIn.isInteractive ?? null,
+        why,
+        type: 'entra'
+    };
+}
+
 async function getUsageData(accountId, limit = 1000) {
     try {
-        const [adobeEvents, wrapperEvents] = await Promise.all([
+        const [adobeEvents, wrapperEvents, signInEvents] = await Promise.all([
             prisma.usageEvent.findMany({
                 where: { 
                     accountId,
@@ -507,6 +564,11 @@ async function getUsageData(accountId, limit = 1000) {
                     source: 'wrapper' 
                 },
                 orderBy: { receivedAt: 'desc' },
+                take: limit
+            }),
+            prisma.entraSignIn.findMany({
+                where: { accountId },
+                orderBy: { createdDateTime: 'desc' },
                 take: limit
             })
         ]);
@@ -535,11 +597,12 @@ async function getUsageData(accountId, limit = 1000) {
                 windowsUser: e.windowsUser,
                 userDomain: e.userDomain,
                 computerName: e.computerName
-            }))
+            })),
+            entra: signInEvents.map(mapSignInForResponse)
         };
     } catch (error) {
         console.error('Error getting usage data:', error);
-        return { adobe: [], wrapper: [] };
+        return { adobe: [], wrapper: [], entra: [] };
     }
 }
 
@@ -573,6 +636,9 @@ async function addUsageEvent(accountId, eventData, source) {
 
 async function deleteAllUsageEvents(accountId) {
     await prisma.usageEvent.deleteMany({
+        where: { accountId }
+    });
+    await prisma.entraSignIn.deleteMany({
         where: { accountId }
     });
 }
@@ -677,16 +743,18 @@ async function updateUserActivityByUsername(accountId, windowsUser) {
 // ============================================
 
 async function getDatabaseStats(accountId) {
-    const [userCount, eventCount, unmappedCount] = await Promise.all([
+    const [userCount, eventCount, unmappedCount, signInCount] = await Promise.all([
         prisma.user.count({ where: { accountId } }),
         prisma.usageEvent.count({ where: { accountId } }),
-        prisma.unmappedUsername.count({ where: { accountId } })
+        prisma.unmappedUsername.count({ where: { accountId } }),
+        prisma.entraSignIn.count({ where: { accountId } })
     ]);
     
     return {
         users: userCount,
         usageEvents: eventCount,
-        unmappedUsernames: unmappedCount
+        unmappedUsernames: unmappedCount,
+        signInEvents: signInCount
     };
 }
 
@@ -960,6 +1028,103 @@ async function deleteAllApps(accountId) {
     });
 }
 
+async function syncEntraSignInsIfNeeded(accountId, options = {}) {
+    if (!isEntraConfigured()) {
+        return { synced: false, reason: 'not-configured' };
+    }
+
+    const account = await prisma.account.findUnique({
+        where: { id: accountId },
+        select: {
+            entraTenantId: true,
+            entraSignInCursor: true,
+            entraSignInLastSyncAt: true
+        }
+    });
+
+    if (!account?.entraTenantId) {
+        return { synced: false, reason: 'not-connected' };
+    }
+
+    const now = new Date();
+    if (!options.force && account?.entraSignInLastSyncAt instanceof Date) {
+        const diff = now.getTime() - account.entraSignInLastSyncAt.getTime();
+        if (diff < ENTRA_SIGNIN_SYNC_INTERVAL_MS) {
+            return {
+                synced: false,
+                reason: 'throttled',
+                lastSync: account.entraSignInLastSyncAt
+            };
+        }
+    }
+
+    const sinceDate = account?.entraSignInCursor
+        ? new Date(account.entraSignInCursor)
+        : new Date(now.getTime() - ENTRA_SIGNIN_LOOKBACK_MS);
+
+    const { events, latestTimestamp } = await fetchEntraSignIns(account.entraTenantId, {
+        since: sinceDate.toISOString(),
+        maxPages: options.maxPages
+    });
+
+    const records = Array.isArray(events)
+        ? events
+            .filter(event => event?.id && event?.createdDateTime)
+            .map((event) => ({
+                id: event.id,
+                accountId,
+                createdDateTime: new Date(event.createdDateTime),
+                userDisplayName: event.userDisplayName || null,
+                userPrincipalName: event.userPrincipalName || null,
+                userId: event.userId || null,
+                appDisplayName: event.appDisplayName || null,
+                resourceDisplayName: event.resourceDisplayName || null,
+                clientAppUsed: event.clientAppUsed || null,
+                deviceDisplayName: event.deviceDetail?.deviceDisplayName || null,
+                operatingSystem: event.deviceDetail?.operatingSystem || null,
+                browser: event.deviceDetail?.browser || null,
+                ipAddress: event.ipAddress || null,
+                locationCity: event.location?.city || null,
+                locationCountryOrRegion: event.location?.countryOrRegion || null,
+                statusErrorCode: event.status?.errorCode ?? null,
+                statusFailureReason: event.status?.failureReason || null,
+                riskState: event.riskState || null,
+                riskDetail: event.riskDetail || null,
+                conditionalAccessStatus: event.conditionalAccessStatus || null,
+                correlationId: event.correlationId || null,
+                isInteractive: event.isInteractive ?? null,
+                sourceChannel: classifySignInSource(event.clientAppUsed)
+            }))
+        : [];
+
+    let insertedCount = 0;
+    if (records.length > 0) {
+        await prisma.entraSignIn.createMany({
+            data: records,
+            skipDuplicates: true
+        });
+        insertedCount = records.length;
+    }
+
+    // Only update cursor if we successfully processed events
+    const cursorDate = latestTimestamp || (records.length > 0 ? records[0].createdDateTime : sinceDate);
+
+    await prisma.account.update({
+        where: { id: accountId },
+        data: {
+            entraSignInLastSyncAt: now,
+            entraSignInCursor: cursorDate ? new Date(cursorDate).toISOString() : account.entraSignInCursor
+        }
+    });
+
+    return {
+        synced: insertedCount > 0,
+        count: insertedCount,
+        lastSync: now,
+        cursor: cursorDate
+    };
+}
+
 async function syncEntraUsersIfNeeded(accountId, options = {}) {
     if (!isEntraConfigured()) {
         return { synced: false, reason: 'not-configured' };
@@ -1112,6 +1277,7 @@ module.exports = {
     deleteAllApps,
 
     syncEntraUsersIfNeeded,
+    syncEntraSignInsIfNeeded,
     isEntraConfigured,
 
     // Direct prisma access if needed

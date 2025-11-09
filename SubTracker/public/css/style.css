@@ -1681,6 +1681,173 @@ nav a.active {
     border: 1px solid var(--success);
 }
 
+.source-entra-web {
+    background: rgba(59, 130, 246, 0.15);
+    color: #1d4ed8;
+    border: 1px solid rgba(29, 78, 216, 0.4);
+}
+
+.source-entra-desktop {
+    background: rgba(14, 165, 233, 0.15);
+    color: #0e7490;
+    border: 1px solid rgba(14, 116, 144, 0.4);
+}
+
+.source-entra-other {
+    background: rgba(107, 114, 128, 0.15);
+    color: #4b5563;
+    border: 1px solid rgba(75, 85, 99, 0.4);
+}
+
+.source-unknown {
+    background: rgba(156, 163, 175, 0.15);
+    color: #374151;
+    border: 1px solid rgba(55, 65, 81, 0.4);
+}
+
+.alert-card {
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.5rem;
+}
+
+.alert-card h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.alert-card p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.alert-warning {
+    border-color: var(--warning);
+    background: var(--warning-light);
+}
+
+.alert-info {
+    border-color: rgba(59, 130, 246, 0.35);
+    background: rgba(191, 219, 254, 0.2);
+}
+
+.dev-diagnostics {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.dev-tabs {
+    display: inline-flex;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    gap: 4px;
+    align-self: flex-start;
+}
+
+.dev-tab {
+    border: none;
+    background: transparent;
+    padding: 0.5rem 1.25rem;
+    border-radius: 999px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.dev-tab.active {
+    background: var(--accent-primary);
+    color: #fff;
+    box-shadow: var(--shadow-md);
+}
+
+.dev-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    background: var(--bg-secondary);
+}
+
+.dev-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 120px;
+}
+
+.dev-input-group input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    min-width: 0;
+}
+
+.dev-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.dev-checkbox input {
+    transform: scale(1.1);
+}
+
+.dev-output {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.dev-meta p {
+    margin: 0.25rem 0;
+    color: var(--text-secondary);
+}
+
+.dev-command h3,
+.dev-command h4,
+.dev-json h3 {
+    margin: 0.5rem 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.dev-command pre,
+.dev-json pre {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    color: var(--text-secondary);
+}
+
+.text-error {
+    color: var(--danger);
+}
+
 .app-name {
     font-weight: 500;
     color: var(--text-primary);

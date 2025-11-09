@@ -25,6 +25,8 @@ model Account {
   entraLastSyncAt   DateTime?
   entraTenantId     String?              // Tenant ID from admin consent
   entraConnectedAt  DateTime?             // When admin consent was granted
+  entraSignInCursor       String?
+  entraSignInLastSyncAt   DateTime?
   hiddenLicenses    String[]             @default([]) // Licenses to hide from user display
   
   // Relations
@@ -33,6 +35,7 @@ model Account {
   unmappedUsernames UnmappedUsername[]
   appOverrides      AppOverride[]
   applications      Application[]
+  entraSignIns      EntraSignIn[]
 
   @@index([email])
   @@index([apiKey])
@@ -167,4 +170,36 @@ model AppOverride {
   @@unique([accountId, sourceKey])
   @@index([accountId])
   @@map("app_overrides")
+}
+
+model EntraSignIn {
+  id                      String   @id
+  accountId               String
+  account                 Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdDateTime         DateTime
+  userDisplayName         String?
+  userPrincipalName       String?
+  userId                  String?
+  appDisplayName          String?
+  resourceDisplayName     String?
+  clientAppUsed           String?
+  deviceDisplayName       String?
+  operatingSystem         String?
+  browser                 String?
+  ipAddress               String?
+  locationCity            String?
+  locationCountryOrRegion String?
+  statusErrorCode         Int?
+  statusFailureReason     String?
+  riskState               String?
+  riskDetail              String?
+  conditionalAccessStatus String?
+  correlationId           String?
+  isInteractive           Boolean?
+  sourceChannel           String?
+  createdAt               DateTime @default(now())
+
+  @@index([accountId, createdDateTime])
+  @@index([accountId, userPrincipalName])
+  @@map("entra_signins")
 }

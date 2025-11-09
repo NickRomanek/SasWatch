@@ -2,6 +2,8 @@ const express = require('express');
 const path = require('path');
 require('dotenv').config();
 
+const { startBackgroundSync } = require('./lib/background-sync');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -33,7 +35,8 @@ const {
     setupAccountRoutes,
     setupApiRoutes,
     setupDownloadRoutes,
-    setupAppsRoutes
+    setupAppsRoutes,
+    setupDevRoutes
 } = require('./server-multitenant-routes');
 
 // Initialize session management (must be before routes)
@@ -47,6 +50,7 @@ setupAccountRoutes(app);
 setupApiRoutes(app);
 setupDownloadRoutes(app);
 setupAppsRoutes(app);
+setupDevRoutes(app);
 
 // ============================================
 // Start Server
@@ -66,4 +70,7 @@ app.listen(PORT, () => {
     console.log('   3. Start tracking Adobe usage!');
     console.log('');
     console.log('═══════════════════════════════════════════════════');
+    
+    // Start background sync for Entra sign-ins
+    startBackgroundSync();
 });
