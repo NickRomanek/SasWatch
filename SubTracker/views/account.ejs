@@ -251,15 +251,38 @@
             flex-wrap: wrap;
         }
 
-        .api-key-display input {
+        .api-key-input-wrapper {
+            position: relative;
             flex: 1;
-            min-width: 300px;
-            padding: 12px 16px;
+            min-width: 280px;
+        }
+
+        .api-key-input-wrapper input {
+            width: 100%;
+            padding: 12px 48px 12px 16px;
             font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
             font-size: 0.875rem;
             border: 1px solid var(--border-color);
             border-radius: 8px;
             background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-eye-toggle {
+            position: absolute;
+            top: 50%;
+            right: 8px;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px 8px;
+            color: var(--text-secondary);
+            transition: color 0.2s ease;
+        }
+
+        .btn-eye-toggle:hover {
             color: var(--text-primary);
         }
 
@@ -559,7 +582,10 @@
             <p class="section-description">Use this API key in your PowerShell monitoring scripts to send data to your account.</p>
             
             <div class="api-key-display">
-                <input type="text" id="apiKeyInput" value="<%= account.apiKey %>" readonly>
+                <div class="api-key-input-wrapper">
+                    <input type="password" id="apiKeyInput" value="<%= account.apiKey %>" readonly>
+                    <button class="btn-eye-toggle" id="apiKeyToggle" type="button" title="Show API Key" onclick="toggleApiKeyVisibility(event)">👁️</button>
+                </div>
                 <button class="btn-copy" onclick="copyApiKey()">📋 Copy</button>
                 <button class="btn-regenerate" onclick="regenerateApiKey()">🔄 Regenerate</button>
             </div>
@@ -610,12 +636,6 @@
                 </div>
             <% } %>
             
-            <div class="info-box" style="margin-top: 1rem;">
-                <span class="info-icon">ℹ️</span>
-                <div>
-                    <strong>What this does:</strong> When connected, we'll automatically sync user information, license assignments, and account status from your Microsoft 365 directory. This requires a global administrator to grant read-only permissions.
-                </div>
-            </div>
         </div>
 
         <!-- Script Download -->
@@ -697,6 +717,17 @@
         async function copyApiKey() {
             const input = document.getElementById('apiKeyInput');
             await copyToClipboard(input.value, '✓ API key copied to clipboard!');
+        }
+
+        function toggleApiKeyVisibility(event) {
+            const button = event.currentTarget;
+            const input = document.getElementById('apiKeyInput');
+            if (!input) return;
+
+            const shouldReveal = input.type === 'password';
+            input.type = shouldReveal ? 'text' : 'password';
+            button.textContent = shouldReveal ? '🙈' : '👁️';
+            button.title = shouldReveal ? 'Hide API Key' : 'Show API Key';
         }
 
         async function regenerateApiKey() {
