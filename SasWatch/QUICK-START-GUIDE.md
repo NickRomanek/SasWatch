@@ -1,8 +1,8 @@
-# SubTracker Enhanced - Quick Start Guide
+# SasWatch Enhanced - Quick Start Guide
 
 ## 🚀 Getting Started
 
-Your SubTracker application is now running with all the new enhancements!
+Your SasWatch application is now running with all the new enhancements!
 
 ### Access the Application
 **URL**: http://localhost:3000
@@ -256,7 +256,7 @@ Table showing all applications accessed in your organization:
 
 ---
 
-## 🎉 Enjoy Your Enhanced SubTracker!
+## 🎉 Enjoy Your Enhanced SasWatch!
 
 You now have a powerful, professional license management tool at your fingertips!
 

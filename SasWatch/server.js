@@ -58,7 +58,7 @@ setupDevRoutes(app);
 
 app.listen(PORT, () => {
     console.log('╔═══════════════════════════════════════════════════╗');
-    console.log('║         📊 SubTracker Multi-Tenant Server         ║');
+    console.log('║         📊 SasWatch Multi-Tenant Server         ║');
     console.log('╚═══════════════════════════════════════════════════╝');
     console.log('');
     console.log(`🚀 Server running on: http://localhost:${PORT}`);

@@ -137,6 +137,31 @@ function resolveAppMetadataFromEvent(event = {}) {
     };
 }
 
+function determineSignInVendor(name = '', signIn = {}) {
+    const normalized = name.toLowerCase();
+    const clientApp = (signIn.clientAppUsed || '').toLowerCase();
+
+    if (normalized.includes('adobe') || clientApp.includes('adobe')) {
+        return 'Adobe';
+    }
+
+    if (
+        normalized.includes('microsoft') ||
+        normalized.includes('office') ||
+        normalized.includes('sharepoint') ||
+        normalized.includes('subman') ||
+        clientApp.includes('microsoft')
+    ) {
+        return 'Microsoft';
+    }
+
+    if (normalized.includes('google') || clientApp.includes('google')) {
+        return 'Google';
+    }
+
+    return 'Microsoft Entra';
+}
+
 function classifySignInSource(clientAppUsed = '') {
     const normalized = (clientAppUsed || '').toLowerCase();
 
@@ -323,12 +348,14 @@ async function updateUser(accountId, email, updates) {
         });
         
         // Create new usernames
-        await prisma.windowsUsername.createMany({
-            data: windowsUsernames.map(username => ({
-                username,
-                userId: user.id
-            }))
-        });
+        if (windowsUsernames.length > 0) {
+            await prisma.windowsUsername.createMany({
+                data: windowsUsernames.map(username => ({
+                    username,
+                    userId: user.id
+                }))
+            });
+        }
     }
     
     return await prisma.user.findUnique({
@@ -641,6 +668,15 @@ async function deleteAllUsageEvents(accountId) {
     await prisma.entraSignIn.deleteMany({
         where: { accountId }
     });
+    
+    // Reset Entra sync cursor so next sync pulls fresh data
+    await prisma.account.update({
+        where: { id: accountId },
+        data: {
+            entraSignInCursor: null,
+            entraSignInLastSyncAt: null
+        }
+    });
 }
 
 // Get usage activity for a specific user
@@ -780,7 +816,7 @@ async function importUsersFromCSV(accountId, csvData) {
 
 async function getAppsData(accountId) {
     try {
-        const [manualApps, overrides, usageEvents] = await Promise.all([
+        const [manualApps, overrides, usageEvents, signInEvents] = await Promise.all([
             prisma.application.findMany({
                 where: { accountId, isHidden: false },
                 orderBy: [
@@ -801,6 +837,17 @@ async function getAppsData(accountId) {
                     clientId: true,
                     computerName: true
                 }
+            }),
+            prisma.entraSignIn.findMany({
+                where: { accountId },
+                select: {
+                    appDisplayName: true,
+                    resourceDisplayName: true,
+                    clientAppUsed: true,
+                    userPrincipalName: true,
+                    userDisplayName: true,
+                    deviceDisplayName: true
+                }
             })
         ]);
 
@@ -811,9 +858,18 @@ async function getAppsData(accountId) {
 
         const appMap = new Map();
 
+        const addComponent = (entry, componentKey, data) => {
+            if (!entry.components) {
+                entry.components = new Map();
+            }
+            if (!entry.components.has(componentKey)) {
+                entry.components.set(componentKey, data);
+            }
+        };
+
         manualApps.forEach(app => {
             const key = `manual:${app.id}`;
-            appMap.set(key, {
+            const entry = {
                 id: app.id,
                 sourceKey: null,
                 vendor: app.vendor,
@@ -822,8 +878,19 @@ async function getAppsData(accountId) {
                 detectedUsers: app.detectedUsers || 0,
                 userIdentifiers: new Set(),
                 isManual: true,
-                hasOverride: false
+                hasOverride: false,
+                components: new Map()
+            };
+            addComponent(entry, `manual:${app.id}`, {
+                type: 'manual',
+                id: app.id,
+                sourceKey: null,
+                name: app.name,
+                vendor: app.vendor,
+                originalName: app.name,
+                originalVendor: app.vendor
             });
+            appMap.set(key, entry);
         });
 
         usageEvents.forEach(event => {
@@ -850,7 +917,8 @@ async function getAppsData(accountId) {
                     detectedUsers: 0,
                     userIdentifiers: new Set(),
                     isManual: false,
-                    hasOverride: !!override
+                    hasOverride: !!override,
+                    components: new Map()
                 });
             }
 
@@ -866,24 +934,143 @@ async function getAppsData(accountId) {
             if (identifier) {
                 entry.userIdentifiers.add(identifier);
             }
+
+            addComponent(entry, `auto:${metadata.key}`, {
+                type: 'auto',
+                id: null,
+                sourceKey: metadata.key,
+                name,
+                vendor,
+                originalName: metadata.name,
+                originalVendor: metadata.vendor
+            });
         });
 
-        const apps = Array.from(appMap.values())
+        signInEvents.forEach(signIn => {
+            const rawName = (signIn.appDisplayName || signIn.resourceDisplayName || signIn.clientAppUsed || '').trim();
+            const displayName = rawName || 'Unknown Application';
+            const vendor = determineSignInVendor(displayName, signIn);
+            const sourceKey = `entra:${displayName.toLowerCase()}`;
+            const override = overrideMap.get(sourceKey);
+
+            if (override && override.isHidden) {
+                return;
+            }
+
+            if (!appMap.has(sourceKey)) {
+                appMap.set(sourceKey, {
+                    id: null,
+                    sourceKey,
+                    vendor: override ? override.vendor : vendor,
+                    name: override ? override.name : displayName,
+                    licensesOwned: override ? override.licensesOwned : 0,
+                    detectedUsers: 0,
+                    userIdentifiers: new Set(),
+                    isManual: false,
+                    hasOverride: !!override,
+                    components: new Map()
+                });
+            }
+
+            const entry = appMap.get(sourceKey);
+            entry.vendor = override ? override.vendor : vendor;
+            entry.name = override ? override.name : displayName;
+            if (override) {
+                entry.licensesOwned = override.licensesOwned;
+                entry.hasOverride = true;
+            }
+
+            const identifier = (signIn.userPrincipalName || signIn.userDisplayName || signIn.deviceDisplayName || '').trim().toLowerCase();
+            if (identifier) {
+                entry.userIdentifiers.add(identifier);
+            }
+
+            addComponent(entry, `auto:${sourceKey}`, {
+                type: 'auto',
+                id: null,
+                sourceKey,
+                name: entry.name,
+                vendor: entry.vendor,
+                originalName: displayName,
+                originalVendor: vendor
+            });
+        });
+
+        const combinedMap = new Map();
+
+        appMap.forEach(entry => {
+            const normalizedVendor = (entry.vendor || 'Uncategorized').trim() || 'Uncategorized';
+            const normalizedName = (entry.name || 'Unknown Application').trim() || 'Unknown Application';
+            const groupKey = `${normalizedVendor.toLowerCase()}||${normalizedName.toLowerCase()}`;
+
+            if (!combinedMap.has(groupKey)) {
+                combinedMap.set(groupKey, {
+                    ids: entry.isManual && entry.id ? [entry.id] : [],
+                    sourceKeys: entry.sourceKey ? [entry.sourceKey] : [],
+                    vendor: normalizedVendor,
+                    name: normalizedName,
+                    manualDetected: entry.isManual ? (entry.detectedUsers || 0) : 0,
+                    autoIdentifiers: entry.isManual ? new Set() : new Set(entry.userIdentifiers),
+                    licensesOwned: entry.licensesOwned || 0,
+                    hasOverride: entry.hasOverride,
+                    isManual: entry.isManual,
+                    components: entry.components ? new Map(entry.components) : new Map()
+                });
+            } else {
+                const target = combinedMap.get(groupKey);
+
+                if (entry.isManual) {
+                    target.manualDetected = Math.max(target.manualDetected, entry.detectedUsers || 0);
+                    if (entry.id) {
+                        target.ids.push(entry.id);
+                    }
+                    target.isManual = true;
+                } else {
+                    entry.userIdentifiers.forEach(id => target.autoIdentifiers.add(id));
+                    if (entry.sourceKey) {
+                        target.sourceKeys.push(entry.sourceKey);
+                    }
+                }
+
+                if (entry.components) {
+                    entry.components.forEach((component, componentKey) => {
+                        if (!target.components.has(componentKey)) {
+                            target.components.set(componentKey, component);
+                        }
+                    });
+                }
+
+                target.licensesOwned = Math.max(target.licensesOwned || 0, entry.licensesOwned || 0);
+                target.hasOverride = target.hasOverride || entry.hasOverride;
+
+                const targetVendorLower = target.vendor.toLowerCase();
+                if (targetVendorLower === 'uncategorized' && normalizedVendor.toLowerCase() !== 'uncategorized') {
+                    target.vendor = normalizedVendor;
+                }
+                if (target.name === 'Unknown Application' && normalizedName !== 'Unknown Application') {
+                    target.name = normalizedName;
+                }
+            }
+        });
+
+        const apps = Array.from(combinedMap.values())
             .map(entry => {
-                const detectedUsers = entry.isManual ? entry.detectedUsers : entry.userIdentifiers.size;
+                const autoCount = entry.autoIdentifiers.size;
+                const detectedUsers = Math.max(autoCount, entry.manualDetected || 0);
                 const licensesOwned = entry.licensesOwned || 0;
                 const unusedLicenses = licensesOwned - detectedUsers;
 
                 return {
-                    id: entry.isManual ? entry.id : null,
-                    sourceKey: entry.sourceKey,
+                    id: entry.ids.length > 0 ? entry.ids[0] : null,
+                    sourceKey: entry.sourceKeys.length > 0 ? entry.sourceKeys[0] : null,
                     vendor: entry.vendor,
                     name: entry.name,
                     detectedUsers,
                     licensesOwned,
                     unusedLicenses,
                     isManual: entry.isManual,
-                    hasOverride: entry.hasOverride
+                    hasOverride: entry.hasOverride,
+                    components: Array.from(entry.components?.values() || [])
                 };
             })
             .sort((a, b) => a.vendor.localeCompare(b.vendor) || a.name.localeCompare(b.name));
@@ -1026,6 +1213,204 @@ async function deleteAllApps(accountId) {
     await prisma.application.deleteMany({
         where: { accountId }
     });
+    await prisma.appOverride.deleteMany({
+        where: { accountId }
+    });
+}
+
+async function deleteAppsBatch(accountId, entries = []) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return { manualDeleted: 0, overridesHidden: 0, errors: [] };
+    }
+
+    let manualDeleted = 0;
+    let overridesHidden = 0;
+    const errors = [];
+
+    for (const rawEntry of entries) {
+        if (!rawEntry || typeof rawEntry !== 'object') {
+            continue;
+        }
+
+        const ids = Array.isArray(rawEntry.ids)
+            ? Array.from(new Set(rawEntry.ids.map(id => (id ? String(id) : '').trim()).filter(Boolean)))
+            : [];
+        const sourceKeys = Array.isArray(rawEntry.sourceKeys)
+            ? Array.from(new Set(rawEntry.sourceKeys.map(key => (key ? String(key) : '').trim()).filter(Boolean)))
+            : [];
+        const vendor = (rawEntry.vendor || 'Uncategorized').toString();
+        const name = (rawEntry.name || 'Unknown Application').toString();
+        const licensesOwned = Number.isFinite(rawEntry.licensesOwned)
+            ? rawEntry.licensesOwned
+            : (parseInt(rawEntry.licensesOwned, 10) || 0);
+
+        for (const id of ids) {
+            try {
+                await deleteApp(accountId, id);
+                manualDeleted += 1;
+            } catch (error) {
+                console.error(`Failed to delete application ${id}:`, error);
+                errors.push({
+                    type: 'manual',
+                    id,
+                    message: error.message || 'Failed to delete application'
+                });
+            }
+        }
+
+        for (const sourceKey of sourceKeys) {
+            try {
+                await hideApp(accountId, {
+                    id: null,
+                    sourceKey,
+                    vendor,
+                    name,
+                    licensesOwned
+                });
+                overridesHidden += 1;
+            } catch (error) {
+                console.error(`Failed to hide application ${sourceKey}:`, error);
+                errors.push({
+                    type: 'detected',
+                    sourceKey,
+                    message: error.message || 'Failed to hide application'
+                });
+            }
+        }
+    }
+
+    return { manualDeleted, overridesHidden, errors };
+}
+
+function normalizeMergeAppEntry(entry = {}) {
+    if (!entry || typeof entry !== 'object') {
+        return null;
+    }
+
+    const id = entry.id ? String(entry.id) : null;
+    const sourceKey = entry.sourceKey ? String(entry.sourceKey) : null;
+
+    if (!id && !sourceKey) {
+        return null;
+    }
+
+    return {
+        id,
+        sourceKey,
+        licensesOwned: Number.isFinite(entry.licensesOwned)
+            ? entry.licensesOwned
+            : (parseInt(entry.licensesOwned, 10) || null),
+        detectedUsers: Number.isFinite(entry.detectedUsers)
+            ? entry.detectedUsers
+            : (parseInt(entry.detectedUsers, 10) || 0)
+    };
+}
+
+async function mergeApps(accountId, targetEntry, sourceEntries = [], canonical = {}) {
+    const target = normalizeMergeAppEntry(targetEntry);
+    const sources = Array.isArray(sourceEntries)
+        ? sourceEntries.map(normalizeMergeAppEntry).filter(Boolean)
+        : [];
+
+    if (!target) {
+        throw new Error('Target application is required');
+    }
+
+    if (sources.length === 0) {
+        throw new Error('At least one source application is required');
+    }
+
+    const vendorRaw = (canonical.vendor || '').trim();
+    const nameRaw = (canonical.name || '').trim();
+
+    if (!vendorRaw) {
+        throw new Error('Vendor is required');
+    }
+
+    if (!nameRaw) {
+        throw new Error('Application name is required');
+    }
+
+    const vendor = toTitleCase(vendorRaw);
+    const name = toTitleCase(nameRaw);
+
+    const hasLicenseInput = canonical.licensesOwned !== undefined && canonical.licensesOwned !== null && canonical.licensesOwned !== '';
+    const canonicalLicenses = hasLicenseInput
+        ? Math.max(0, parseInt(canonical.licensesOwned, 10) || 0)
+        : null;
+
+    const manualIds = new Set();
+    const autoKeys = new Set();
+
+    if (target.id) manualIds.add(target.id);
+    if (target.sourceKey) autoKeys.add(target.sourceKey);
+
+    sources.forEach(entry => {
+        if (entry.id) manualIds.add(entry.id);
+        if (entry.sourceKey) autoKeys.add(entry.sourceKey);
+    });
+
+    // Validate manual apps belong to account
+    if (manualIds.size > 0) {
+        const manualApps = await prisma.application.findMany({
+            where: {
+                accountId,
+                id: { in: Array.from(manualIds) }
+            }
+        });
+
+        if (manualApps.length !== manualIds.size) {
+            const foundIds = new Set(manualApps.map(app => app.id));
+            const missing = Array.from(manualIds).filter(id => !foundIds.has(id));
+            throw new Error(`Manual application(s) not found: ${missing.join(', ')}`);
+        }
+    }
+
+    // Update manual apps (target + sources)
+    for (const entry of [target, ...sources]) {
+        if (entry && entry.id) {
+            const data = {
+                vendor,
+                name
+            };
+
+            if (canonicalLicenses !== null && entry.id === target.id) {
+                data.licensesOwned = canonicalLicenses;
+            }
+
+            await prisma.application.update({
+                where: { id: entry.id },
+                data
+            });
+        }
+    }
+
+    // Update overrides for detected apps
+    for (const sourceKey of autoKeys) {
+        if (!sourceKey) continue;
+        // Determine fallback license if canonical not provided
+        let licensesOwned = canonicalLicenses;
+        if (licensesOwned === null) {
+            const sourceEntry = [target, ...sources].find(entry => entry?.sourceKey === sourceKey);
+            licensesOwned = Number.isFinite(sourceEntry?.licensesOwned)
+                ? Math.max(0, sourceEntry.licensesOwned)
+                : 0;
+        }
+
+        await upsertAppOverride(accountId, sourceKey, {
+            vendor,
+            name,
+            licensesOwned
+        });
+    }
+
+    return {
+        vendor,
+        name,
+        licensesOwned: canonicalLicenses,
+        updatedManualApps: Array.from(manualIds),
+        updatedOverrides: Array.from(autoKeys)
+    };
 }
 
 async function syncEntraSignInsIfNeeded(accountId, options = {}) {
@@ -1058,13 +1443,23 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
         }
     }
 
-    const sinceDate = account?.entraSignInCursor
-        ? new Date(account.entraSignInCursor)
-        : new Date(now.getTime() - ENTRA_SIGNIN_LOOKBACK_MS);
+    const backfillHours = Number.isFinite(options.backfillHours)
+        ? Math.max(1, options.backfillHours)
+        : null;
+
+    let sinceDate;
+    if (backfillHours) {
+        sinceDate = new Date(now.getTime() - backfillHours * 60 * 60 * 1000);
+    } else if (account?.entraSignInCursor) {
+        sinceDate = new Date(account.entraSignInCursor);
+    } else {
+        sinceDate = new Date(now.getTime() - ENTRA_SIGNIN_LOOKBACK_MS);
+    }
 
     const { events, latestTimestamp } = await fetchEntraSignIns(account.entraTenantId, {
         since: sinceDate.toISOString(),
-        maxPages: options.maxPages
+        maxPages: options.maxPages,
+        top: options.top
     });
 
     const records = Array.isArray(events)
@@ -1275,6 +1670,8 @@ module.exports = {
     hideApp,
     deleteApp,
     deleteAllApps,
+    deleteAppsBatch,
+    mergeApps,
 
     syncEntraUsersIfNeeded,
     syncEntraSignInsIfNeeded,

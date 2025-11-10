@@ -286,8 +286,8 @@ function Show-Summary {
 }
 
 function Get-PrismaProjectRoot {
-    if (Test-Path "SubTracker/prisma/schema.prisma") {
-        return "SubTracker"
+    if (Test-Path "SasWatch/prisma/schema.prisma") {
+        return "SasWatch"
     }
     elseif (Test-Path "prisma/schema.prisma") {
         return "."
@@ -1250,8 +1250,8 @@ try {
     $schemaSyncInfo = ""
 
     # Check for schema file in different possible locations
-    if (Test-Path "SubTracker/prisma/schema.prisma") {
-        $schemaPath = "SubTracker/prisma/schema.prisma"
+    if (Test-Path "SasWatch/prisma/schema.prisma") {
+        $schemaPath = "SasWatch/prisma/schema.prisma"
         $schemaDiff = git diff HEAD $schemaPath 2>$null
         $schemaInStatus = git status --short | Select-String "schema.prisma"
         if ($schemaDiff -or $schemaInStatus) {

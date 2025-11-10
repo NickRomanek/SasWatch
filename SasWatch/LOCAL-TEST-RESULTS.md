@@ -42,7 +42,7 @@ Add better error handling and verification:
 ```powershell
 # Register the task with error handling
 try {
-    Register-ScheduledTask -TaskName $TASK_NAME -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Monitors Adobe Creative Cloud usage and reports to SubTracker" -ErrorAction Stop | Out-Null
+    Register-ScheduledTask -TaskName $TASK_NAME -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Monitors Adobe Creative Cloud usage and reports to SasWatch" -ErrorAction Stop | Out-Null
     Write-Log "Scheduled task created successfully" "SUCCESS"
 } catch {
     Write-Log "Failed to create scheduled task: $_" "ERROR"

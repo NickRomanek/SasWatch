@@ -606,14 +606,13 @@
                     <button class="btn-eye-toggle" id="apiKeyToggle" type="button" title="Show API Key" onclick="toggleApiKeyVisibility(event)">👁️</button>
                 </div>
                 <button class="btn-copy" onclick="copyApiKey()">📋 Copy</button>
-                <button class="btn-regenerate" onclick="regenerateApiKey()">🔄 Regenerate</button>
+                <button class="btn-regenerate" onclick="regenerateApiKey(event)">🔄 Regenerate</button>
             </div>
             
             <div class="warning-box">
                 <span class="warning-icon">⚠️</span>
                 <div>
-                    <strong>Keep this key secret!</strong> Anyone with this key can send data to your account.
-                    If compromised, regenerate it immediately.
+                    <strong>Keep this key secret!</strong> Anyone with this key can send data to your SasWatch account. If you regenerate this key, update and redeploy your PowerShell monitoring script and any Intune packages so they use the new value.
                 </div>
             </div>
         </div>
@@ -710,7 +709,9 @@
             button.title = shouldReveal ? 'Hide API Key' : 'Show API Key';
         }
 
-        async function regenerateApiKey() {
+        async function regenerateApiKey(event) {
+            const triggerButton = event?.currentTarget || event?.target || document.querySelector('.btn-regenerate');
+
             const confirmed = await ConfirmModal.show({
                 title: 'Regenerate API Key?',
                 message: 'This will invalidate all existing scripts using the old key. You will need to re-download and re-deploy the monitoring script.',
@@ -721,12 +722,14 @@
 
             if (!confirmed) return;
 
-            const button = event.target;
-            addButtonSpinner(button, button.innerHTML);
+            if (triggerButton) {
+                addButtonSpinner(triggerButton, triggerButton.innerHTML);
+            }
 
             try {
                 const response = await fetch('/api/account/regenerate-key', {
-                    method: 'POST'
+                    method: 'POST',
+                    credentials: 'same-origin'
                 });
 
                 const result = await response.json();
@@ -740,7 +743,9 @@
             } catch (error) {
                 Toast.error('Error: ' + error.message);
             } finally {
-                removeButtonSpinner(button);
+                if (triggerButton) {
+                    removeButtonSpinner(triggerButton);
+                }
             }
         }
 

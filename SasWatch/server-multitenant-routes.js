@@ -11,6 +11,8 @@ const { generateIntunePackage, getPackageFilename } = require('./lib/intune-pack
 const { fetchEntraDirectory, fetchEntraSignIns, fetchEntraApplications } = require('./lib/entra-sync');
 const prisma = require('./lib/prisma');
 
+const REQUEST_TIMEOUT_MS = 60000;
+
 // ============================================
 // Session Configuration (add to server.js)
 // ============================================
@@ -199,7 +201,16 @@ function setupAccountRoutes(app) {
     // Regenerate API key
     app.post('/api/account/regenerate-key', auth.requireAuth, async (req, res) => {
         try {
-            const newApiKey = await auth.regenerateApiKey(req.session.accountId);
+            const accountId = req.accountId || req.session.accountId;
+
+            if (!accountId) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Authentication required'
+                });
+            }
+
+            const newApiKey = await auth.regenerateApiKey(accountId);
             
             res.json({ 
                 success: true, 
@@ -209,7 +220,7 @@ function setupAccountRoutes(app) {
             console.error('Regenerate API key error:', error);
             res.status(500).json({ 
                 success: false, 
-                error: 'Failed to regenerate API key' 
+                error: error?.message || 'Failed to regenerate API key' 
             });
         }
     });
@@ -1184,13 +1195,69 @@ function setupDataRoutes(app) {
     app.get('/api/usage/recent', auth.requireAuth, async (req, res) => {
         try {
             const limit = parseInt(req.query.limit) || 100;
-            await db.syncEntraSignInsIfNeeded(req.session.accountId);
-            // Returns shape: { adobe: [...], wrapper: [...] }
+
+            const forceBackfill = req.query.forceBackfill === 'true';
+            const backfillHours = Number.parseInt(req.query.backfillHours, 10) || 24;
+            const syncOptions = forceBackfill
+                ? { force: true, backfillHours, maxPages: 5 }
+                : {};
+
+            const syncStart = Date.now();
+            let timeoutId;
+            const syncPromise = db.syncEntraSignInsIfNeeded(req.session.accountId, syncOptions)
+                .then(result => ({ ...result, error: false }))
+                .catch(error => {
+                    console.warn('Entra sync failed (non-fatal):', error);
+                    const isGraphThrottle = error?.statusCode === 429 || error?.code === 'TooManyRequests';
+                    return {
+                        error: true,
+                        reason: isGraphThrottle ? 'graph-throttled' : (error.reason || 'error'),
+                        message: isGraphThrottle ? 'Microsoft Graph returned 429 (Too Many Requests).' : (error.message || 'Failed to sync Microsoft Entra sign-ins'),
+                        statusCode: error?.statusCode
+                    };
+                });
+            const timeoutPromise = new Promise((resolve) => {
+                timeoutId = setTimeout(() => resolve({
+                    error: true,
+                    reason: 'timeout',
+                    message: `Sync exceeded ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`
+                }), REQUEST_TIMEOUT_MS);
+            });
+
+            try {
+                var syncOutcome = await Promise.race([syncPromise, timeoutPromise]);
+            } catch (syncError) {
+                // Log sync error but don't fail the entire request
+                console.warn('Entra sync failed (non-fatal):', syncError?.message || syncError);
+                syncOutcome = {
+                    error: true,
+                    reason: (syncError?.statusCode === 429 ? 'graph-throttled' : (syncError?.reason || 'error')),
+                    message: (syncError?.statusCode === 429 ? 'Microsoft Graph returned 429 (Too Many Requests).' : (syncError?.message || 'Failed to sync Microsoft Entra sign-ins')),
+                    statusCode: syncError?.statusCode
+                };
+            } finally {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+            }
+            const syncDuration = Date.now() - syncStart;
+            
+            // Returns shape: { adobe: [...], wrapper: [...], entra: [...] }
             const usageData = await db.getUsageData(req.session.accountId, limit);
             res.json({ 
                 adobe: usageData.adobe || [], 
                 wrapper: usageData.wrapper || [],
-                entra: usageData.entra || []
+                entra: usageData.entra || [],
+                meta: {
+                    sync: syncOutcome,
+                    durationMs: syncDuration,
+                    forceBackfill,
+                    totalEvents: {
+                        adobe: usageData.adobe?.length || 0,
+                        wrapper: usageData.wrapper?.length || 0,
+                        entra: usageData.entra?.length || 0
+                    }
+                }
             });
         } catch (error) {
             console.error('Get recent usage error:', error);
@@ -1201,7 +1268,48 @@ function setupDataRoutes(app) {
     // Get stats (account-scoped) - for dashboard
     app.get('/api/stats', auth.requireAuth, async (req, res) => {
         try {
-            await db.syncEntraSignInsIfNeeded(req.session.accountId);
+            const forceBackfill = req.query.forceBackfill === 'true';
+            const backfillHours = Number.parseInt(req.query.backfillHours, 10) || 24;
+            const syncOptions = forceBackfill
+                ? { force: true, backfillHours, maxPages: 5 }
+                : {};
+
+            const syncStart = Date.now();
+            let timeoutId;
+            const syncPromise = db.syncEntraSignInsIfNeeded(req.session.accountId, syncOptions)
+                .then(result => ({ ...result, error: false }))
+                .catch(error => {
+                    console.warn('Entra stats sync failed (non-fatal):', error);
+                    return {
+                        error: true,
+                        reason: error.reason || 'error',
+                        message: error.message || 'Failed to sync Microsoft Entra sign-ins'
+                    };
+                });
+            const timeoutPromise = new Promise((resolve) => {
+                timeoutId = setTimeout(() => resolve({
+                    error: true,
+                    reason: 'timeout',
+                    message: `Sync exceeded ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`
+                }), REQUEST_TIMEOUT_MS);
+            });
+
+            try {
+                var syncOutcome = await Promise.race([syncPromise, timeoutPromise]);
+            } catch (syncError) {
+                console.warn('Entra sync failed (non-fatal):', syncError?.message || syncError);
+                syncOutcome = {
+                    error: true,
+                    reason: syncError?.reason || 'error',
+                    message: syncError?.message || 'Failed to sync Microsoft Entra sign-ins'
+                };
+            } finally {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+            }
+            const syncDuration = Date.now() - syncStart;
+            
             const stats = await db.getDatabaseStats(req.session.accountId);
             const usageData = await db.getUsageData(req.session.accountId, 1000); // { adobe, wrapper }
 
@@ -1244,6 +1352,11 @@ function setupDataRoutes(app) {
                     today: entraToday,
                     thisWeek: entraWeek,
                     uniqueClients: uniqueEntraDevices
+                },
+                meta: {
+                    sync: syncOutcome,
+                    durationMs: syncDuration,
+                    forceBackfill
                 }
             });
         } catch (error) {
@@ -1454,6 +1567,80 @@ function setupAppsRoutes(app) {
         }
     });
 
+    app.post('/api/apps/sync', auth.requireAuth, async (req, res) => {
+        const backfillHours = Number.parseInt(req.body?.backfillHours, 10) || 24;
+        let syncResult;
+
+        try {
+            syncResult = await db.syncEntraSignInsIfNeeded(req.session.accountId, {
+                force: true,
+                backfillHours,
+                maxPages: 5
+            });
+            if (!syncResult) {
+                syncResult = { synced: false, reason: 'unknown' };
+            }
+        } catch (error) {
+            console.warn('Apps sync encountered error:', error);
+            const isGraphThrottle = error?.statusCode === 429 || error?.code === 'TooManyRequests';
+            syncResult = {
+                error: true,
+                reason: isGraphThrottle ? 'graph-throttled' : (error?.reason || 'error'),
+                message: isGraphThrottle
+                    ? 'Microsoft Graph returned 429 (Too Many Requests).'
+                    : (error?.message || 'Failed to sync Microsoft Entra sign-ins'),
+                statusCode: error?.statusCode
+            };
+        }
+
+        try {
+            const appsData = await db.getAppsData(req.session.accountId);
+            res.json({
+                success: true,
+                sync: syncResult,
+                apps: appsData.apps || [],
+                stats: appsData.stats || {}
+            });
+        } catch (error) {
+            console.error('Apps sync aggregation error:', error);
+            res.status(500).json({
+                error: 'Failed to refresh applications after sync',
+                sync: syncResult
+            });
+        }
+    });
+
+    app.post('/api/apps/merge', auth.requireAuth, async (req, res) => {
+        try {
+            const { target, sources, vendor, name, licensesOwned } = req.body || {};
+
+            if (!target) {
+                return res.status(400).json({ error: 'Target application is required' });
+            }
+            if (!Array.isArray(sources) || sources.length === 0) {
+                return res.status(400).json({ error: 'Select at least two applications to merge' });
+            }
+
+            const mergeResult = await db.mergeApps(req.session.accountId, target, sources, {
+                vendor,
+                name,
+                licensesOwned
+            });
+
+            const appsData = await db.getAppsData(req.session.accountId);
+
+            res.json({
+                success: true,
+                merged: mergeResult,
+                apps: appsData.apps || [],
+                stats: appsData.stats || {}
+            });
+        } catch (error) {
+            console.error('Merge apps error:', error);
+            res.status(500).json({ error: error.message || 'Failed to merge applications' });
+        }
+    });
+
     // Create app
     app.post('/api/apps', auth.requireAuth, async (req, res) => {
         try {
@@ -1524,6 +1711,31 @@ function setupAppsRoutes(app) {
         } catch (error) {
             console.error('Hide app error:', error);
             res.status(500).json({ error: 'Failed to hide app' });
+        }
+    });
+
+    app.delete('/api/apps/bulk', auth.requireAuth, async (req, res) => {
+        try {
+            const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+
+            if (entries.length === 0) {
+                return res.status(400).json({ success: false, error: 'No applications specified' });
+            }
+
+            const result = await db.deleteAppsBatch(req.session.accountId, entries);
+
+            const hasErrors = result.errors.length > 0;
+
+            res.json({
+                success: !hasErrors,
+                manualDeleted: result.manualDeleted,
+                overridesHidden: result.overridesHidden,
+                errors: result.errors,
+                error: hasErrors ? 'Some applications could not be removed.' : undefined
+            });
+        } catch (error) {
+            console.error('Bulk delete apps error:', error);
+            res.status(500).json({ success: false, error: error.message || 'Failed to delete applications' });
         }
     });
 

@@ -108,13 +108,13 @@
                             <span>Force sync before fetch</span>
                         </label>
                         <button class="btn btn-primary" id="dev-fetch-btn" onclick="runDevFetch(event)">
-                            🔄 Fetch Selected Tab
+                            🔄 Sync
                         </button>
                     </div>
 
                     <div class="dev-output">
                         <div class="dev-meta" id="dev-meta">
-                            <p>Select a tab and click “Fetch Selected Tab” to see raw API responses.</p>
+                            <p>Select a tab and click “Sync” to view the command and raw response.</p>
                         </div>
                         <div class="dev-command" id="dev-command"></div>
                         <div class="dev-json" id="dev-json"></div>
@@ -173,8 +173,8 @@
                 description: 'Fetches Microsoft 365 users via Graph.'
             },
             apps: {
-                url: '/api/dev/graph/apps',
-                description: 'Lists service principals (applications) available to the tenant.'
+                url: '/api/apps/sync',
+                description: 'Runs the Applications sync (same as the Apps page) and returns the combined dataset.'
             },
             activity: {
                 url: '/api/dev/graph/activity',
@@ -191,7 +191,7 @@
             });
             const hoursGroup = document.getElementById('dev-hours-group');
             if (hoursGroup) {
-                hoursGroup.style.display = tab === 'activity' ? 'flex' : 'none';
+                hoursGroup.style.display = (tab === 'activity' || tab === 'apps') ? 'flex' : 'none';
             }
             const meta = document.getElementById('dev-meta');
             if (meta && devConfig[tab]) {
@@ -200,7 +200,8 @@
         }
 
         async function runDevFetch(event) {
-            const button = event?.target;
+            const button = event?.currentTarget || event?.target;
+
             if (!devConfig[activeDevTab]) {
                 Toast.error('Unknown tab selected.');
                 return;
@@ -209,32 +210,69 @@
             const limitInput = document.getElementById('dev-limit');
             const hoursInput = document.getElementById('dev-hours');
             const forceToggle = document.getElementById('dev-force-toggle');
-            const params = new URLSearchParams();
-
-            const limit = Math.max(1, Math.min(50, parseInt(limitInput?.value || '10', 10)));
-            params.set('limit', limit);
-
-            if (activeDevTab === 'activity' && hoursInput) {
-                const hours = Math.max(1, Math.min(168, parseInt(hoursInput.value || '24', 10)));
-                params.set('hours', hours);
-            }
-
-            if (forceToggle?.checked) {
-                params.set('force', 'true');
-            }
-
             const commandBlock = document.getElementById('dev-command');
             const jsonBlock = document.getElementById('dev-json');
             const metaBlock = document.getElementById('dev-meta');
 
-            const originalText = button ? button.innerHTML : null;
+            if (metaBlock) {
+                metaBlock.innerHTML = '<p><strong>Status:</strong> Sync in progress…</p>';
+            }
+
+            const previousLabel = button ? button.innerHTML : null;
             if (button) {
-                addButtonSpinner(button, button.innerHTML);
+                button.disabled = true;
+                button.innerHTML = '⏳ Syncing…';
+            }
+
+            let requestConfig;
+            if (activeDevTab === 'apps') {
+                const backfillHours = Math.max(1, Math.min(168, parseInt(hoursInput?.value || '24', 10)));
+                const requestBody = { backfillHours };
+
+                if (forceToggle?.checked) {
+                    requestBody.force = true;
+                }
+
+                requestConfig = {
+                    url: '/api/apps/sync',
+                    options: {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestBody),
+                        credentials: 'same-origin'
+                    },
+                    command: 'POST /api/apps/sync',
+                    paramsForDisplay: requestBody
+                };
+            } else {
+                const params = new URLSearchParams();
+                const limit = Math.max(1, Math.min(50, parseInt(limitInput?.value || '10', 10)));
+                params.set('limit', limit);
+
+                if (activeDevTab === 'activity' && hoursInput) {
+                    const hours = Math.max(1, Math.min(168, parseInt(hoursInput.value || '24', 10)));
+                    params.set('hours', hours);
+                }
+
+                if (forceToggle?.checked) {
+                    params.set('force', 'true');
+                }
+
+                const queryString = params.toString();
+                requestConfig = {
+                    url: `${devConfig[activeDevTab].url}?${queryString}`,
+                    options: { method: 'GET', credentials: 'same-origin' },
+                    command: `GET ${devConfig[activeDevTab].url}?${queryString}`,
+                    paramsForDisplay: Object.fromEntries(params.entries())
+                };
             }
 
             try {
-                const response = await fetch(`${devConfig[activeDevTab].url}?${params.toString()}`);
-                const payload = await response.json();
+                const response = await fetch(requestConfig.url, requestConfig.options);
+                const contentType = response.headers.get('content-type') || '';
+                const payload = contentType.includes('application/json')
+                    ? await response.json().catch(() => ({}))
+                    : {};
 
                 if (!response.ok || payload.success === false) {
                     const errMsg = payload.error || `Request failed with status ${response.status}`;
@@ -242,35 +280,69 @@
                     if (metaBlock) {
                         metaBlock.innerHTML = `<p class="text-error">${escapeHtml(errMsg)}</p>`;
                     }
+                    if (button && previousLabel !== null) {
+                        button.disabled = false;
+                        button.innerHTML = previousLabel;
+                    }
                     return;
                 }
+
+                const commandText = payload.command || requestConfig.command || 'N/A';
+                const paramsForDisplay = payload.params || requestConfig.paramsForDisplay || {};
 
                 if (commandBlock) {
                     commandBlock.innerHTML = `
                         <h3>Command</h3>
-                        <pre>${escapeHtml(payload.command || 'N/A')}</pre>
+                        <pre>${escapeHtml(commandText)}</pre>
                         <h4>Parameters</h4>
-                        <pre>${escapeHtml(JSON.stringify(payload.params || {}, null, 2))}</pre>
+                        <pre>${escapeHtml(JSON.stringify(paramsForDisplay, null, 2))}</pre>
                     `;
                 }
 
-                if (metaBlock) {
-                    metaBlock.innerHTML = `
-                        <p><strong>Requested:</strong> ${new Date(payload.requestedAt || Date.now()).toLocaleString()}</p>
-                        <p><strong>Duration:</strong> ${payload.durationMs ?? 0} ms</p>
-                        <p><strong>Items Returned:</strong> ${payload.meta?.totalReturned ?? (payload.data?.length || 0)}</p>
-                    `;
-                }
+                if (activeDevTab === 'apps') {
+                    const syncInfo = payload.sync || {};
+                    const syncReason = syncInfo.reason ? ` (${escapeHtml(syncInfo.reason)})` : '';
+                    const lastSync = syncInfo.lastSync ? new Date(syncInfo.lastSync).toLocaleString() : 'N/A';
 
-                if (jsonBlock) {
-                    jsonBlock.innerHTML = `
-                        <h3>Data</h3>
-                        <pre>${escapeHtml(JSON.stringify(payload.data || [], null, 2))}</pre>
-                        ${payload.meta ? `<h3>Metadata</h3><pre>${escapeHtml(JSON.stringify(payload.meta, null, 2))}</pre>` : ''}
-                    `;
-                }
+                    if (metaBlock) {
+                        metaBlock.innerHTML = `
+                            <p><strong>Triggered:</strong> ${new Date().toLocaleString()}</p>
+                            <p><strong>Last Sync:</strong> ${lastSync}</p>
+                            <p><strong>Synced:</strong> ${syncInfo.synced ? 'Yes' : 'No'}${syncReason}</p>
+                            <p><strong>Processed Sign-ins:</strong> ${syncInfo.count ?? 0}</p>
+                            <p><strong>Applications Returned:</strong> ${payload.apps?.length ?? 0}</p>
+                        `;
+                    }
 
-                Toast.success('✓ Graph data fetched successfully');
+                    if (jsonBlock) {
+                        jsonBlock.innerHTML = `
+                            <h3>Applications</h3>
+                            <pre>${escapeHtml(JSON.stringify(payload.apps || [], null, 2))}</pre>
+                            ${payload.stats ? `<h3>Stats</h3><pre>${escapeHtml(JSON.stringify(payload.stats, null, 2))}</pre>` : ''}
+                            ${payload.sync ? `<h3>Sync Metadata</h3><pre>${escapeHtml(JSON.stringify(payload.sync, null, 2))}</pre>` : ''}
+                        `;
+                    }
+
+                    Toast.success('✓ Application sync complete');
+                } else {
+                    if (metaBlock) {
+                        metaBlock.innerHTML = `
+                            <p><strong>Requested:</strong> ${new Date(payload.requestedAt || Date.now()).toLocaleString()}</p>
+                            <p><strong>Duration:</strong> ${payload.durationMs ?? 0} ms</p>
+                            <p><strong>Items Returned:</strong> ${payload.meta?.totalReturned ?? (payload.data?.length || 0)}</p>
+                        `;
+                    }
+
+                    if (jsonBlock) {
+                        jsonBlock.innerHTML = `
+                            <h3>Data</h3>
+                            <pre>${escapeHtml(JSON.stringify(payload.data || [], null, 2))}</pre>
+                            ${payload.meta ? `<h3>Metadata</h3><pre>${escapeHtml(JSON.stringify(payload.meta, null, 2))}</pre>` : ''}
+                        `;
+                    }
+
+                    Toast.success('✓ Graph data fetched successfully');
+                }
             } catch (error) {
                 console.error('Dev fetch error:', error);
                 Toast.error('Failed to fetch diagnostic data: ' + error.message);
@@ -278,9 +350,9 @@
                     metaBlock.innerHTML = `<p class="text-error">${escapeHtml(error.message)}</p>`;
                 }
             } finally {
-                if (button && originalText) {
-                    removeButtonSpinner(button);
-                    button.innerHTML = originalText;
+                if (button && previousLabel !== null) {
+                    button.disabled = false;
+                    button.innerHTML = previousLabel;
                 }
             }
         }

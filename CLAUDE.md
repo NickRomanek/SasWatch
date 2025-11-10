@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SubTracker is a **multi-tenant SaaS platform** for tracking Adobe Creative Cloud license usage across organizations. Each organization (account) gets complete data isolation with a unique API key for automated usage tracking via PowerShell scripts and Chrome extension.
+SasWatch is a **multi-tenant SaaS platform** for tracking Adobe Creative Cloud license usage across organizations. Each organization (account) gets complete data isolation with a unique API key for automated usage tracking via PowerShell scripts and Chrome extension.
 
 ## Development Commands
 
 ### Setup & Installation
 ```bash
-cd SubTracker
+cd SasWatch
 npm install
 cp env.example .env  # Edit with your values
 docker-compose up -d  # Start PostgreSQL
@@ -187,7 +187,7 @@ The Intune package routes (`/download/intune-package`, `/download/intune-package
 ## File Organization
 
 ```
-SubTracker/
+SasWatch/
 ├── lib/                          # Core business logic
 │   ├── auth.js                  # Authentication & middleware
 │   ├── database-multitenant.js  # Account-scoped data operations
@@ -205,7 +205,7 @@ SubTracker/
 └── server-multitenant-routes.js # All route handlers
 ```
 
-Outside `SubTracker/`:
+Outside `SasWatch/`:
 - `extension/` - Chrome extension for web Adobe.com tracking
 - `scripts/` - Reference PowerShell templates
 - `intune-scripts/` - Installer, uninstaller, detection, troubleshooting scripts bundled into Intune packages

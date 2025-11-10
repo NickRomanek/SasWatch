@@ -349,7 +349,7 @@ function Initialize-Logging {
     }
 
     Write-Log "==================================================" "Info"
-    Write-Log "  Adobe Usage Monitor - Abowdy" "Info"
+    Write-Log "  Adobe Usage Monitor - SasWatch" "Info"
     Write-Log "==================================================" "Info"
     Write-Log "Deployment Mode: $script:DeploymentMode" "Info"
     Write-Log "API URL: $API_URL" "Info"
@@ -680,7 +680,7 @@ C:\ProgramData\AdobeMonitor\
 
 ```
 [2025-01-24 08:00:15] [Info] ==================================================
-[2025-01-24 08:00:15] [Info]   Adobe Usage Monitor - Abowdy
+[2025-01-24 08:00:15] [Info]   Adobe Usage Monitor - SasWatch
 [2025-01-24 08:00:15] [Info] ==================================================
 [2025-01-24 08:00:15] [Info] Deployment Mode: Production
 [2025-01-24 08:00:15] [Info] API URL: https://abowdy-production.up.railway.app/api/track
@@ -726,7 +726,7 @@ function generateMonitorScript(apiKey, apiUrl, nodeEnv = 'production') {
     const checkInterval = nodeEnv === 'development' ? 5 : 300;
     const intervalDescription = nodeEnv === 'development' ? '5 seconds (TESTING MODE)' : '5 minutes';
 
-    return `# Adobe Usage Monitor - Auto-configured for your Abowdy account
+    return `# Adobe Usage Monitor - Auto-configured for your SasWatch account
 # Generated: ${new Date().toISOString()}
 # Environment: ${nodeEnv.toUpperCase()}
 
@@ -930,8 +930,8 @@ AdobeMonitor-Package\
 4. Configure:
 
 **App Information:**
-- Name: Adobe Usage Monitor - Abowdy
-- Description: Monitors Adobe application usage and reports to Abowdy dashboard
+- Name: Adobe Usage Monitor - SasWatch
+- Description: Monitors Adobe application usage and reports to SasWatch dashboard
 - Publisher: Your Organization
 
 **Program:**

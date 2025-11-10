@@ -107,12 +107,32 @@
                     <div class="users-controls">
                         <input type="text" id="search-apps" class="search-box" placeholder="Search applications...">
                     </div>
+                    <div class="users-header-right" style="display: flex; gap: 0.75rem; align-items: center;">
+                        <button class="btn btn-secondary" onclick="openAddAppModal()" title="Add application manually">
+                            ➕ Add
+                        </button>
+                        <button class="btn btn-primary" onclick="syncApplications(event)" title="Sync applications from recent activity">
+                            🔄 Sync
+                        </button>
+                        <button class="btn btn-danger" id="delete-all-apps-btn" onclick="deleteAllApplications(event)" title="Delete applications">
+                            🗑️ Delete All
+                        </button>
+                    </div>
+                    <div id="apps-bulk-actions" class="users-header-right" style="display: none; gap: 0.75rem; align-items: center;">
+                        <span id="apps-selected-count" style="color: var(--text-secondary); font-size: 0.9rem;">0 selected</span>
+                        <button class="btn btn-primary" onclick="openMergeAppsModal()" title="Merge selected applications">
+                            🔀 Merge Selected
+                        </button>
+                    </div>
                 </div>
 
                 <div class="table-container">
                     <table class="users-table apps-table" id="apps-table">
                         <thead>
                             <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="apps-select-all" title="Select all applications">
+                                </th>
                                 <th>Application</th>
                                 <th>Vendor</th>
                                 <th>Detected Users</th>
@@ -123,27 +143,34 @@
                         </thead>
                         <tbody id="apps-table-body">
                             <% if (apps && apps.length > 0) { %>
-                                <% apps.forEach(app => { 
-                                    const diff = typeof app.unusedLicenses === 'number'
-                                        ? app.unusedLicenses
-                                        : ((app.licensesOwned || 0) - (app.detectedUsers || 0));
-                                    const diffIcon = diff > 0 ? '🪑' : (diff < 0 ? '⚠️' : '✅');
-                                    const diffClass = diff > 0
-                                        ? 'status-badge status-success'
-                                        : (diff < 0 ? 'status-badge status-danger' : 'status-badge status-neutral');
-                                    const diffLabel = diff > 0
-                                        ? `${diff} unused`
-                                        : (diff < 0 ? `${Math.abs(diff)} short` : 'Balanced');
-                                %>
+                                <% apps.forEach(app => { %>
                                     <tr>
+                                        <td>
+                                            <input type="checkbox" class="app-select-checkbox"
+                                                data-app-id="<%= app.id || '' %>"
+                                                data-app-source="<%= app.sourceKey || '' %>"
+                                                data-app-name="<%= app.name %>"
+                                                data-app-vendor="<%= app.vendor %>"
+                                                data-app-detected="<%= app.detectedUsers || 0 %>"
+                                                data-app-licenses="<%= app.licensesOwned || 0 %>"
+                                                data-app-unused="<%= app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0)) %>">
+                                        </td>
                                         <td><%= app.name %></td>
                                         <td><%= app.vendor %></td>
                                         <td><%= app.detectedUsers || 0 %></td>
                                         <td><%= app.licensesOwned || 0 %></td>
                                         <td>
-                                            <span class="<%= diffClass %>">
-                                                <span><%= diffIcon %></span>
-                                                <span><%= diffLabel %></span>
+                                            <span class="<%= (app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) > 0
+                                                ? 'status-badge status-success'
+                                                : ((app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) < 0
+                                                    ? 'status-badge status-danger'
+                                                    : 'status-badge status-neutral') %>">
+                                                <span><%= (app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) > 0 ? '🪑' : ((app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) < 0 ? '⚠️' : '✅') %></span>
+                                                <span><%= (app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) > 0
+                                                    ? `${app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))} unused`
+                                                    : ((app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) < 0
+                                                        ? `${Math.abs(app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0)))} short`
+                                                        : 'Balanced') %></span>
                                             </span>
                                         </td>
                                         <td>
@@ -155,7 +182,7 @@
                                 <% }); %>
                             <% } else { %>
                                 <tr>
-                                    <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                    <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                                         No applications detected yet. Activity will populate this view automatically.
                                     </td>
                                 </tr>
@@ -197,6 +224,13 @@
                         <strong>Detected users:</strong> <span id="edit-app-detected">0</span>
                     </div>
                     <p id="edit-app-helper" style="margin-top: 0.75rem; color: var(--text-secondary); font-size: 0.9rem;"></p>
+                    <div id="edit-app-components-wrapper" style="margin-top: 1rem; background: var(--bg-secondary); padding: 1rem; border-radius: 10px; display: none; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <strong>Linked sources</strong>
+                            <span class="status-badge status-info" id="edit-app-components-count"></span>
+                        </div>
+                        <div id="edit-app-components-list" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <div class="modal-footer-left" id="app-edit-secondary-actions">
@@ -212,7 +246,63 @@
         </div>
     </div>
 
+    <div class="modal" id="app-merge-modal" style="display: none;">
+        <div class="modal-content" style="max-width: 720px;">
+            <div class="modal-header">
+                <div>
+                    <h2>Merge Applications</h2>
+                    <span class="status-badge status-info">Bulk action</span>
+                </div>
+                <button class="modal-close" onclick="closeMergeAppsModal()">×</button>
+            </div>
+            <form id="merge-apps-form">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div>
+                        <label style="font-weight: 600;">Primary application</label>
+                        <p style="margin: 0.25rem 0 0.75rem; color: var(--text-secondary); font-size: 0.9rem;">
+                            Choose which application keeps activity. All other selected apps will merge into it.
+                        </p>
+                        <div id="merge-primary-list" style="background: var(--bg-secondary); padding: 0.75rem 1rem; border-radius: 8px; max-height: 180px; overflow-y: auto;"></div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="merge-app-name">Canonical Name <span class="required">*</span></label>
+                            <input type="text" id="merge-app-name" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="merge-app-vendor">Vendor <span class="required">*</span></label>
+                            <input type="text" id="merge-app-vendor" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="merge-app-licenses">Total Licenses</label>
+                            <input type="number" id="merge-app-licenses" class="form-input" min="0" step="1" placeholder="Optional">
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 style="margin-bottom: 0.5rem;">Applications to merge</h3>
+                        <div id="merge-selected-list" style="max-height: 220px; overflow-y: auto;"></div>
+                    </div>
+
+                    <div id="merge-summary" style="padding: 0.75rem 1rem; background: var(--bg-secondary); border-radius: 8px; color: var(--text-secondary); font-size: 0.9rem;"></div>
+                </div>
+                <div class="modal-footer">
+                    <div class="modal-footer-right">
+                        <button type="button" class="btn btn-secondary" onclick="closeMergeAppsModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Merge Applications</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="/js/theme.js"></script>
+    <script src="/js/ui-components.js"></script>
+    <script>
+        window.initialAppsData = <%- JSON.stringify(apps || []) %>;
+        window.initialAppStats = <%- JSON.stringify(stats || {}) %>;
+    </script>
     <script src="/js/apps.js"></script>
 </body>
 </html>

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Adobe Web Usage Sensor (SubTracker)",
+  "name": "Adobe Web Usage Sensor (SasWatch)",
   "version": "3.0.0",
-  "description": "Tracks Adobe web application usage and reports to your SubTracker account for license optimization.",
+  "description": "Tracks Adobe web application usage and reports to your SasWatch account for license optimization.",
   "permissions": [
     "storage",
     "tabs",

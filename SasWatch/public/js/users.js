@@ -615,8 +615,10 @@ async function saveUserEdit(event) {
     const firstName = document.getElementById('edit-firstName').value.trim();
     const lastName = document.getElementById('edit-lastName').value.trim();
     const email = document.getElementById('edit-email').value.trim();
-    const adminRoles = document.getElementById('edit-adminRoles').value.trim();
-    const userGroups = document.getElementById('edit-userGroups').value.trim();
+    const adminRolesInput = document.getElementById('edit-adminRoles');
+    const userGroupsInput = document.getElementById('edit-userGroups');
+    const adminRoles = adminRolesInput ? adminRolesInput.value.trim() : undefined;
+    const userGroups = userGroupsInput ? userGroupsInput.value.trim() : undefined;
     
     // Collect licenses
     const licenseInputs = document.querySelectorAll('.license-input');
@@ -632,11 +634,6 @@ async function saveUserEdit(event) {
     
     if (!firstName || !lastName || !email) {
         alert('First name, last name, and email are required');
-        return;
-    }
-    
-    if (windowsUsernames.length === 0) {
-        alert('At least one Windows username is required');
         return;
     }
     
@@ -667,17 +664,27 @@ async function saveUserEdit(event) {
         const result = await response.json();
         
         if (result.success) {
-            alert('✓ User updated successfully');
+            if (typeof Toast !== 'undefined') {
+                Toast.success('User updated successfully');
+            } else {
+                alert('✓ User updated successfully');
+            }
             closeEditModal();
             
-            // Refresh the page to show updates
-            window.location.reload();
+            // Refresh the page to show updates after notification
+            setTimeout(() => {
+                window.location.reload();
+            }, 800);
         } else {
             throw new Error(result.error || 'Failed to update user');
         }
     } catch (error) {
         console.error('Update error:', error);
-        alert('✗ Error: ' + error.message);
+        if (typeof Toast !== 'undefined') {
+            Toast.error('Failed to update user: ' + error.message);
+        } else {
+            alert('✗ Error: ' + error.message);
+        }
     }
 }
 

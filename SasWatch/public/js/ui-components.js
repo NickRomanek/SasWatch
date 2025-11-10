@@ -2,6 +2,35 @@
 const Toast = {
     container: null,
 
+    getVisuals(type = 'info') {
+        const icons = {
+            success: '✓',
+            error: '✗',
+            warning: '⚠️',
+            info: 'ℹ️',
+            danger: '🗑️'
+        };
+
+        const colors = {
+            success: { bg: 'var(--success)', light: 'var(--success-light)' },
+            error: { bg: 'var(--danger)', light: 'var(--danger-light)' },
+            warning: { bg: 'var(--warning)', light: 'var(--warning-light)' },
+            info: { bg: 'var(--accent-primary)', light: 'var(--accent-light)' },
+            danger: { bg: 'var(--danger)', light: 'var(--danger-light)' }
+        };
+
+        const key = colors[type] ? type : 'info';
+
+        return {
+            icon: icons[key] || 'ℹ️',
+            colors: colors[key]
+        };
+    },
+
+    sanitizeMessage(message) {
+        return String(message ?? '').replace(/^([✓✗⚠️ℹ️🗑️\s]*)+/g, '').trim();
+    },
+
     init() {
         if (!this.container) {
             this.container = document.createElement('div');
@@ -26,26 +55,13 @@ const Toast = {
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
 
-        const icons = {
-            success: '✓',
-            error: '✗',
-            warning: '⚠️',
-            info: 'ℹ️'
-        };
-
-        const colors = {
-            success: { bg: 'var(--success)', light: 'var(--success-light)' },
-            error: { bg: 'var(--danger)', light: 'var(--danger-light)' },
-            warning: { bg: 'var(--warning)', light: 'var(--warning-light)' },
-            info: { bg: 'var(--accent-primary)', light: 'var(--accent-light)' }
-        };
-
-        const color = colors[type] || colors.info;
+        const { icon, colors } = this.getVisuals(type);
+        const color = colors;
 
         toast.style.padding = '16px 20px';
         toast.style.borderRadius = '8px';
         toast.style.display = 'flex';
-        toast.style.alignItems = 'center';
+        toast.style.alignItems = 'flex-start';
         toast.style.gap = '12px';
         toast.style.animation = 'slideIn 0.3s ease';
         toast.style.minWidth = '300px';
@@ -65,23 +81,49 @@ const Toast = {
         toast.style.boxShadow = shadowColor;
         toast.style.border = isDark ? '1px solid rgba(148, 163, 184, 0.25)' : '1px solid rgba(148, 163, 184, 0.2)';
 
+        const iconBackground = isDark ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.2)';
+        const iconBorder = isDark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(148, 163, 184, 0.28)';
+
+        const sanitizedMessage = this.sanitizeMessage(message);
+
         toast.innerHTML = `
-            <span style="font-size: 1.25rem; flex-shrink: 0;">${icons[type]}</span>
-            <span style="flex: 1; font-size: 0.938rem; line-height: 1.4;">${message}</span>
+            <span style="
+                flex-shrink: 0;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 1.9rem;
+                height: 1.9rem;
+                font-size: 1.15rem;
+                line-height: 1;
+                border-radius: 9999px;
+                border: 1px solid ${iconBorder};
+                background: ${iconBackground};
+                color: ${color.bg};
+                margin-top: 2px;
+            ">${icon}</span>
+            <span style="
+                flex: 1;
+                font-size: 0.938rem;
+                line-height: 1.5;
+                margin-top: 2px;
+            ">${sanitizedMessage}</span>
             <button onclick="this.parentElement.remove()" style="
                 background: none;
                 border: none;
-                font-size: 1.25rem;
+                font-size: 1.1rem;
                 cursor: pointer;
                 opacity: 0.6;
                 transition: opacity 0.2s;
                 color: inherit;
                 padding: 0;
-                width: 24px;
-                height: 24px;
+                width: 1.75rem;
+                height: 1.75rem;
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                margin-top: 0;
+                align-self: flex-start;
             " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">×</button>
         `;
 
@@ -96,6 +138,160 @@ const Toast = {
         }
 
         return toast;
+    },
+
+    confirm(message, options = {}) {
+        this.init();
+
+        const {
+            type = 'warning',
+            title = '',
+            confirmText = 'Confirm',
+            cancelText = 'Cancel',
+            duration = 0
+        } = options;
+
+        return new Promise((resolve) => {
+            const { icon, colors } = this.getVisuals(type);
+            const color = colors;
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const backgroundColor = isDark
+                ? 'var(--bg-card)'
+                : (color.light || '#eef2ff');
+            const textColor = isDark ? 'var(--text-primary)' : '#0f172a';
+            const shadowColor = isDark ? '0 6px 16px rgba(15, 23, 42, 0.4)' : '0 10px 30px rgba(15, 23, 42, 0.18)';
+            const iconBackground = isDark ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.2)';
+            const iconBorder = isDark ? 'rgba(148, 163, 184, 0.35)' : 'rgba(148, 163, 184, 0.28)';
+            const sanitizedMessage = this.sanitizeMessage(message);
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.style.padding = '18px 22px 20px';
+            toast.style.borderRadius = '12px';
+            toast.style.display = 'flex';
+            toast.style.flexDirection = 'column';
+            toast.style.gap = '16px';
+            toast.style.animation = 'slideIn 0.3s ease';
+            toast.style.minWidth = '320px';
+            toast.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            toast.style.borderLeft = `4px solid ${color.bg}`;
+            toast.style.background = backgroundColor;
+            toast.style.color = textColor;
+            toast.style.boxShadow = shadowColor;
+            toast.style.border = isDark ? '1px solid rgba(148, 163, 184, 0.25)' : '1px solid rgba(148, 163, 184, 0.2)';
+            toast.setAttribute('role', 'alertdialog');
+            toast.setAttribute('aria-live', 'assertive');
+
+            toast.innerHTML = `
+                <div style="display: flex; gap: 14px; align-items: flex-start;">
+                    <span style="
+                        flex-shrink: 0;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 2.15rem;
+                        height: 2.15rem;
+                        font-size: 1.25rem;
+                        line-height: 1;
+                        border-radius: 9999px;
+                        border: 1px solid ${iconBorder};
+                        background: ${iconBackground};
+                        color: ${color.bg};
+                        margin-top: 2px;
+                    ">${icon}</span>
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                        ${title ? `<strong style="font-size: 1rem;">${title}</strong>` : ''}
+                        <span style="font-size: 0.95rem; line-height: 1.55;">${sanitizedMessage}</span>
+                    </div>
+                    <button type="button" data-action="close" style="
+                        background: none;
+                        border: none;
+                        font-size: 1.1rem;
+                        cursor: pointer;
+                        opacity: 0.6;
+                        transition: opacity 0.2s;
+                        color: inherit;
+                        padding: 0;
+                        width: 1.75rem;
+                        height: 1.75rem;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        margin-top: 0;
+                    ">×</button>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" data-action="cancel" style="
+                        padding: 10px 18px;
+                        background: var(--bg-secondary);
+                        color: var(--text-primary);
+                        border: 1px solid var(--border-color);
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 0.9rem;
+                        font-weight: 500;
+                        transition: background 0.2s, color 0.2s;
+                    ">${cancelText}</button>
+                    <button type="button" data-action="confirm" style="
+                        padding: 10px 18px;
+                        background: ${color.bg};
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 0.9rem;
+                        font-weight: 600;
+                        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+                        transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+                    ">${confirmText}</button>
+                </div>
+            `;
+
+            this.container.appendChild(toast);
+
+            const confirmButton = toast.querySelector('[data-action="confirm"]');
+            const cancelButton = toast.querySelector('[data-action="cancel"]');
+            const closeButton = toast.querySelector('[data-action="close"]');
+
+            let resolved = false;
+
+            const cleanup = (result) => {
+                if (resolved) return;
+                resolved = true;
+                toast.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => toast.remove(), 280);
+                document.removeEventListener('keydown', handleKeydown);
+                resolve(result);
+            };
+
+            const handleKeydown = (event) => {
+                if (event.key === 'Escape') {
+                    cleanup(false);
+                } else if (event.key === 'Enter') {
+                    cleanup(true);
+                }
+            };
+
+            confirmButton.addEventListener('click', () => cleanup(true));
+            cancelButton.addEventListener('click', () => cleanup(false));
+            closeButton.addEventListener('click', () => cleanup(false));
+            toast.addEventListener('mouseenter', () => {
+                toast.style.boxShadow = '0 10px 28px rgba(15, 23, 42, 0.22)';
+            });
+            toast.addEventListener('mouseleave', () => {
+                toast.style.boxShadow = shadowColor;
+            });
+
+            document.addEventListener('keydown', handleKeydown);
+
+            setTimeout(() => {
+                confirmButton.focus();
+            }, 10);
+
+            if (duration > 0) {
+                setTimeout(() => cleanup(false), duration);
+            }
+        });
     },
 
     success(message, duration) {

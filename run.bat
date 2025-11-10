@@ -1,5 +1,5 @@
 @echo off
-REM SubTracker Unified Startup Script
+REM SasWatch Unified Startup Script
 REM Usage: start.bat       - starts servers
 REM        start.bat stop  - stops servers
 

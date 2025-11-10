@@ -50,7 +50,7 @@ if (Test-Path $generatedScript) {
 ### 2. **Enhanced Error Handling**
 ```powershell
 try {
-    Register-ScheduledTask -TaskName $TASK_NAME -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Monitors Adobe Creative Cloud usage and reports to SubTracker" -ErrorAction Stop | Out-Null
+    Register-ScheduledTask -TaskName $TASK_NAME -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Monitors Adobe Creative Cloud usage and reports to SasWatch" -ErrorAction Stop | Out-Null
     Write-Log "Scheduled task created successfully" "SUCCESS"
 } catch {
     Write-Log "Failed to create scheduled task: $_" "ERROR"

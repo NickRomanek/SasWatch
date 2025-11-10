@@ -2,7 +2,7 @@
 
 ## Overview
 
-This Chrome extension tracks when users visit Adobe web applications and reports usage to your SubTracker account. It works alongside the PowerShell desktop monitoring to provide complete Adobe usage visibility.
+This Chrome extension tracks when users visit Adobe web applications and reports usage to your SasWatch account. It works alongside the PowerShell desktop monitoring to provide complete Adobe usage visibility.
 
 ## Features
 
@@ -54,10 +54,10 @@ Deploy via Google Workspace Admin Console:
 
 1. Click the extension icon in Chrome
 2. Click "Options" or right-click → "Options"
-3. Enter your SubTracker API URL:
+3. Enter your SasWatch API URL:
    - Local: `http://localhost:3000/api/track`
    - Production: `https://your-app.railway.app/api/track`
-4. Enter your API Key (from SubTracker Account Settings)
+4. Enter your API Key (from SasWatch Account Settings)
 5. Click "Save Configuration"
 6. Click "Test Connection" to verify
 
@@ -84,8 +84,8 @@ Once configured, the extension automatically:
 
 1. Monitors Chrome navigation to Adobe sites
 2. Detects when users visit Adobe web applications
-3. Sends usage event to SubTracker API with API key
-4. Data appears in organization's SubTracker dashboard
+3. Sends usage event to SasWatch API with API key
+4. Data appears in organization's SasWatch dashboard
 
 **No user interaction required after setup!**
 
@@ -130,7 +130,7 @@ chrome://extensions/ → Pack extension → Select extension directory
 3. Check Chrome DevTools Console for logs:
    - `[AdobeSensor] POST { url, tabId, why }`
    - `[AdobeSensor] ✓ POST success 200`
-4. Check SubTracker dashboard for event
+4. Check SasWatch dashboard for event
 
 ### Connection Test
 
@@ -147,13 +147,13 @@ chrome://extensions/ → Pack extension → Select extension directory
 
 ### "✗ POST failed 401"
 
-**Solution:** Invalid API key. Get new key from SubTracker Account Settings
+**Solution:** Invalid API key. Get new key from SasWatch Account Settings
 
 ### "✗ Cannot reach API"
 
 **Solution:** 
 - Check API URL is correct
-- Verify SubTracker is running
+- Verify SasWatch is running
 - Check network/firewall settings
 
 ### Extension not tracking
@@ -167,10 +167,10 @@ chrome://extensions/ → Pack extension → Select extension directory
 ### Events not appearing in dashboard
 
 **Check:**
-1. API key matches your SubTracker account
+1. API key matches your SasWatch account
 2. Connection test passes in options
 3. Using correct API URL (check /api/track endpoint)
-4. Account is active in SubTracker
+4. Account is active in SasWatch
 
 ## Development
 
@@ -223,7 +223,7 @@ Enable verbose logging:
 - ✅ Configuration options page
 - ✅ Connection testing
 - ✅ Better error handling
-- ✅ Updated for SubTracker multi-tenant API
+- ✅ Updated for SasWatch multi-tenant API
 
 ### v2.0.0 (Legacy)
 - Single-tenant with hardcoded endpoint
@@ -234,8 +234,8 @@ Enable verbose logging:
 
 ## Support
 
-For SubTracker-related issues:
-- Check SubTracker documentation
+For SasWatch-related issues:
+- Check SasWatch documentation
 - Verify API key in Account Settings
 - Test API endpoint with curl/Postman
 
@@ -246,9 +246,9 @@ For extension-specific issues:
 
 ## License
 
-Private/Proprietary - Part of SubTracker platform
+Private/Proprietary - Part of SasWatch platform
 
 ---
 
-**Questions?** See SubTracker documentation in `DEPLOYMENT-GUIDE.md`
+**Questions?** See SasWatch documentation in `DEPLOYMENT-GUIDE.md`
 

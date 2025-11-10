@@ -1,8 +1,8 @@
-# SubTracker & Receiver Startup Script
+# SasWatch & Receiver Startup Script
 # Kills existing processes and starts both servers
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  SubTracker & Receiver Startup" -ForegroundColor Cyan
+Write-Host "  SasWatch & Receiver Startup" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -37,7 +37,7 @@ function Stop-ProcessOnPort {
 
 # Stop existing processes
 Stop-ProcessOnPort -Port 8080 -Name "Receiver"
-Stop-ProcessOnPort -Port 3000 -Name "SubTracker"
+Stop-ProcessOnPort -Port 3000 -Name "SasWatch"
 
 Write-Host ""
 Write-Host "Starting servers..." -ForegroundColor Cyan
@@ -48,7 +48,7 @@ $rootDir = Split-Path $PSScriptRoot -Parent
 
 # Resolve service paths
 $receiverPath = Join-Path $rootDir "receiver"
-$subtrackerPath = Join-Path $rootDir "SubTracker"
+$saswatchPath = Join-Path $rootDir "SasWatch"
 
 # Start Receiver in new window (if present)
 if (Test-Path $receiverPath) {
@@ -59,13 +59,13 @@ if (Test-Path $receiverPath) {
     Write-Host "Receiver directory not found. Skipping Receiver server start." -ForegroundColor DarkYellow
 }
 
-# Start SubTracker in new window
-if (Test-Path $subtrackerPath) {
-    Write-Host "Starting SubTracker on port 3000..." -ForegroundColor Yellow
-    Start-Process pwsh -ArgumentList "-NoExit", "-Command", "cd '$subtrackerPath'; Write-Host '=== SUBTRACKER SERVER ===' -ForegroundColor Cyan; node server.js"
+# Start SasWatch in new window
+if (Test-Path $saswatchPath) {
+    Write-Host "Starting SasWatch on port 3000..." -ForegroundColor Yellow
+    Start-Process pwsh -ArgumentList "-NoExit", "-Command", "cd '$saswatchPath'; Write-Host '=== SUBTRACKER SERVER ===' -ForegroundColor Cyan; node server.js"
     Start-Sleep -Seconds 2
 } else {
-    Write-Host "❌ SubTracker directory not found at '$subtrackerPath'. Cannot start SubTracker server." -ForegroundColor Red
+    Write-Host "❌ SasWatch directory not found at '$saswatchPath'. Cannot start SasWatch server." -ForegroundColor Red
     Write-Host "Please verify the project structure and try again." -ForegroundColor Red
 }
 
@@ -76,9 +76,9 @@ Write-Host "  Servers Started!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Receiver:    http://localhost:8080" -ForegroundColor Yellow
-Write-Host "SubTracker:  http://localhost:3000" -ForegroundColor Cyan
+Write-Host "SasWatch:  http://localhost:3000" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Opening SubTracker in browser..." -ForegroundColor Cyan
+Write-Host "Opening SasWatch in browser..." -ForegroundColor Cyan
 Start-Sleep -Seconds 2
 Start-Process "http://localhost:3000"
 

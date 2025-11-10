@@ -1,4 +1,4 @@
-# SubTracker Setup Guide
+# SasWatch Setup Guide
 
 ## ⚙️ Prerequisites
 
@@ -17,7 +17,7 @@ npm --version    # Should be v8.0 or higher
 
 ## ⚠️ Important Note
 
-**Microsoft Graph API features are currently disabled** in this version of SubTracker. The application currently focuses on tracking Adobe usage data from:
+**Microsoft Graph API features are currently disabled** in this version of SasWatch. The application currently focuses on tracking Adobe usage data from:
 - Browser extension (web Adobe apps)
 - Desktop wrapper (Adobe Reader/Acrobat)
 
@@ -29,7 +29,7 @@ The Azure AD integration sections below are for reference if you want to re-enab
 
 ### 1. Install Dependencies
 ```bash
-cd SubTracker
+cd SasWatch
 npm install
 ```
 
@@ -57,7 +57,7 @@ If you want to re-enable Microsoft Graph API integration for user management and
 2. Navigate to **Azure Active Directory** > **App registrations**
 3. Click **New registration**
 4. Fill in the details:
-   - **Name**: `SubTracker`
+   - **Name**: `SasWatch`
    - **Supported account types**: `Accounts in this organizational directory only`
    - **Redirect URI**: Leave blank for now
 5. Click **Register**
@@ -79,7 +79,7 @@ If you want to re-enable Microsoft Graph API integration for user management and
 
 1. Go to **Certificates & secrets**
 2. Click **New client secret**
-3. Add a description: `SubTracker Secret`
+3. Add a description: `SasWatch Secret`
 4. Choose expiration: `24 months` (or your preference)
 5. Click **Add**
 6. **IMPORTANT**: Copy the secret value immediately (you won't be able to see it again)
@@ -117,7 +117,7 @@ From your app registration overview page, copy:
 
 ### Install Dependencies
 ```bash
-cd SubTracker
+cd SasWatch
 npm install
 ```
 
@@ -149,7 +149,7 @@ start.bat
 ### Common Issues
 
 1. **"Cannot find module" errors**
-   - Run `npm install` in the SubTracker directory
+   - Run `npm install` in the SasWatch directory
    - Ensure Node.js is properly installed
 
 2. **"Port already in use" error**

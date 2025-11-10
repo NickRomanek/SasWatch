@@ -1,8 +1,8 @@
-# 🚀 SubTracker - START HERE
+# 🚀 SasWatch - START HERE
 
-## What is SubTracker?
+## What is SasWatch?
 
-SubTracker is a **multi-tenant SaaS platform** for tracking Adobe Creative Cloud license usage. Organizations can sign up, import their Adobe users, deploy monitoring scripts, and optimize license allocation based on real usage data.
+SasWatch is a **multi-tenant SaaS platform** for tracking Adobe Creative Cloud license usage. Organizations can sign up, import their Adobe users, deploy monitoring scripts, and optimize license allocation based on real usage data.
 
 ## ✨ Key Features
 
@@ -18,7 +18,7 @@ SubTracker is a **multi-tenant SaaS platform** for tracking Adobe Creative Cloud
 ### 1. Setup (5 minutes)
 
 ```bash
-cd SubTracker
+cd SasWatch
 npm install
 ```
 
@@ -120,7 +120,7 @@ See **`DEPLOYMENT-GUIDE.md`** → "Railway Deployment" section
 ## 📂 Project Structure
 
 ```
-SubTracker/
+SasWatch/
 ├── lib/                    # Core logic
 │   ├── auth.js            # Authentication
 │   ├── database-multitenant.js  # Database ops
@@ -138,7 +138,7 @@ SubTracker/
 
 ## 💡 User Workflow
 
-**For Organizations Using SubTracker:**
+**For Organizations Using SasWatch:**
 
 1. **Sign Up** → Create account at your-app.railway.app
 2. **Login** → Lands on Users page (default)
@@ -187,7 +187,7 @@ After local testing:
 
 ## 🎉 You're Ready!
 
-SubTracker is a complete multi-tenant SaaS platform ready for production.
+SasWatch is a complete multi-tenant SaaS platform ready for production.
 
 **Start here:**
 1. Read this file (done! ✓)

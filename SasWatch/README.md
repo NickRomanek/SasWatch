@@ -1,4 +1,4 @@
-# SubTracker - Microsoft Graph API License Tracking
+# SasWatch - Microsoft Graph API License Tracking
 
 A web application that integrates with Microsoft Graph API to track user login logs and manage SaaS product licenses.
 
@@ -62,7 +62,7 @@ A web application that integrates with Microsoft Graph API to track user login l
 
 ## 🔐 Azure Security Group Sync (NEW)
 
-SubTracker now includes automated Azure security group management based on Adobe license activity. This feature enables intelligent license optimization by automatically moving inactive users to different security groups for targeted Intune deployment.
+SasWatch now includes automated Azure security group management based on Adobe license activity. This feature enables intelligent license optimization by automatically moving inactive users to different security groups for targeted Intune deployment.
 
 ### Overview
 
@@ -89,14 +89,14 @@ Your Azure AD app registration needs these **Application permissions**:
 
 Before using Azure Sync:
 1. Export users from Adobe Admin Console (CSV format)
-2. Import the CSV via SubTracker's Users page
+2. Import the CSV via SasWatch's Users page
 3. Ensure activity tracking is collecting data
 
 ### Setup Guide
 
 #### Step 1: Configure Settings
 
-1. Navigate to the **Users** page in SubTracker
+1. Navigate to the **Users** page in SasWatch
 2. Find the **☁️ Azure Security Group Sync** section
 3. Configure:
    - **Inactive Threshold**: Number of days without activity to mark as inactive (default: 90)
@@ -138,7 +138,7 @@ After collecting usage data (recommended: 60-90 days):
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 1. Export Adobe Users → Import to SubTracker               │
+│ 1. Export Adobe Users → Import to SasWatch               │
 │ 2. Create "Active" Security Group → Add all licensed users │
 │ 3. Intune deploys Monitor script to Active group           │
 │ 4. Collect activity data (60-90 days)                      │
@@ -164,7 +164,7 @@ After collecting usage data (recommended: 60-90 days):
 
 ### Configuration File
 
-Settings are stored in `SubTracker/data/azure-sync-config.json`:
+Settings are stored in `SasWatch/data/azure-sync-config.json`:
 
 ```json
 {
@@ -264,10 +264,10 @@ The system includes 100ms delays between API calls. If you still encounter rate 
 
 **Example Scenario:**
 - 500 Adobe licenses @ $60/user/month = $30,000/month
-- 30% inactive (150 users) identified by SubTracker
+- 30% inactive (150 users) identified by SasWatch
 - **Potential savings: $108,000/year**
 
-SubTracker helps you:
+SasWatch helps you:
 ✅ Identify unused licenses
 ✅ Automate monitoring deployment
 ✅ Track usage over time

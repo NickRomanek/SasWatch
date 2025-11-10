@@ -323,19 +323,19 @@
                 <% if (azureSyncEnabled || (users && users.length > 0)) { %>
                 <div class="users-header-right">
                     <% if (azureSyncEnabled) { %>
-                    <button class="btn btn-primary btn-xs" id="entra-sync-btn" onclick="syncEntraUsers(event)">
+                    <button class="btn btn-primary" id="entra-sync-btn" onclick="syncEntraUsers(event)">
                         🔄 Sync
                     </button>
                     <% } %>
                     <% if (users && users.length > 0) { %>
-                    <button class="btn btn-danger btn-xs" id="delete-all-btn" onclick="deleteAllUsers()">
+                    <button class="btn btn-danger" id="delete-all-btn" onclick="deleteAllUsers()">
                         🗑️ Delete All
                     </button>
                     <div id="selected-actions" style="display: none; gap: 0.5rem; align-items: center;">
-                        <button class="btn btn-primary btn-xs" onclick="mergeSelectedUsers()">
+                        <button class="btn btn-primary" onclick="mergeSelectedUsers()">
                             🔀 Merge Selected
                         </button>
-                        <button class="btn btn-danger btn-xs" onclick="deleteSelectedUsers()">
+                        <button class="btn btn-danger" onclick="deleteSelectedUsers()">
                             🗑️ Delete Selected
                         </button>
                     </div>

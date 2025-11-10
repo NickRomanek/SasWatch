@@ -1,4 +1,4 @@
-# Adobe Usage Monitor - Auto-configured for your SubTracker account
+# Adobe Usage Monitor - Auto-configured for your SasWatch account
 # Generated: 2025-10-26T20:07:28.599Z
 # Environment: TESTING
 
@@ -183,7 +183,7 @@ function Monitor-AdobeUsage {
 
 try {
     Write-Host "================================================" -ForegroundColor Cyan
-    Write-Host "  Adobe Usage Monitor - SubTracker" -ForegroundColor Cyan
+    Write-Host "  Adobe Usage Monitor - SasWatch" -ForegroundColor Cyan
     Write-Host "================================================" -ForegroundColor Cyan
     Write-Host ""
     

@@ -2,6 +2,7 @@
 // Password hashing, session management, and authentication middleware
 
 const bcrypt = require('bcrypt');
+const { randomUUID } = require('crypto');
 const prisma = require('./prisma');
 
 const SALT_ROUNDS = 10;
@@ -106,13 +107,16 @@ async function getAccountByApiKey(apiKey) {
 }
 
 async function regenerateApiKey(accountId) {
-    const { v4: uuidv4 } = require('uuid');
-    
+    if (!accountId) {
+        throw new Error('Missing account ID for API key regeneration');
+    }
+
     const account = await prisma.account.update({
         where: { id: accountId },
-        data: { apiKey: uuidv4() }
+        data: { apiKey: randomUUID() },
+        select: { apiKey: true }
     });
-    
+
     return account.apiKey;
 }
 

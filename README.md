@@ -1,4 +1,4 @@
-# SubTracker - Multi-Tenant Adobe License Management
+# SasWatch - Multi-Tenant Adobe License Management
 
 > Track Adobe Creative Cloud usage across your organization and optimize license allocation
 
@@ -8,7 +8,7 @@
 
 ## 📖 Overview
 
-SubTracker is a **multi-tenant SaaS platform** that helps organizations track Adobe Creative Cloud license usage and identify optimization opportunities. Multiple companies can sign up, each with completely isolated data and unique API keys.
+SasWatch is a **multi-tenant SaaS platform** that helps organizations track Adobe Creative Cloud license usage and identify optimization opportunities. Multiple companies can sign up, each with completely isolated data and unique API keys.
 
 ### The Problem
 
@@ -19,7 +19,7 @@ SubTracker is a **multi-tenant SaaS platform** that helps organizations track Ad
 
 ### The Solution
 
-SubTracker provides:
+SasWatch provides:
 - **Automated Usage Tracking** - PowerShell scripts monitor Adobe application usage
 - **Multi-Tenant Platform** - Serve multiple organizations from one deployment
 - **Usage Analytics** - See who's using Adobe and how often
@@ -59,7 +59,7 @@ SubTracker provides:
 ```bash
 # 1. Clone repository
 git clone https://github.com/yourusername/subtracker.git
-cd subtracker/SubTracker
+cd subtracker/SasWatch
 
 # 2. Install dependencies
 npm install
@@ -87,7 +87,7 @@ npm start
 
 ```
 abowdyV4/
-├── SubTracker/              # Main application
+├── SasWatch/              # Main application
 │   ├── lib/                 # Core libraries
 │   │   ├── auth.js         # Authentication & authorization
 │   │   ├── database-multitenant.js  # Account-scoped database
@@ -258,7 +258,7 @@ railway run npm run db:push
 
 ## 💰 Monetization
 
-SubTracker is monetization-ready with built-in subscription tier support.
+SasWatch is monetization-ready with built-in subscription tier support.
 
 ### Example Pricing Model
 

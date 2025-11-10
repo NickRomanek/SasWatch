@@ -1,8 +1,8 @@
-# SubTracker Enhanced - Upgrade Summary
+# SasWatch Enhanced - Upgrade Summary
 
 ## 🎉 Major Improvements Completed
 
-Your SubTracker application has been completely transformed into a modern, multi-page enterprise license management solution!
+Your SasWatch application has been completely transformed into a modern, multi-page enterprise license management solution!
 
 ---
 

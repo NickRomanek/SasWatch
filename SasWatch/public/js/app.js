@@ -2,6 +2,8 @@
 let currentSourceFilter = 'all';
 let cachedActivityData = null;
 
+const REFRESH_TIMEOUT_MS = 60000;
+
 // Theme management
 function initTheme() {
     const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -28,60 +30,156 @@ function updateThemeIcon(theme) {
 // Load data on page load
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
-    refreshData();
+    refreshData({ silent: true });
 });
 
-async function refreshData() {
+async function fetchJson(url, { timeout = REFRESH_TIMEOUT_MS, ...options } = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || payload.success === false) {
+            const message = payload.error || `Request failed with status ${response.status}`;
+            throw new Error(message);
+        }
+
+        return payload;
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw new Error(`Request timed out after ${Math.round(timeout / 1000)} seconds`);
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+function normalizeUsagePayload(payload = {}) {
+    return {
+        adobe: Array.isArray(payload.adobe) ? payload.adobe : [],
+        wrapper: Array.isArray(payload.wrapper) ? payload.wrapper : [],
+        entra: Array.isArray(payload.entra) ? payload.entra : [],
+        meta: payload.meta || null
+    };
+}
+
+function calculateEventTotals(data = {}) {
+    const adobeCount = Array.isArray(data.adobe) ? data.adobe.length : 0;
+    const wrapperCount = Array.isArray(data.wrapper) ? data.wrapper.length : 0;
+    const entraCount = Array.isArray(data.entra) ? data.entra.length : 0;
+    return {
+        adobe: adobeCount,
+        wrapper: wrapperCount,
+        entra: entraCount,
+        all: adobeCount + wrapperCount + entraCount
+    };
+}
+
+function collectSyncWarnings(...syncResults) {
+    const messages = [];
+    syncResults
+        .filter(Boolean)
+        .forEach(result => {
+            if (result.reason === 'timeout') {
+                messages.push(`Microsoft Graph timed out after ${Math.round(REFRESH_TIMEOUT_MS / 1000)} seconds. Showing cached data.`);
+            } else if (result.reason === 'graph-throttled') {
+                messages.push('Microsoft Graph throttled requests (HTTP 429). Using cached/partial data.');
+            } else if (result.error) {
+                messages.push(result.message || 'Activity refreshed with warnings from Microsoft Graph.');
+            } else if (result.reason === 'not-configured') {
+                messages.push('Microsoft Entra integration is not configured yet. Showing local activity data only.');
+            } else if (result.reason === 'throttled') {
+                messages.push('Microsoft Graph throttled the sync. Using cached data.');
+            }
+        });
+
+    return [...new Set(messages)];
+}
+
+async function refreshData(options = {}) {
+    const { silent = false, allowBackfill = true } = options;
     const activityContainer = document.getElementById('recent-activity');
     if (activityContainer) {
         activityContainer.innerHTML = '<div class="loading">Loading...</div>';
     }
 
+    const startTime = performance.now();
+    if (!silent) {
+        Toast.info('Microsoft Graph sync may take up to 60 seconds. Please wait…', 6000);
+    }
+    const loaderToast = silent ? null : Toast.info('Refreshing activity… this may take up to 60 seconds.', 0);
+
     try {
-        const [statsRes, recentRes, devRes] = await Promise.all([
-            fetch('/api/stats'),
-            fetch('/api/usage/recent?limit=100'),
-            fetch('/api/dev/graph/activity?limit=25')
+        const [statsPayload, usagePayload] = await Promise.all([
+            fetchJson('/api/stats'),
+            fetchJson('/api/usage/recent?limit=100')
         ]);
 
-        const stats = statsRes.ok ? await statsRes.json() : {};
-        const recent = recentRes.ok ? await recentRes.json() : { adobe: [], wrapper: [], entra: [] };
+        let usageData = normalizeUsagePayload(usagePayload);
+        let statsMeta = statsPayload?.meta || null;
+        updateStats(statsPayload || {}, usageData);
+        updateActivityLists(usageData);
 
-        let devEvents = [];
-        if (devRes.ok) {
-            const devPayload = await devRes.json();
-            if (devPayload.success && Array.isArray(devPayload.data)) {
-                devEvents = normalizeGraphActivity(devPayload.data);
+        let totals = calculateEventTotals(usageData);
+        let finalMeta = usageData.meta || {};
+        let usedBackfill = false;
+
+        const initialSyncProblem = finalMeta?.sync?.reason === 'timeout' || finalMeta?.sync?.error === true || finalMeta?.sync?.reason === 'graph-throttled';
+        const looksIncomplete = totals.all === 0 || totals.entra === 0; // handle cases where only 1 local event exists
+
+        if ((looksIncomplete || initialSyncProblem) && allowBackfill) {
+            const backfillToast = silent ? null : Toast.info('No recent events found — fetching last 24 hours…', 0);
+            try {
+                usageData = normalizeUsagePayload(await fetchJson('/api/usage/recent?limit=100&forceBackfill=true&backfillHours=24'));
+                totals = calculateEventTotals(usageData);
+                finalMeta = usageData.meta || {};
+                updateActivityLists(usageData);
+                const forcedStats = await fetchJson('/api/stats?forceBackfill=true&backfillHours=24');
+                updateStats(forcedStats || {}, usageData);
+                statsMeta = forcedStats?.meta || statsMeta;
+                usedBackfill = true;
+
+                if (!silent && totals.all === 0) {
+                    Toast.warning('No activity detected in the last 24 hours.');
+                }
+            } finally {
+                if (backfillToast?.remove) {
+                    backfillToast.remove();
+                } else if (backfillToast && backfillToast.parentElement) {
+                    backfillToast.parentElement.removeChild(backfillToast);
+                }
             }
         }
 
-        if (devEvents.length > 0) {
-            const existingEntra = Array.isArray(recent.entra) ? recent.entra : [];
-            const combined = new Map();
+        const durationSeconds = ((performance.now() - startTime) / 1000).toFixed(1);
+        const warnings = collectSyncWarnings(finalMeta.sync, statsMeta?.sync);
 
-            existingEntra.forEach(event => {
-                const key = event.id || `${event.createdDateTime || event.receivedAt}-${event.userPrincipalName || ''}-${event.appDisplayName || ''}`;
-                combined.set(key, {
-                    ...event,
-                    source: event.source || event.sourceChannel || classifySignInSource(event.clientAppUsed)
-                });
-            });
+        if (!silent) {
+            warnings.forEach(message => Toast.warning(message));
 
-            devEvents.forEach(event => {
-                const key = event.id || `${event.createdDateTime || event.receivedAt}-${event.userPrincipalName || ''}-${event.appDisplayName || ''}`;
-                if (!combined.has(key)) {
-                    combined.set(key, event);
-                }
-            });
-
-            recent.entra = Array.from(combined.values());
+            if (totals.all > 0) {
+                const message = usedBackfill
+                    ? `Activity backfilled (${totals.all} events) in ${durationSeconds}s.`
+                    : `Activity updated (${totals.all} events) in ${durationSeconds}s.`;
+                Toast.success(message);
+            } else {
+                Toast.info('No activity found for the requested timeframe.');
+            }
         }
-
-        updateStats(stats || {}, recent);
-        updateActivityLists(recent);
     } catch (error) {
         console.error('Error fetching data:', error);
-        showError('Failed to load data');
+        if (!silent) {
+            Toast.error(error.message || 'Failed to load data');
+        }
+    } finally {
+        if (loaderToast?.remove) {
+            loaderToast.remove();
+        } else if (loaderToast && loaderToast.parentElement) {
+            loaderToast.parentElement.removeChild(loaderToast);
+        }
     }
 }
 

@@ -79,9 +79,9 @@ async function createUser(userData) {
             licenses: licenses || [],
             activityCount: 0,
             importedAt: importedAt || new Date(),
-            windowsUsernames: {
+            windowsUsernames: windowsUsernames && windowsUsernames.length > 0 ? {
                 create: windowsUsernames.map(username => ({ username }))
-            }
+            } : undefined
         },
         include: {
             windowsUsernames: true
@@ -111,12 +111,14 @@ async function updateUser(email, updates) {
         });
         
         // Create new usernames
-        await prisma.windowsUsername.createMany({
-            data: windowsUsernames.map(username => ({
-                username,
-                userId: user.id
-            }))
-        });
+        if (windowsUsernames.length > 0) {
+            await prisma.windowsUsername.createMany({
+                data: windowsUsernames.map(username => ({
+                    username,
+                    userId: user.id
+                }))
+            });
+        }
     }
     
     return await prisma.user.findUnique({

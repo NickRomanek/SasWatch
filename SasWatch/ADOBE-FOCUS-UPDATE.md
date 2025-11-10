@@ -2,7 +2,7 @@
 
 ## 🎯 Changes Made
 
-Your SubTracker app has been simplified to focus specifically on **Adobe license management**.
+Your SasWatch app has been simplified to focus specifically on **Adobe license management**.
 
 ---
 
@@ -160,5 +160,5 @@ Just add them to the dropdown in `views/index.ejs`:
 
 ---
 
-Your SubTracker is now a **focused Adobe license management tool** with better spacing, clearer labels, and simpler workflows! 🎨
+Your SasWatch is now a **focused Adobe license management tool** with better spacing, clearer labels, and simpler workflows! 🎨
 

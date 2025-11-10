@@ -1,8 +1,8 @@
-# SubTracker & Receiver Stop Script
+# SasWatch & Receiver Stop Script
 # Stops both servers
 
 Write-Host "========================================" -ForegroundColor Red
-Write-Host "  Stopping SubTracker & Receiver" -ForegroundColor Red
+Write-Host "  Stopping SasWatch & Receiver" -ForegroundColor Red
 Write-Host "========================================" -ForegroundColor Red
 Write-Host ""
 
@@ -43,7 +43,7 @@ function Stop-ProcessOnPort {
 
 # Stop both servers
 Stop-ProcessOnPort -Port 8080 -Name "Receiver"
-Stop-ProcessOnPort -Port 3000 -Name "SubTracker"
+Stop-ProcessOnPort -Port 3000 -Name "SasWatch"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green

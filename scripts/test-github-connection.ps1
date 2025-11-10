@@ -71,7 +71,7 @@ if ($remoteUrl) {
         Write-Host ""
         Write-Host "  If HTTPS is blocked, you can switch to SSH:" -ForegroundColor Gray
         Write-Host "    1. Set up SSH key: https://docs.github.com/en/authentication" -ForegroundColor Gray
-        Write-Host "    2. Change remote: git remote set-url origin git@github.com:NickRomanek/AbowdyV2.git" -ForegroundColor Gray
+        Write-Host "    2. Change remote: git remote set-url origin git@github.com:NickRomanek/SasWatch.git" -ForegroundColor Gray
     }
     elseif ($remoteUrl -match "^git@") {
         Write-Host "  Protocol: SSH (port 22)" -ForegroundColor Cyan
