@@ -69,6 +69,40 @@
     <!-- Main Content -->
     <main class="main-content">
         <div class="container">
+            <!-- Mobile Navigation -->
+            <nav class="mobile-nav">
+                <div class="mobile-nav-item">
+                    <a href="/" class="mobile-nav-link active">
+                        <span>👥</span>
+                        <span>Users</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/apps" class="mobile-nav-link">
+                        <span>📦</span>
+                        <span>Apps</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/dashboard" class="mobile-nav-link">
+                        <span>📊</span>
+                        <span>Activity</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/account" class="mobile-nav-link">
+                        <span>⚙️</span>
+                        <span>Account</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/dev" class="mobile-nav-link">
+                        <span>🛠️</span>
+                        <span>Dev</span>
+                    </a>
+                </div>
+            </nav>
+
             <header>
                 <div class="header-content">
                     <h1>
@@ -354,7 +388,8 @@
                 <p>Upload your Adobe Admin Console user export CSV to get started.</p>
             </div>
             <% } else { %>
-            <table class="users-table" id="users-table">
+            <div class="users-table-container">
+                <table class="users-table" id="users-table">
                 <thead>
                     <tr>
                         <th style="width: 40px;">
@@ -372,7 +407,8 @@
                 <tbody id="users-table-body">
                     <!-- Will be populated by JavaScript -->
                 </tbody>
-            </table>
+                </table>
+            </div>
             <% } %>
         </div>
         </div>

@@ -1607,10 +1607,21 @@ nav a.active {
     box-shadow: 0 0 0 3px rgba(79, 209, 197, 0.3);
 }
 
-/* Users Table */
+/* Table Containers - prevent overflow */
+.table-container,
+.users-table-container {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--card-border);
+    background: var(--bg-card);
+}
+
 .users-table {
     width: 100%;
+    min-width: 800px; /* Minimum width to prevent squishing */
     border-collapse: collapse;
+    table-layout: fixed; /* Better for responsive tables */
 }
 
 .users-table th,
@@ -1618,12 +1629,23 @@ nav a.active {
     padding: 1rem;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
+
+/* Specific column widths */
+.users-table th:nth-child(1), .users-table td:nth-child(1) { width: 40px; } /* Checkbox */
+.users-table th:nth-child(2), .users-table td:nth-child(2) { width: 200px; } /* Name */
+.users-table th:nth-child(3), .users-table td:nth-child(3) { width: 250px; } /* Email */
+.users-table th:nth-child(4), .users-table td:nth-child(4) { width: 120px; } /* Status */
+.users-table th:nth-child(5), .users-table td:nth-child(5) { width: 120px; } /* Licenses */
+.users-table th:nth-child(6), .users-table td:nth-child(6) { width: 120px; } /* Last Activity */
+.users-table th:nth-child(7), .users-table td:nth-child(7) { width: 100px; } /* Actions */
 
 /* Checkbox column styling */
 .users-table th:first-child,
 .users-table td:first-child {
-    width: 40px;
     text-align: center;
     padding: 1rem 0.5rem;
 }
@@ -2098,35 +2120,69 @@ nav a.active {
     body {
         padding: 12px;
     }
-    
-    /* Sidebar responsive - overlay on mobile */
+
+    /* Hide sidebar on mobile */
     .sidebar {
-        transform: translateX(-100%);
-        box-shadow: var(--shadow-lg);
+        display: none;
     }
-    
-    .sidebar.mobile-open {
-        transform: translateX(0);
-    }
-    
+
     .main-content {
         margin-left: 0 !important;
     }
-    
-    /* Mobile menu overlay */
-    .mobile-menu-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 999;
+
+    /* Mobile top navigation */
+    .mobile-nav {
+        display: flex;
+        background: var(--bg-card);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        padding: 8px;
+        margin-bottom: 16px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .mobile-nav::-webkit-scrollbar {
         display: none;
     }
-    
-    .mobile-menu-overlay.active {
-        display: block;
+
+    .mobile-nav-item {
+        flex-shrink: 0;
+        margin-right: 8px;
+    }
+
+    .mobile-nav-item:last-child {
+        margin-right: 0;
+    }
+
+    .mobile-nav-link {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+
+    .mobile-nav-link:hover {
+        background: var(--bg-hover);
+    }
+
+    .mobile-nav-link.active {
+        background: var(--accent-primary);
+        color: #FFFFFF;
+    }
+
+    /* Hide mobile menu button and overlay (old overlay system) */
+    .mobile-menu-btn,
+    .mobile-menu-overlay {
+        display: none !important;
     }
     
     header {
@@ -2221,14 +2277,29 @@ nav a.active {
         width: 100%;
     }
     
+    .users-table-container {
+        border-radius: 6px;
+    }
+
     .users-table {
         font-size: 0.875rem;
+        min-width: 600px; /* Smaller minimum width for mobile */
     }
-    
+
     .users-table th,
     .users-table td {
         padding: 0.75rem 0.5rem;
+        font-size: 0.8rem;
     }
+
+    /* Adjust column widths for mobile */
+    .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 35px; } /* Checkbox */
+    .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 140px; } /* Name */
+    .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 180px; } /* Email */
+    .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 80px; } /* Status */
+    .users-table th:nth-child(5), .users-table td:nth-child(5) { width: 80px; } /* Licenses */
+    .users-table th:nth-child(6), .users-table td:nth-child(6) { width: 80px; } /* Last Activity */
+    .users-table th:nth-child(7), .users-table td:nth-child(7) { width: 70px; } /* Actions */
 }
 
 /* ============================================
@@ -2952,4 +3023,5 @@ nav a.active {
     margin-top: 0.35rem;
     font-size: 0.8rem;
     color: var(--text-secondary);
+}
 }
