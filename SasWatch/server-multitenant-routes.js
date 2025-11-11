@@ -11,7 +11,10 @@ const { generateIntunePackage, getPackageFilename } = require('./lib/intune-pack
 const { fetchEntraDirectory, fetchEntraSignIns, fetchEntraApplications } = require('./lib/entra-sync');
 const prisma = require('./lib/prisma');
 
-const REQUEST_TIMEOUT_MS = 60000;
+const REQUEST_TIMEOUT_MS = 180000; // 3 minutes to allow for Graph API calls that can take up to 2 minutes
+
+// Global sync status tracking
+const activeSyncs = new Map();
 
 // ============================================
 // Session Configuration (add to server.js)
@@ -185,12 +188,215 @@ function setupAuthRoutes(app) {
 // ============================================
 
 function setupAccountRoutes(app) {
+    // Sync test page
+    app.get('/sync-test', auth.requireAuth, (req, res) => {
+        res.render('sync-test', { title: 'Sync Test Page' });
+    });
+
+    // Test stuck sync endpoint (for debugging)
+    app.post('/api/test/stuck-sync', async (req, res) => {
+        try {
+            let accountId = req.session?.accountId;
+
+            if (!accountId) {
+                // Try to find any existing account for testing
+                const existingAccount = await prisma.account.findFirst({
+                    orderBy: { createdAt: 'asc' }
+                });
+                accountId = existingAccount?.id || 'test-account';
+            }
+
+            console.log(`[TEST] Simulating stuck sync for account ${accountId}`);
+
+            activeSyncs.set(accountId, {
+                active: true,
+                message: 'Test: Sync appears stuck (use cancel button)',
+                progress: 50,
+                startedAt: new Date(Date.now() - 30000), // Started 30 seconds ago
+                lastUpdate: new Date(),
+                debug: {
+                    accountId,
+                    testMode: true,
+                    stuckTest: true
+                }
+            });
+
+            res.json({ success: true, message: 'Stuck sync simulation started - check dashboard for cancel button' });
+        } catch (error) {
+            console.error('Stuck sync test error:', error);
+            res.status(500).json({ error: 'Failed to simulate stuck sync' });
+        }
+    });
+
+    // Test data endpoint (for development/testing) - temporarily remove auth for debugging
+    app.post('/api/test/populate-data', async (req, res) => {
+        console.log('[TEST] Populate data endpoint hit, session:', req.session);
+        try {
+            // For testing, use existing account or create test account
+            let accountId = req.session?.accountId;
+
+            if (!accountId) {
+                console.log('[TEST] No authenticated account, checking for existing accounts...');
+                // Try to find any existing account for testing
+                const existingAccount = await prisma.account.findFirst({
+                    orderBy: { createdAt: 'asc' }
+                });
+
+                if (existingAccount) {
+                    accountId = existingAccount.id;
+                    console.log('[TEST] Using existing account:', accountId);
+                } else {
+                    console.log('[TEST] No accounts found, creating test account...');
+                    // Create a test account
+                    const testAccount = await prisma.account.create({
+                        data: {
+                            name: 'Test Account',
+                            email: 'test@example.com',
+                            password: 'hashedpassword', // This won't be used for auth anyway
+                            subscriptionTier: 'free',
+                            isActive: true
+                        }
+                    });
+                    accountId = testAccount.id;
+                    console.log('[TEST] Created test account:', accountId);
+                }
+            } else {
+                console.log('[TEST] Using authenticated account:', accountId);
+            }
+            const { hoursBack = 2, eventCount = 10 } = req.body;
+
+            console.log(`[TEST] Creating ${eventCount} usage events and 5 entra events for account ${accountId}`);
+
+            // Create some test usage events
+            const events = [];
+            const now = new Date();
+
+            for (let i = 0; i < eventCount; i++) {
+                const timestamp = new Date(now.getTime() - (Math.random() * hoursBack * 60 * 60 * 1000));
+                events.push({
+                    id: `test-event-${accountId}-${i}`,
+                    accountId,
+                    event: 'launch',
+                    url: `https://test${i}.adobe.com`,
+                    clientId: `client-${i}`,
+                    receivedAt: timestamp,
+                    when: timestamp,
+                    windowsUser: `testuser${i % 3}`,
+                    userDomain: 'TESTDOMAIN',
+                    computerName: `TESTPC${i % 2}`,
+                    source: i % 2 === 0 ? 'adobe' : 'wrapper'
+                });
+            }
+
+            console.log(`[TEST] Inserting ${events.length} usage events...`);
+            try {
+                await prisma.usageEvent.createMany({
+                    data: events,
+                    skipDuplicates: true
+                });
+                console.log(`[TEST] Successfully inserted ${events.length} usage events`);
+            } catch (usageError) {
+                console.error('[TEST] Failed to insert usage events:', usageError);
+                throw usageError;
+            }
+
+            // Create some test Entra sign-ins
+            const entraEvents = [];
+            for (let i = 0; i < 5; i++) {
+                const timestamp = new Date(now.getTime() - (Math.random() * hoursBack * 60 * 60 * 1000));
+                entraEvents.push({
+                    id: `test-entra-${accountId}-${i}`,
+                    accountId,
+                    createdDateTime: timestamp,
+                    userDisplayName: `Test User ${i}`,
+                    userPrincipalName: `testuser${i}@testdomain.com`,
+                    userId: `user-id-${i}`,
+                    appDisplayName: 'Microsoft Teams',
+                    clientAppUsed: 'Browser',
+                    ipAddress: `192.168.1.${i + 10}`,
+                    locationCity: 'Test City',
+                    locationCountryOrRegion: 'Test Country',
+                    statusErrorCode: null,
+                    statusFailureReason: null,
+                    sourceChannel: 'entra-web'
+                });
+            }
+
+            console.log(`[TEST] Inserting ${entraEvents.length} entra events...`);
+            try {
+                await prisma.entraSignIn.createMany({
+                    data: entraEvents,
+                    skipDuplicates: true
+                });
+                console.log(`[TEST] Successfully inserted ${entraEvents.length} entra events`);
+            } catch (entraError) {
+                console.error('[TEST] Failed to insert entra events:', entraError);
+                throw entraError;
+            }
+
+            res.json({
+                success: true,
+                message: `Created ${events.length} usage events and ${entraEvents.length} Entra sign-ins`,
+                testData: {
+                    usageEvents: events.length,
+                    entraEvents: entraEvents.length,
+                    timeRange: `${hoursBack} hours back`
+                }
+            });
+        } catch (error) {
+            console.error('Test data population error:', error);
+            res.status(500).json({ error: 'Failed to populate test data' });
+        }
+    });
+
+    // Sync status endpoint
+    app.get('/api/sync/status', auth.requireAuth, (req, res) => {
+        const accountId = req.session.accountId;
+        const status = activeSyncs.get(accountId) || {
+            active: false,
+            message: 'No sync in progress',
+            progress: 0,
+            startedAt: null,
+            lastUpdate: null
+        };
+
+        console.log(`[SYNC-DEBUG] Status request for account ${accountId}:`, {
+            active: status.active,
+            message: status.message,
+            progress: status.progress,
+            elapsed: status.startedAt ? (new Date() - new Date(status.startedAt)) / 1000 + 's' : 'N/A'
+        });
+
+        res.json(status);
+    });
+
+    // Cancel sync endpoint
+    app.post('/api/sync/cancel', auth.requireAuth, (req, res) => {
+        const accountId = req.session.accountId;
+        const status = activeSyncs.get(accountId);
+
+        if (status && status.active) {
+            console.log(`[SYNC-DEBUG] Cancelling sync for account ${accountId}`);
+            activeSyncs.set(accountId, {
+                active: false,
+                message: 'Sync cancelled by user',
+                progress: 0,
+                startedAt: status.startedAt,
+                lastUpdate: new Date(),
+                cancelled: true
+            });
+            res.json({ success: true, message: 'Sync cancelled' });
+        } else {
+            res.json({ success: false, message: 'No active sync to cancel' });
+        }
+    });
+
     // Account settings page
     app.get('/account', auth.requireAuth, async (req, res) => {
         try {
             const account = await auth.getAccountById(req.session.accountId);
             const stats = await db.getDatabaseStats(req.session.accountId);
-            
+
             res.render('account', { account, stats });
         } catch (error) {
             console.error('Account page error:', error);
@@ -989,7 +1195,9 @@ function setupDataRoutes(app) {
     // Clear all usage data (account-scoped)
     app.delete('/api/usage', auth.requireAuth, async (req, res) => {
         try {
-            await db.deleteAllUsageEvents(req.session.accountId);
+            const resetCursor = req.query.reset === 'true' || req.query.resetCursor === 'true';
+            const cursorHours = Number.parseInt(req.query.cursorHours ?? req.query.backfillHours ?? '0', 10);
+            await db.deleteAllUsageEvents(req.session.accountId, { resetCursor, cursorHours });
             res.json({ success: true, message: 'Usage data cleared successfully' });
         } catch (error) {
             console.error('Clear usage data error:', error);
@@ -1181,8 +1389,7 @@ function setupDataRoutes(app) {
     // Get usage data (account-scoped)
     app.get('/api/usage', auth.requireAuth, async (req, res) => {
         try {
-            const limit = parseInt(req.query.limit) || 1000;
-            await db.syncEntraSignInsIfNeeded(req.session.accountId);
+            const limit = parseInt(req.query.limit, 10) || 1000;
             const usageData = await db.getUsageData(req.session.accountId, limit);
             res.json(usageData);
         } catch (error) {
@@ -1194,64 +1401,187 @@ function setupDataRoutes(app) {
     // Get recent activity (account-scoped) - for dashboard
     app.get('/api/usage/recent', auth.requireAuth, async (req, res) => {
         try {
-            const limit = parseInt(req.query.limit) || 100;
-
+            const accountId = req.session.accountId;
+            const limit = parseInt(req.query.limit, 10) || 100;
+            const awaitSync = req.query.awaitSync === 'true';
+            const forceSync = req.query.force === 'true';
             const forceBackfill = req.query.forceBackfill === 'true';
             const backfillHours = Number.parseInt(req.query.backfillHours, 10) || 24;
-            const syncOptions = forceBackfill
-                ? { force: true, backfillHours, maxPages: 5 }
-                : {};
 
-            const syncStart = Date.now();
-            let timeoutId;
-            const syncPromise = db.syncEntraSignInsIfNeeded(req.session.accountId, syncOptions)
-                .then(result => ({ ...result, error: false }))
-                .catch(error => {
-                    console.warn('Entra sync failed (non-fatal):', error);
-                    const isGraphThrottle = error?.statusCode === 429 || error?.code === 'TooManyRequests';
-                    return {
-                        error: true,
-                        reason: isGraphThrottle ? 'graph-throttled' : (error.reason || 'error'),
-                        message: isGraphThrottle ? 'Microsoft Graph returned 429 (Too Many Requests).' : (error.message || 'Failed to sync Microsoft Entra sign-ins'),
-                        statusCode: error?.statusCode
-                    };
+            const syncOptions = {
+                ...(forceBackfill ? { force: true, backfillHours, maxPages: 5 } : {}),
+                ...(forceSync ? { force: true } : {})
+            };
+
+            const syncMeta = {
+                triggered: false,
+                awaited: awaitSync,
+                forceBackfill,
+                forced: forceSync
+            };
+
+            if (awaitSync) {
+                const syncStart = Date.now();
+                let timeoutId;
+
+                console.log(`[SYNC-DEBUG] Starting sync for account ${accountId}, force=${forceSync}`);
+
+                // Initialize sync status
+                activeSyncs.set(accountId, {
+                    active: true,
+                    message: 'Connecting to Microsoft Graph API...',
+                    progress: 5,
+                    startedAt: new Date(),
+                    lastUpdate: new Date(),
+                    debug: {
+                        accountId,
+                        forceSync,
+                        forceBackfill,
+                        awaitSync,
+                        syncStart: new Date(syncStart).toISOString()
+                    }
                 });
-            const timeoutPromise = new Promise((resolve) => {
-                timeoutId = setTimeout(() => resolve({
-                    error: true,
-                    reason: 'timeout',
-                    message: `Sync exceeded ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`
-                }), REQUEST_TIMEOUT_MS);
+
+                const progressCallback = (progress) => {
+                    console.log(`[SYNC-DEBUG] Progress update for account ${accountId}:`, progress);
+                    activeSyncs.set(accountId, {
+                        active: true,
+                        message: progress.message,
+                        progress: Math.min(90, Math.max(10, (progress.page / 10) * 100)), // Estimate progress based on pages
+                        startedAt: new Date(syncStart),
+                        lastUpdate: new Date(),
+                        details: progress,
+                        debug: {
+                            accountId,
+                            forceSync,
+                            forceBackfill,
+                            awaitSync,
+                            syncStart: new Date(syncStart).toISOString()
+                        }
+                    });
+                };
+
+                const syncOptionsWithProgress = { ...syncOptions, onProgress: progressCallback };
+
+                const syncPromise = db.syncEntraSignInsIfNeeded(accountId, syncOptionsWithProgress)
+                    .then(result => {
+                        console.log(`[SYNC-DEBUG] Sync completed successfully for account ${accountId}:`, result);
+                        activeSyncs.set(accountId, {
+                            active: false,
+                            message: `Sync completed: ${result.count || 0} events synced`,
+                            progress: 100,
+                            startedAt: new Date(syncStart),
+                            lastUpdate: new Date(),
+                            result,
+                            debug: {
+                                accountId,
+                                forceSync,
+                                forceBackfill,
+                                awaitSync,
+                                syncStart: new Date(syncStart).toISOString(),
+                                completedAt: new Date().toISOString(),
+                                duration: Date.now() - syncStart
+                            }
+                        });
+                        return { ...result, error: false };
+                    })
+                    .catch(error => {
+                        console.warn('Entra sync failed (non-fatal):', error);
+                        const isGraphThrottle = error?.statusCode === 429 || error?.code === 'TooManyRequests';
+                        const isTimeout = error?.message?.includes('timeout');
+                        const isPermissionError = error?.statusCode === 403 || error?.code === 'Forbidden';
+
+                        // Use enhanced error message if available, otherwise provide defaults
+                        const errorResult = {
+                            error: true,
+                            reason: isGraphThrottle ? 'graph-throttled' :
+                                   isTimeout ? 'timeout' :
+                                   isPermissionError ? 'permission-denied' :
+                                   (error.reason || 'error'),
+                            message: error.message || (isGraphThrottle ? 'Microsoft Graph returned 429 (Too Many Requests).' : 'Failed to sync Microsoft Entra sign-ins'),
+                            helpText: error.helpText,
+                            statusCode: error?.statusCode,
+                            details: error?.details
+                        };
+
+                        activeSyncs.set(accountId, {
+                            active: false,
+                            message: `Sync failed: ${errorResult.message}`,
+                            progress: 0,
+                            startedAt: new Date(syncStart),
+                            lastUpdate: new Date(),
+                            error: errorResult
+                        });
+
+                        return errorResult;
+                    });
+
+                const timeoutPromise = new Promise((resolve) => {
+                    timeoutId = setTimeout(() => {
+                        activeSyncs.set(accountId, {
+                            active: false,
+                            message: `Sync timed out after ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s. Large datasets may take longer.`,
+                            progress: 0,
+                            startedAt: new Date(syncStart),
+                            lastUpdate: new Date(),
+                            error: { reason: 'timeout', message: `Sync exceeded ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s. Try again or check your internet connection.` }
+                        });
+                        resolve({
+                            error: true,
+                            reason: 'timeout',
+                            message: `Sync exceeded ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s. Try again or check your internet connection.`
+                        });
+                    }, REQUEST_TIMEOUT_MS);
+                });
+
+                try {
+                    const syncOutcome = await Promise.race([syncPromise, timeoutPromise]);
+                    Object.assign(syncMeta, syncOutcome, {
+                        triggered: true,
+                        durationMs: Date.now() - syncStart
+                    });
+                } finally {
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                    }
+                    // Clean up sync status after a delay
+                    setTimeout(() => {
+                        activeSyncs.delete(accountId);
+                    }, 30000); // Keep status for 30 seconds after completion
+                }
+            } else {
+                db.syncEntraSignInsIfNeeded(accountId, syncOptions)
+                    .then(result => {
+                        if (result?.synced) {
+                            console.log('Background Entra sign-in sync completed:', {
+                                accountId,
+                                count: result.count,
+                                lastSync: result.lastSync
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.warn('Background Entra sign-in sync failed:', error?.message || error);
+                    });
+
+                syncMeta.triggered = true;
+                syncMeta.status = 'background';
+            }
+
+            const usageData = await db.getUsageData(accountId, limit);
+            const account = await db.prisma.account.findUnique({
+                where: { id: accountId },
+                select: { entraSignInLastSyncAt: true }
             });
 
-            try {
-                var syncOutcome = await Promise.race([syncPromise, timeoutPromise]);
-            } catch (syncError) {
-                // Log sync error but don't fail the entire request
-                console.warn('Entra sync failed (non-fatal):', syncError?.message || syncError);
-                syncOutcome = {
-                    error: true,
-                    reason: (syncError?.statusCode === 429 ? 'graph-throttled' : (syncError?.reason || 'error')),
-                    message: (syncError?.statusCode === 429 ? 'Microsoft Graph returned 429 (Too Many Requests).' : (syncError?.message || 'Failed to sync Microsoft Entra sign-ins')),
-                    statusCode: syncError?.statusCode
-                };
-            } finally {
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                }
-            }
-            const syncDuration = Date.now() - syncStart;
-            
-            // Returns shape: { adobe: [...], wrapper: [...], entra: [...] }
-            const usageData = await db.getUsageData(req.session.accountId, limit);
-            res.json({ 
-                adobe: usageData.adobe || [], 
+            syncMeta.lastSync = account?.entraSignInLastSyncAt || null;
+
+            res.json({
+                adobe: usageData.adobe || [],
                 wrapper: usageData.wrapper || [],
                 entra: usageData.entra || [],
                 meta: {
-                    sync: syncOutcome,
-                    durationMs: syncDuration,
-                    forceBackfill,
+                    sync: syncMeta,
                     totalEvents: {
                         adobe: usageData.adobe?.length || 0,
                         wrapper: usageData.wrapper?.length || 0,
@@ -1268,50 +1598,13 @@ function setupDataRoutes(app) {
     // Get stats (account-scoped) - for dashboard
     app.get('/api/stats', auth.requireAuth, async (req, res) => {
         try {
-            const forceBackfill = req.query.forceBackfill === 'true';
-            const backfillHours = Number.parseInt(req.query.backfillHours, 10) || 24;
-            const syncOptions = forceBackfill
-                ? { force: true, backfillHours, maxPages: 5 }
-                : {};
-
-            const syncStart = Date.now();
-            let timeoutId;
-            const syncPromise = db.syncEntraSignInsIfNeeded(req.session.accountId, syncOptions)
-                .then(result => ({ ...result, error: false }))
-                .catch(error => {
-                    console.warn('Entra stats sync failed (non-fatal):', error);
-                    return {
-                        error: true,
-                        reason: error.reason || 'error',
-                        message: error.message || 'Failed to sync Microsoft Entra sign-ins'
-                    };
-                });
-            const timeoutPromise = new Promise((resolve) => {
-                timeoutId = setTimeout(() => resolve({
-                    error: true,
-                    reason: 'timeout',
-                    message: `Sync exceeded ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`
-                }), REQUEST_TIMEOUT_MS);
+            const accountId = req.session.accountId;
+            const stats = await db.getDatabaseStats(accountId);
+            const usageData = await db.getUsageData(accountId, 1000);
+            const account = await db.prisma.account.findUnique({
+                where: { id: accountId },
+                select: { entraSignInLastSyncAt: true }
             });
-
-            try {
-                var syncOutcome = await Promise.race([syncPromise, timeoutPromise]);
-            } catch (syncError) {
-                console.warn('Entra sync failed (non-fatal):', syncError?.message || syncError);
-                syncOutcome = {
-                    error: true,
-                    reason: syncError?.reason || 'error',
-                    message: syncError?.message || 'Failed to sync Microsoft Entra sign-ins'
-                };
-            } finally {
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                }
-            }
-            const syncDuration = Date.now() - syncStart;
-            
-            const stats = await db.getDatabaseStats(req.session.accountId);
-            const usageData = await db.getUsageData(req.session.accountId, 1000); // { adobe, wrapper }
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -1322,13 +1615,18 @@ function setupDataRoutes(app) {
             const allWrapper = usageData.wrapper || [];
             const allEntra = usageData.entra || [];
 
-            const adobeToday = allAdobe.filter(e => new Date(e.when || e.receivedAt) >= today).length;
-            const wrapperToday = allWrapper.filter(e => new Date(e.when || e.receivedAt) >= today).length;
-            const entraToday = allEntra.filter(e => new Date(e.when || e.receivedAt) >= today).length;
+            const withinRange = (event, cutoff) => {
+                const value = new Date(event.when || event.receivedAt);
+                return !Number.isNaN(value.getTime()) && value >= cutoff;
+            };
 
-            const adobeWeek = allAdobe.filter(e => new Date(e.when || e.receivedAt) >= weekAgo).length;
-            const wrapperWeek = allWrapper.filter(e => new Date(e.when || e.receivedAt) >= weekAgo).length;
-            const entraWeek = allEntra.filter(e => new Date(e.when || e.receivedAt) >= weekAgo).length;
+            const adobeToday = allAdobe.filter(e => withinRange(e, today)).length;
+            const wrapperToday = allWrapper.filter(e => withinRange(e, today)).length;
+            const entraToday = allEntra.filter(e => withinRange(e, today)).length;
+
+            const adobeWeek = allAdobe.filter(e => withinRange(e, weekAgo)).length;
+            const wrapperWeek = allWrapper.filter(e => withinRange(e, weekAgo)).length;
+            const entraWeek = allEntra.filter(e => withinRange(e, weekAgo)).length;
 
             const uniqueAdobeClients = new Set(allAdobe.map(e => e.clientId || e.tabId)).size;
             const uniqueWrapperClients = new Set(allWrapper.map(e => e.computerName || e.windowsUser)).size;
@@ -1354,9 +1652,11 @@ function setupDataRoutes(app) {
                     uniqueClients: uniqueEntraDevices
                 },
                 meta: {
-                    sync: syncOutcome,
-                    durationMs: syncDuration,
-                    forceBackfill
+                    sync: {
+                        lastSync: account?.entraSignInLastSyncAt || null,
+                        awaited: false,
+                        triggered: false
+                    }
                 }
             });
         } catch (error) {

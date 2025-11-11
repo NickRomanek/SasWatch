@@ -71,8 +71,11 @@
         <div class="container">
             <header>
                 <div class="header-content">
-                    <h1>👥 Users <span class="user-count-badge">(<span id="header-user-count"><%= users ? users.length : 0 %></span>)</span></h1>
-                    <p class="subtitle">User Management</p>
+                    <h1>
+                        <span class="header-icon" aria-hidden="true">👥</span>
+                        <span class="header-title-text">Users</span>
+                        <span class="user-count-badge">(<span id="header-user-count"><%= users ? users.length : 0 %></span>)</span>
+                    </h1>
                 </div>
                 <!-- Action Buttons -->
                 <div class="action-buttons-container">

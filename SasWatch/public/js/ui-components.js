@@ -565,3 +565,10 @@ if (!document.getElementById('ui-components-styles')) {
     `;
     document.head.appendChild(style);
 }
+
+// Expose helpers globally for legacy inline handlers
+window.Toast = Toast;
+window.ConfirmModal = ConfirmModal;
+window.addButtonSpinner = addButtonSpinner;
+window.removeButtonSpinner = removeButtonSpinner;
+window.copyToClipboard = copyToClipboard;

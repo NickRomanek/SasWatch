@@ -604,6 +604,7 @@ async function getUsageData(accountId, limit = 1000) {
             adobe: adobeEvents.map(e => ({
                 event: e.event,
                 url: e.url,
+                source: 'adobe',
                 tabId: e.tabId,
                 clientId: e.clientId,
                 why: e.why,
@@ -616,6 +617,7 @@ async function getUsageData(accountId, limit = 1000) {
             wrapper: wrapperEvents.map(e => ({
                 event: e.event,
                 url: e.url,
+                source: 'wrapper',
                 tabId: e.tabId,
                 clientId: e.clientId,
                 why: e.why,
@@ -661,7 +663,9 @@ async function addUsageEvent(accountId, eventData, source) {
     }
 }
 
-async function deleteAllUsageEvents(accountId) {
+async function deleteAllUsageEvents(accountId, options = {}) {
+    const { resetCursor = false, cursorHours } = options;
+
     await prisma.usageEvent.deleteMany({
         where: { accountId }
     });
@@ -669,13 +673,22 @@ async function deleteAllUsageEvents(accountId) {
         where: { accountId }
     });
     
-    // Reset Entra sync cursor so next sync pulls fresh data
+    const hours = Number.isFinite(cursorHours) && cursorHours > 0 ? cursorHours : 24;
+    const cursorDate = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+    const accountUpdate = resetCursor
+        ? {
+            entraSignInCursor: cursorDate.toISOString(),
+            entraSignInLastSyncAt: new Date(Date.now() - ENTRA_SIGNIN_SYNC_INTERVAL_MS - 60 * 60 * 1000) // Set to 7+ hours ago to allow immediate sync
+        }
+        : {
+            // Allow the next sync attempt to run soon without forcing a full backfill
+            entraSignInLastSyncAt: new Date(Date.now() - ENTRA_SIGNIN_SYNC_INTERVAL_MS - 1000)
+        };
+
     await prisma.account.update({
         where: { id: accountId },
-        data: {
-            entraSignInCursor: null,
-            entraSignInLastSyncAt: null
-        }
+        data: accountUpdate
     });
 }
 
@@ -1459,7 +1472,8 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
     const { events, latestTimestamp } = await fetchEntraSignIns(account.entraTenantId, {
         since: sinceDate.toISOString(),
         maxPages: options.maxPages,
-        top: options.top
+        top: options.top,
+        onProgress: options.onProgress || (() => {})
     });
 
     const records = Array.isArray(events)

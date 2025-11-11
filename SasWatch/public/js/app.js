@@ -3,6 +3,38 @@ let currentSourceFilter = 'all';
 let cachedActivityData = null;
 
 const REFRESH_TIMEOUT_MS = 60000;
+let syncStatusPoller = null;
+
+const notifier = {
+    info(message, duration) {
+        if (window.Toast?.info) {
+            return window.Toast.info(message, duration);
+        }
+        console.info('[info]', message);
+        return null;
+    },
+    success(message, duration) {
+        if (window.Toast?.success) {
+            return window.Toast.success(message, duration);
+        }
+        console.info('[success]', message);
+        return null;
+    },
+    warning(message, duration) {
+        if (window.Toast?.warning) {
+            return window.Toast.warning(message, duration);
+        }
+        console.warn('[warning]', message);
+        return null;
+    },
+    error(message, duration) {
+        if (window.Toast?.error) {
+            return window.Toast.error(message, duration);
+        }
+        console.error('[error]', message);
+        return null;
+    }
+};
 
 // Theme management
 function initTheme() {
@@ -30,7 +62,7 @@ function updateThemeIcon(theme) {
 // Load data on page load
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
-    refreshData({ silent: true });
+    refreshData({ silent: true, awaitSync: false });
 });
 
 async function fetchJson(url, { timeout = REFRESH_TIMEOUT_MS, ...options } = {}) {
@@ -99,24 +131,152 @@ function collectSyncWarnings(...syncResults) {
     return [...new Set(messages)];
 }
 
+function startSyncStatusPolling() {
+    if (syncStatusPoller) {
+        clearInterval(syncStatusPoller);
+    }
+
+    // Show cancel button
+    const cancelBtn = document.getElementById('cancel-sync-btn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-block';
+
+    console.log('[SYNC-DEBUG] Starting status polling');
+    let pollCount = 0;
+
+    syncStatusPoller = setInterval(async () => {
+        try {
+            pollCount++;
+            console.log(`[SYNC-DEBUG] Poll #${pollCount} - requesting status`);
+            const status = await fetchJson('/api/sync/status');
+
+            console.log(`[SYNC-DEBUG] Poll #${pollCount} - received status:`, {
+                active: status.active,
+                message: status.message,
+                progress: status.progress
+            });
+
+            if (status.active) {
+                updateSyncProgress(status);
+            } else if (status.message && status.lastUpdate) {
+                // Clear the poller after receiving final status
+                console.log(`[SYNC-DEBUG] Poll #${pollCount} - sync completed, stopping polling`);
+                clearInterval(syncStatusPoller);
+                syncStatusPoller = null;
+
+                // Hide cancel button
+                if (cancelBtn) cancelBtn.style.display = 'none';
+
+                if (status.result && status.result.count > 0) {
+                    notifier.success(status.message);
+                } else if (status.error) {
+                    const errorToast = notifier.error(status.message);
+                    // Show help text if available
+                    if (status.error.helpText) {
+                        setTimeout(() => {
+                            notifier.info(status.error.helpText, 8000);
+                        }, 3000);
+                    }
+                } else {
+                    notifier.info(status.message);
+                }
+            } else {
+                console.log(`[SYNC-DEBUG] Poll #${pollCount} - no status change`);
+            }
+        } catch (error) {
+            console.warn(`[SYNC-DEBUG] Poll #${pollCount} - polling error:`, error);
+            // Silently handle polling errors
+        }
+
+        // Safety timeout - stop polling after 5 minutes
+        if (pollCount > 150) { // 150 * 2 seconds = 5 minutes
+            console.log('[SYNC-DEBUG] Safety timeout reached, stopping polling');
+            clearInterval(syncStatusPoller);
+            syncStatusPoller = null;
+            // Hide cancel button
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            notifier.warning('Sync monitoring timed out - refresh the page to check status');
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+function stopSyncStatusPolling() {
+    if (syncStatusPoller) {
+        clearInterval(syncStatusPoller);
+        syncStatusPoller = null;
+    }
+
+    // Hide cancel button
+    const cancelBtn = document.getElementById('cancel-sync-btn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+async function cancelSync() {
+    try {
+        console.log('[SYNC-DEBUG] Attempting to cancel sync');
+        const response = await fetch('/api/sync/cancel', { method: 'POST' });
+        const result = await response.json();
+
+        if (result.success) {
+            notifier.info('Sync cancelled');
+            stopSyncStatusPolling();
+            // Clear any active sync toast
+            const activeToast = document.querySelector('.sync-progress-toast');
+            if (activeToast) activeToast.remove();
+        } else {
+            notifier.warning(result.message);
+        }
+    } catch (error) {
+        console.error('Cancel sync error:', error);
+        notifier.error('Failed to cancel sync');
+    }
+}
+
+function updateSyncProgress(status) {
+    const existingToast = document.querySelector('.sync-progress-toast');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    const toast = notifier.info(`${status.message} (${status.progress}%)`, 0);
+    if (toast && toast.classList) {
+        toast.classList.add('sync-progress-toast');
+    }
+}
+
 async function refreshData(options = {}) {
-    const { silent = false, allowBackfill = true } = options;
+    const { silent = false, allowBackfill = true, awaitSync = false, force = false } = options;
+    console.log('[SYNC-DEBUG] refreshData called with options:', options);
+    
     const activityContainer = document.getElementById('recent-activity');
     if (activityContainer) {
         activityContainer.innerHTML = '<div class="loading">Loading...</div>';
     }
 
     const startTime = performance.now();
-    if (!silent) {
-        Toast.info('Microsoft Graph sync may take up to 60 seconds. Please wait…', 6000);
+    if (!silent && awaitSync) {
+        console.log('[SYNC-DEBUG] Starting sync with await');
+        notifier.info('Microsoft Graph sync may take up to 3 minutes. Please wait…', 10000);
+        startSyncStatusPolling();
     }
-    const loaderToast = silent ? null : Toast.info('Refreshing activity… this may take up to 60 seconds.', 0);
+    const loaderToast = silent || !awaitSync ? null : notifier.info('Refreshing activity… this may take up to 3 minutes.', 0);
 
     try {
+        const params = new URLSearchParams({ limit: '100' });
+        if (awaitSync) params.set('awaitSync', 'true');
+        if (force) params.set('force', 'true');
+
+        const usageUrl = `/api/usage/recent?${params.toString()}`;
+        console.log('[SYNC-DEBUG] Fetching from:', usageUrl);
+        
         const [statsPayload, usagePayload] = await Promise.all([
             fetchJson('/api/stats'),
-            fetchJson('/api/usage/recent?limit=100')
+            fetchJson(usageUrl)
         ]);
+        
+        console.log('[SYNC-DEBUG] Received payloads:', {
+            stats: statsPayload,
+            usage: usagePayload
+        });
 
         let usageData = normalizeUsagePayload(usagePayload);
         let statsMeta = statsPayload?.meta || null;
@@ -131,19 +291,29 @@ async function refreshData(options = {}) {
         const looksIncomplete = totals.all === 0 || totals.entra === 0; // handle cases where only 1 local event exists
 
         if ((looksIncomplete || initialSyncProblem) && allowBackfill) {
-            const backfillToast = silent ? null : Toast.info('No recent events found — fetching last 24 hours…', 0);
+            const backfillToast = silent ? null : notifier.info('No recent events found — fetching last 24 hours…', 0);
             try {
-                usageData = normalizeUsagePayload(await fetchJson('/api/usage/recent?limit=100&forceBackfill=true&backfillHours=24'));
+                const backfillParams = new URLSearchParams({
+                    limit: '100',
+                    forceBackfill: 'true',
+                    backfillHours: '24',
+                    awaitSync: 'true'
+                });
+                if (force) backfillParams.set('force', 'true');
+
+                usageData = normalizeUsagePayload(
+                    await fetchJson(`/api/usage/recent?${backfillParams.toString()}`)
+                );
                 totals = calculateEventTotals(usageData);
                 finalMeta = usageData.meta || {};
                 updateActivityLists(usageData);
-                const forcedStats = await fetchJson('/api/stats?forceBackfill=true&backfillHours=24');
+                const forcedStats = await fetchJson('/api/stats');
                 updateStats(forcedStats || {}, usageData);
                 statsMeta = forcedStats?.meta || statsMeta;
                 usedBackfill = true;
 
                 if (!silent && totals.all === 0) {
-                    Toast.warning('No activity detected in the last 24 hours.');
+                    notifier.warning('No activity detected in the last 24 hours.');
                 }
             } finally {
                 if (backfillToast?.remove) {
@@ -158,21 +328,37 @@ async function refreshData(options = {}) {
         const warnings = collectSyncWarnings(finalMeta.sync, statsMeta?.sync);
 
         if (!silent) {
-            warnings.forEach(message => Toast.warning(message));
+            warnings.forEach(message => notifier.warning(message));
 
             if (totals.all > 0) {
                 const message = usedBackfill
                     ? `Activity backfilled (${totals.all} events) in ${durationSeconds}s.`
                     : `Activity updated (${totals.all} events) in ${durationSeconds}s.`;
-                Toast.success(message);
+                notifier.success(message);
             } else {
-                Toast.info('No activity found for the requested timeframe.');
+                const message = finalMeta.sync?.triggered
+                    ? 'Sync completed - no new activity found in the last 24 hours.'
+                    : 'No activity found for the requested timeframe.';
+                notifier.info(message);
+            }
+
+            // Show help text for sync errors if available
+            if (finalMeta.sync?.error && finalMeta.sync?.helpText) {
+                setTimeout(() => {
+                    notifier.info(finalMeta.sync.helpText, 8000);
+                }, 3000);
             }
         }
     } catch (error) {
         console.error('Error fetching data:', error);
         if (!silent) {
-            Toast.error(error.message || 'Failed to load data');
+            notifier.error(error.message || 'Failed to load data');
+            // Show help text if available
+            if (error.helpText) {
+                setTimeout(() => {
+                    notifier.info(error.helpText, 8000);
+                }, 3000);
+            }
         }
     } finally {
         if (loaderToast?.remove) {
@@ -180,6 +366,7 @@ async function refreshData(options = {}) {
         } else if (loaderToast && loaderToast.parentElement) {
             loaderToast.parentElement.removeChild(loaderToast);
         }
+        stopSyncStatusPolling();
     }
 }
 
@@ -480,13 +667,15 @@ function getSourceMeta(item = {}) {
 }
 
 async function clearData(event) {
-    const confirmed = await ConfirmModal.show({
-        title: 'Clear All Activity Data?',
-        message: 'This will permanently delete all tracked usage events. This action cannot be undone.',
-        confirmText: 'Clear All Data',
-        cancelText: 'Cancel',
-        type: 'danger'
-    });
+    const confirmed = await (window.ConfirmModal?.show
+        ? window.ConfirmModal.show({
+            title: 'Clear All Activity Data?',
+            message: 'This will permanently delete all tracked usage events. This action cannot be undone.',
+            confirmText: 'Clear All Data',
+            cancelText: 'Cancel',
+            type: 'danger'
+        })
+        : Promise.resolve(window.confirm('Clear all activity data?')));
 
     if (!confirmed) return;
 
@@ -495,19 +684,22 @@ async function clearData(event) {
     addButtonSpinner(button, originalText);
 
     try {
-        const response = await fetch('/api/usage', {
+        const response = await fetch('/api/usage?resetCursor=true&cursorHours=24', {
             method: 'DELETE'
         });
 
         if (response.ok) {
-            Toast.success('All activity data cleared successfully');
-            refreshData();
+            notifier.success('All activity data cleared successfully');
+            // Stop any existing polling first
+            stopSyncStatusPolling();
+            // Start fresh sync with force
+            await refreshData({ awaitSync: true, force: true, allowBackfill: false });
         } else {
             throw new Error('Failed to clear data');
         }
     } catch (error) {
         console.error('Error clearing data:', error);
-        Toast.error('Failed to clear data: ' + error.message);
+        notifier.error('Failed to clear data: ' + error.message);
     } finally {
         removeButtonSpinner(button);
     }
@@ -515,11 +707,44 @@ async function clearData(event) {
 
 function showError(message) {
     console.error(message);
-    Toast.error(message);
+    notifier.error(message);
 }
 
 // Expose functions globally for inline onclick handlers
+async function startManualSync() {
+    console.log('[SYNC-DEBUG] startManualSync called');
+    
+    const button = document.querySelector('.dashboard-controls .btn.btn-primary') || document.querySelector('.btn.btn-primary');
+    const original = button ? button.innerHTML : null;
+    console.log('[SYNC-DEBUG] Button found:', !!button);
+
+    if (button) {
+        addButtonSpinner(button, original || '🔄 Sync');
+    }
+
+    // Start polling immediately for better UX
+    console.log('[SYNC-DEBUG] Starting status polling');
+    startSyncStatusPolling();
+
+    try {
+        console.log('[SYNC-DEBUG] Calling refreshData with awaitSync=true, force=true');
+        await refreshData({ awaitSync: true, force: true });
+        console.log('[SYNC-DEBUG] refreshData completed successfully');
+    } catch (error) {
+        console.error('[SYNC-DEBUG] Manual sync error:', error);
+        notifier.error(error?.message || 'Manual sync failed');
+        stopSyncStatusPolling();
+    } finally {
+        if (button) {
+            removeButtonSpinner(button);
+        }
+        console.log('[SYNC-DEBUG] startManualSync completed');
+    }
+}
+
 window.refreshData = refreshData;
 window.filterBySource = filterBySource;
 window.clearData = clearData;
 window.toggleTheme = toggleTheme;
+window.startManualSync = startManualSync;
+window.cancelSync = cancelSync;

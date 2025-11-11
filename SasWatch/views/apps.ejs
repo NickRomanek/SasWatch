@@ -71,31 +71,39 @@
         <div class="container">
             <header>
                 <div class="header-content">
-                    <h1>📦 Applications</h1>
-                    <p class="subtitle">Automatically detected from activity data</p>
+                    <h1>
+                        <span class="header-icon" aria-hidden="true">📦</span>
+                        <span class="header-title-text">Applications</span>
+                    </h1>
                 </div>
             </header>
 
             <!-- Stats Cards -->
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-icon">📦</div>
                     <div class="stat-content">
-                        <div class="stat-value" id="total-apps"><%= stats.totalApps || 0 %></div>
+                        <div class="stat-value">
+                            <span id="total-apps"><%= stats.totalApps || 0 %></span>
+                            <span class="stat-icon">📦</span>
+                        </div>
                         <div class="stat-label">Total Applications</div>
                     </div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">🪑</div>
                     <div class="stat-content">
-                        <div class="stat-value" id="total-unused"><%= stats.totalUnused || 0 %></div>
+                        <div class="stat-value">
+                            <span id="total-unused"><%= stats.totalUnused || 0 %></span>
+                            <span class="stat-icon">🪑</span>
+                        </div>
                         <div class="stat-label">Unused Licenses</div>
                     </div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">🎫</div>
                     <div class="stat-content">
-                        <div class="stat-value" id="total-licenses"><%= stats.totalLicenses || 0 %></div>
+                        <div class="stat-value">
+                            <span id="total-licenses"><%= stats.totalLicenses || 0 %></span>
+                            <span class="stat-icon">🎫</span>
+                        </div>
                         <div class="stat-label">Total Licenses</div>
                     </div>
                 </div>

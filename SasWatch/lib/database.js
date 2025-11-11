@@ -257,8 +257,27 @@ async function addUsageEvent(eventData, source) {
     }
 }
 
-async function deleteAllUsageEvents() {
+async function deleteAllUsageEvents(options = {}) {
+    const { resetCursor = false, cursorHours } = options;
+
     await prisma.usageEvent.deleteMany({});
+    await prisma.entraSignIn.deleteMany({});
+
+    const hours = Number.isFinite(cursorHours) && cursorHours > 0 ? cursorHours : 24;
+    const cursorDate = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+    const accountUpdate = resetCursor
+        ? {
+            entraSignInCursor: cursorDate.toISOString(),
+            entraSignInLastSyncAt: new Date(Date.now() - 7 * 60 * 60 * 1000) // Set to 7 hours ago to allow immediate sync
+        }
+        : {};
+
+    if (Object.keys(accountUpdate).length > 0) {
+        await prisma.account.updateMany({
+            data: accountUpdate
+        });
+    }
 }
 
 async function updateUserActivityByUsername(windowsUser) {

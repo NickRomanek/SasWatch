@@ -71,7 +71,10 @@
         <div class="container">
             <header>
                 <div class="header-content">
-                    <h1>🛠️ Dev Diagnostics</h1>
+                    <h1>
+                        <span class="header-icon" aria-hidden="true">🛠️</span>
+                        <span class="header-title-text">Dev Diagnostics</span>
+                    </h1>
                     <p class="subtitle">Quick Graph API checks and raw payload previews</p>
                 </div>
             </header>
@@ -109,6 +112,15 @@
                         </label>
                         <button class="btn btn-primary" id="dev-fetch-btn" onclick="runDevFetch(event)">
                             🔄 Sync
+                        </button>
+                        <button class="btn btn-secondary" onclick="populateTestData()">
+                            🧪 Add Test Data
+                        </button>
+                        <button class="btn btn-warning" onclick="simulateStuckSync()">
+                            🐛 Stuck Sync Test
+                        </button>
+                        <button class="btn btn-danger" onclick="clearAllData()">
+                            🗑️ Clear All Data
                         </button>
                     </div>
 
@@ -349,6 +361,118 @@
                 if (metaBlock) {
                     metaBlock.innerHTML = `<p class="text-error">${escapeHtml(error.message)}</p>`;
                 }
+            } finally {
+                if (button && previousLabel !== null) {
+                    button.disabled = false;
+                    button.innerHTML = previousLabel;
+                }
+            }
+        }
+
+        async function simulateStuckSync() {
+            const button = event?.currentTarget || document.querySelector('button[onclick*="simulateStuckSync"]');
+            const previousLabel = button ? button.innerHTML : null;
+
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '⏳ Simulating…';
+            }
+
+            try {
+                const response = await fetch('/api/test/stuck-sync', { method: 'POST' });
+                const result = await response.json();
+
+                if (result.success) {
+                    Toast.success(result.message);
+                } else {
+                    Toast.error(result.error || 'Failed to simulate stuck sync');
+                }
+            } catch (error) {
+                console.error('Stuck sync test error:', error);
+                Toast.error('Failed to simulate stuck sync: ' + error.message);
+            } finally {
+                if (button && previousLabel !== null) {
+                    button.disabled = false;
+                    button.innerHTML = previousLabel;
+                }
+            }
+        }
+
+        async function populateTestData() {
+            const button = event?.currentTarget || document.querySelector('button[onclick*="populateTestData"]');
+            const previousLabel = button ? button.innerHTML : null;
+
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '⏳ Adding…';
+            }
+
+            try {
+                console.log('[TEST] Sending request to /api/test/populate-data (auth temporarily disabled for testing)');
+                const response = await fetch('/api/test/populate-data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hoursBack: 2, eventCount: 15 })
+                });
+
+                console.log('[TEST] Response status:', response.status);
+                console.log('[TEST] Response headers:', Object.fromEntries(response.headers.entries()));
+
+                if (!response.ok) {
+                    const textResponse = await response.text();
+                    console.error('[TEST] Error response:', textResponse.substring(0, 500));
+                    throw new Error(`HTTP ${response.status}: ${textResponse.substring(0, 100)}`);
+                }
+
+                const result = await response.json();
+                console.log('[TEST] Success response:', result);
+
+                if (result.success) {
+                    Toast.success(result.message);
+                    // Refresh the page data to show the new test data
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    Toast.error(result.error || 'Failed to add test data');
+                }
+            } catch (error) {
+                console.error('Test data error:', error);
+                Toast.error('Failed to add test data: ' + error.message);
+            } finally {
+                if (button && previousLabel !== null) {
+                    button.disabled = false;
+                    button.innerHTML = previousLabel;
+                }
+            }
+        }
+
+        async function clearAllData() {
+            if (!confirm('This will permanently delete ALL activity data and reset sync cursors. Continue?')) {
+                return;
+            }
+
+            const button = event?.currentTarget || document.querySelector('button[onclick*="clearAllData"]');
+            const previousLabel = button ? button.innerHTML : null;
+
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '⏳ Clearing…';
+            }
+
+            try {
+                const response = await fetch('/api/usage?resetCursor=true&cursorHours=24', {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    Toast.success('All data cleared and cursor reset');
+                    // Refresh the page to show empty state
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    Toast.error('Failed to clear data');
+                }
+            } catch (error) {
+                console.error('Clear data error:', error);
+                Toast.error('Failed to clear data: ' + error.message);
             } finally {
                 if (button && previousLabel !== null) {
                     button.disabled = false;

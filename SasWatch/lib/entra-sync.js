@@ -173,6 +173,10 @@ async function fetchEntraSignIns(tenantId, options = {}) {
     const maxPages = Number.isFinite(options.maxPages) ? options.maxPages : 10;
     const pageSize = Number.isFinite(options.top) ? Math.max(1, Math.min(1000, options.top)) : 100;
     const since = options.since ? new Date(options.since) : null;
+    const onProgress = options.onProgress || (() => {}); // Progress callback
+
+    // Set a reasonable timeout for individual Graph API calls (2 minutes per page)
+    const REQUEST_TIMEOUT_MS = 120000;
 
     let request = client
         .api('/auditLogs/signIns')
@@ -204,11 +208,26 @@ async function fetchEntraSignIns(tenantId, options = {}) {
     let page = 0;
     let latestTimestamp = since ? since.getTime() : 0;
     let shouldContinue = true;
+    const startTime = Date.now();
 
     try {
         while (shouldContinue && request) {
-            response = await request.get();
             page += 1;
+
+            // Create a timeout promise for this request
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error(`Microsoft Graph API request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. This may happen with large datasets or slow connections.`)), REQUEST_TIMEOUT_MS);
+            });
+
+            // Race the Graph API request against the timeout
+            response = await Promise.race([request.get(), timeoutPromise]);
+
+            onProgress({
+                page,
+                eventsFetched: events.length,
+                elapsedMs: Date.now() - startTime,
+                message: `Fetched page ${page} (${events.length} events so far)`
+            });
 
             if (Array.isArray(response?.value)) {
                 response.value.forEach((event) => {
@@ -216,12 +235,12 @@ async function fetchEntraSignIns(tenantId, options = {}) {
                         return;
                     }
                     const createdTime = new Date(event.createdDateTime).getTime();
-                    
+
                     // Only include events newer than 'since' if specified, but don't stop processing
                     if (since && createdTime < since.getTime()) {
                         return; // Skip this event but continue processing others
                     }
-                    
+
                     events.push(event);
                     if (createdTime > latestTimestamp) {
                         latestTimestamp = createdTime;
@@ -241,21 +260,69 @@ async function fetchEntraSignIns(tenantId, options = {}) {
             message: error.message,
             statusCode: error.statusCode,
             code: error.code,
-            body: error.body
+            body: error.body,
+            pagesProcessed: page,
+            eventsFetched: events.length
         });
-        // Check for permission errors
+
+        // Provide user-friendly error messages
+        let userMessage = error.message || 'Failed to sync Microsoft Entra sign-ins';
+        let helpText = '';
+
         if (error.statusCode === 403 || error.code === 'Forbidden') {
-            console.error('⚠️  PERMISSION ERROR: AuditLog.Read.All requires admin consent!');
-            console.error('   Go to Azure Portal → App Registrations → Your App → API Permissions');
-            console.error('   Click "Grant admin consent for [Your Organization]"');
+            userMessage = 'Permission denied: AuditLog.Read.All requires admin consent';
+            helpText = 'Go to Azure Portal → App Registrations → Your App → API Permissions → Grant admin consent for your organization';
+        } else if (error.statusCode === 429 || error.code === 'TooManyRequests') {
+            userMessage = 'Microsoft Graph API rate limit exceeded';
+            helpText = 'Please wait a few minutes and try again. Microsoft limits API requests per app.';
+        } else if (error.statusCode === 401 || error.code === 'Unauthorized') {
+            userMessage = 'Authentication failed with Microsoft Graph';
+            helpText = 'Please reconnect your Microsoft Entra integration in Account Settings.';
+        } else if (error.statusCode >= 500) {
+            userMessage = 'Microsoft Graph API server error';
+            helpText = 'This is a temporary issue with Microsoft\'s servers. Please try again later.';
+        } else if (error.message?.includes('timeout')) {
+            userMessage = 'Microsoft Graph API request timed out';
+            helpText = 'Large datasets or slow connections can cause timeouts. Try again, or consider syncing during off-peak hours.';
+        } else if (error.message?.includes('ENOTFOUND') || error.message?.includes('ECONNREFUSED')) {
+            userMessage = 'Unable to connect to Microsoft Graph API';
+            helpText = 'Please check your internet connection and try again.';
         }
-        throw error; // Re-throw to surface the error
+
+        console.error('❌ Failed to fetch Entra sign-ins:', {
+            message: error.message,
+            statusCode: error.statusCode,
+            code: error.code,
+            userMessage,
+            helpText,
+            pagesProcessed: page,
+            eventsFetched: events.length
+        });
+
+        // Enhance error with user-friendly information
+        const enhancedError = new Error(userMessage);
+        enhancedError.statusCode = error.statusCode;
+        enhancedError.code = error.code;
+        enhancedError.helpText = helpText;
+        enhancedError.details = {
+            pagesProcessed: page,
+            eventsFetched: events.length,
+            totalElapsedMs: Date.now() - startTime,
+            originalMessage: error.message
+        };
+
+        throw enhancedError; // Re-throw to surface the error
     }
+
+    const totalElapsed = Date.now() - startTime;
+    console.log(`✅ Successfully fetched ${events.length} Entra sign-ins in ${totalElapsed}ms (${page} pages)`);
 
     return {
         events,
         latestTimestamp: latestTimestamp ? new Date(latestTimestamp) : since || null,
-        totalCount: events.length
+        totalCount: events.length,
+        pagesProcessed: page,
+        totalElapsedMs: totalElapsed
     };
 }
 

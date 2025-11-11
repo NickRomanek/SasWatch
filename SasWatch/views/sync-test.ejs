@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Test Page</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .test-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
+        .test-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .test-button {
+            margin: 0.5rem;
+        }
+        .log-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .log-entry {
+            margin: 0.25rem 0;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #333;
+        }
+        .log-success { color: #4ade80; }
+        .log-error { color: #f87171; }
+        .log-warning { color: #fbbf24; }
+        .log-info { color: #60a5fa; }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        .status-idle { background: #6b7280; }
+        .status-running { background: #3b82f6; animation: pulse 1s infinite; }
+        .status-success { background: #10b981; }
+        .status-error { background: #ef4444; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Sync Functionality Test Page</h1>
+        
+        <div class="test-section">
+            <h2>Status: <span class="status-indicator status-idle" id="status-indicator"></span><span id="status-text">Idle</span></h2>
+            <p>This page tests the complete sync flow step-by-step.</p>
+        </div>
+
+        <div class="test-section">
+            <h3>Step 1: Test Data Setup</h3>
+            <button class="btn btn-secondary test-button" onclick="testPopulateData()">🧪 Add Test Data</button>
+            <button class="btn btn-danger test-button" onclick="testClearData()">🗑️ Clear All Data</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Step 2: Test Sync Functions</h3>
+            <button class="btn btn-primary test-button" onclick="testManualSync()">🔄 Test Manual Sync</button>
+            <button class="btn btn-secondary test-button" onclick="testRefreshData()">📊 Test Refresh Data</button>
+            <button class="btn btn-secondary test-button" onclick="testApiEndpoint()">🔌 Test API Endpoint</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Step 3: Test Status Polling</h3>
+            <button class="btn btn-secondary test-button" onclick="testStatusPolling()">📡 Test Status Polling</button>
+            <button class="btn btn-warning test-button" onclick="testStuckSync()">🐛 Simulate Stuck Sync</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Console Output</h3>
+            <button class="btn btn-secondary test-button" onclick="clearLog()">🧹 Clear Log</button>
+            <button class="btn btn-secondary test-button" onclick="exportLog()">💾 Export Log</button>
+            <div class="log-output" id="log-output"></div>
+        </div>
+    </div>
+
+    <script src="/js/ui-components.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        const logOutput = document.getElementById('log-output');
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        let logEntries = [];
+
+        function setStatus(status, text) {
+            statusIndicator.className = `status-indicator status-${status}`;
+            statusText.textContent = text;
+        }
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            const entry = `[${timestamp}] ${message}`;
+            logEntries.push({ timestamp, message, type });
+            
+            const logDiv = document.createElement('div');
+            logDiv.className = `log-entry log-${type}`;
+            logDiv.textContent = entry;
+            logOutput.appendChild(logDiv);
+            logOutput.scrollTop = logOutput.scrollHeight;
+            
+            console.log(`[TEST-PAGE] ${entry}`);
+        }
+
+        function clearLog() {
+            logOutput.innerHTML = '';
+            logEntries = [];
+            log('Log cleared', 'info');
+        }
+
+        function exportLog() {
+            const logText = logEntries.map(e => `[${e.timestamp}] [${e.type.toUpperCase()}] ${e.message}`).join('\n');
+            const blob = new Blob([logText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sync-test-log-${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            log('Log exported', 'success');
+        }
+
+        async function testPopulateData() {
+            log('Testing: Populate test data', 'info');
+            setStatus('running', 'Populating data...');
+            try {
+                const response = await fetch('/api/test/populate-data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hoursBack: 2, eventCount: 15 })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                const result = await response.json();
+                log(`✓ Test data created: ${result.message}`, 'success');
+                setStatus('success', 'Data populated');
+            } catch (error) {
+                log(`✗ Failed to populate data: ${error.message}`, 'error');
+                setStatus('error', 'Population failed');
+            }
+        }
+
+        async function testClearData() {
+            log('Testing: Clear all data', 'info');
+            setStatus('running', 'Clearing data...');
+            try {
+                const response = await fetch('/api/usage?resetCursor=true&cursorHours=24', {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                log('✓ All data cleared and cursor reset', 'success');
+                setStatus('success', 'Data cleared');
+            } catch (error) {
+                log(`✗ Failed to clear data: ${error.message}`, 'error');
+                setStatus('error', 'Clear failed');
+            }
+        }
+
+        async function testManualSync() {
+            log('Testing: Manual sync (startManualSync)', 'info');
+            setStatus('running', 'Running manual sync...');
+            try {
+                log('Calling startManualSync()...', 'info');
+                await window.startManualSync();
+                log('✓ Manual sync completed', 'success');
+                setStatus('success', 'Sync completed');
+            } catch (error) {
+                log(`✗ Manual sync failed: ${error.message}`, 'error');
+                setStatus('error', 'Sync failed');
+            }
+        }
+
+        async function testRefreshData() {
+            log('Testing: Refresh data (refreshData)', 'info');
+            setStatus('running', 'Refreshing data...');
+            try {
+                log('Calling refreshData({ awaitSync: true, force: true })...', 'info');
+                await window.refreshData({ awaitSync: true, force: true });
+                log('✓ Refresh data completed', 'success');
+                setStatus('success', 'Refresh completed');
+            } catch (error) {
+                log(`✗ Refresh data failed: ${error.message}`, 'error');
+                setStatus('error', 'Refresh failed');
+            }
+        }
+
+        async function testApiEndpoint() {
+            log('Testing: Direct API endpoint call', 'info');
+            setStatus('running', 'Testing API...');
+            try {
+                const url = '/api/usage/recent?awaitSync=true&force=true&limit=100';
+                log(`Fetching: ${url}`, 'info');
+                
+                const response = await fetch(url);
+                log(`Response status: ${response.status}`, 'info');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                log(`✓ API response received:`, 'success');
+                log(`  - Adobe events: ${data.adobe?.length || 0}`, 'info');
+                log(`  - Wrapper events: ${data.wrapper?.length || 0}`, 'info');
+                log(`  - Entra events: ${data.entra?.length || 0}`, 'info');
+                log(`  - Sync meta: ${JSON.stringify(data.meta?.sync || {})}`, 'info');
+                setStatus('success', 'API test passed');
+            } catch (error) {
+                log(`✗ API test failed: ${error.message}`, 'error');
+                setStatus('error', 'API test failed');
+            }
+        }
+
+        async function testStatusPolling() {
+            log('Testing: Status polling', 'info');
+            setStatus('running', 'Polling status...');
+            try {
+                for (let i = 0; i < 5; i++) {
+                    const response = await fetch('/api/sync/status');
+                    const status = await response.json();
+                    log(`Poll #${i + 1}: active=${status.active}, message="${status.message}"`, 'info');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                log('✓ Status polling test completed', 'success');
+                setStatus('success', 'Polling test passed');
+            } catch (error) {
+                log(`✗ Status polling failed: ${error.message}`, 'error');
+                setStatus('error', 'Polling failed');
+            }
+        }
+
+        async function testStuckSync() {
+            log('Testing: Stuck sync simulation', 'info');
+            setStatus('running', 'Simulating stuck sync...');
+            try {
+                const response = await fetch('/api/test/stuck-sync', { method: 'POST' });
+                const result = await response.json();
+                log(`✓ Stuck sync simulated: ${result.message}`, 'success');
+                log('Check main dashboard for cancel button', 'warning');
+                setStatus('success', 'Stuck sync active');
+            } catch (error) {
+                log(`✗ Stuck sync test failed: ${error.message}`, 'error');
+                setStatus('error', 'Test failed');
+            }
+        }
+
+        // Intercept console logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        console.log = function(...args) {
+            if (args[0] && args[0].includes('[SYNC-DEBUG]')) {
+                log(args.join(' '), 'info');
+            }
+            originalLog.apply(console, args);
+        };
+
+        console.error = function(...args) {
+            if (args[0] && args[0].includes('[SYNC-DEBUG]')) {
+                log(args.join(' '), 'error');
+            }
+            originalError.apply(console, args);
+        };
+
+        console.warn = function(...args) {
+            if (args[0] && args[0].includes('[SYNC-DEBUG]')) {
+                log(args.join(' '), 'warning');
+            }
+            originalWarn.apply(console, args);
+        };
+
+        log('Sync test page loaded', 'success');
+        log('Click buttons above to test each step', 'info');
+    </script>
+</body>
+</html>
+
