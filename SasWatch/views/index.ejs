@@ -165,14 +165,20 @@
                         <button class="btn btn-primary" onclick="startManualSync()">
                             🔄 Sync
                         </button>
-                        <button class="btn btn-warning" onclick="cancelSync()" style="display: none;" id="cancel-sync-btn">
-                            🛑 Cancel Sync
-                        </button>
                         <button class="btn btn-danger" onclick="clearData()">🗑️ Clear Data</button>
                     </div>
                 </div>
                 <div id="recent-activity" class="activity-table-container">
                     <div class="loading">Loading...</div>
+                </div>
+                <div class="sync-log-container">
+                    <div class="sync-log-header" onclick="toggleSyncLog()">
+                        <div class="sync-log-title">Sync Log</div>
+                        <span class="sync-log-toggle" id="sync-log-toggle">▼</span>
+                    </div>
+                    <div class="sync-log-content" id="sync-log-content">
+                        <pre id="sync-log-output" class="sync-log-output">Ready.</pre>
+                    </div>
                 </div>
             </div>
         </div>

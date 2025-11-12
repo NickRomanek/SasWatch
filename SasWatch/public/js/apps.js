@@ -8,6 +8,41 @@ let selectedAppKeys = new Set();
 let currentAppContext = null;
 let currentMergeSelection = [];
 
+// Sync log functions
+function getAppsSyncLogElement() {
+    return document.getElementById('apps-sync-log-output');
+}
+
+function appendAppsSyncLog(message, { allowDuplicate = false } = {}) {
+    if (!message) return;
+    if (!allowDuplicate && appendAppsSyncLog.lastMessage === message) {
+        return;
+    }
+    appendAppsSyncLog.lastMessage = message;
+
+    const logEl = getAppsSyncLogElement();
+    if (!logEl) return;
+
+    const timestamp = new Date().toLocaleTimeString();
+    const line = `[${timestamp}] ${message}`;
+    logEl.textContent = logEl.textContent && !logEl.textContent.includes('Ready to sync')
+        ? `${logEl.textContent}\n${line}`
+        : line;
+    logEl.scrollTop = logEl.scrollHeight;
+}
+appendAppsSyncLog.lastMessage = null;
+
+function resetAppsSyncLog(initialMessage) {
+    appendAppsSyncLog.lastMessage = null;
+    const logEl = getAppsSyncLogElement();
+    if (logEl) {
+        logEl.textContent = '';
+    }
+    if (initialMessage) {
+        appendAppsSyncLog(initialMessage, { allowDuplicate: true });
+    }
+}
+
 let editModal;
 let editForm;
 let editAppIdInput;
@@ -680,6 +715,9 @@ async function syncApplications(event) {
         button.innerHTML = '⏳ Syncing…';
     }
 
+    resetAppsSyncLog('Apps sync requested');
+    appendAppsSyncLog(`> POST /api/apps/sync (backfillHours: ${APP_SYNC_BACKFILL_HOURS})`, { allowDuplicate: true });
+
     const syncToast = createOrRefreshSyncToast('Syncing applications from recent activity…');
 
     try {
@@ -692,7 +730,34 @@ async function syncApplications(event) {
         const payload = await response.json().catch(() => ({}));
 
         if (!response.ok || payload.success === false) {
+            appendAppsSyncLog(`Sync failed: HTTP ${response.status}`, { allowDuplicate: true });
+            if (payload.error) {
+                appendAppsSyncLog(`Error: ${payload.error}`, { allowDuplicate: true });
+            }
             throw new Error(payload.error || 'Failed to sync applications');
+        }
+
+        appendAppsSyncLog(`HTTP ${response.status} OK`, { allowDuplicate: true });
+        
+        // Log sync details
+        const sync = payload.sync || {};
+        if (sync.signInEventsInDb !== undefined) {
+            appendAppsSyncLog(`Sign-in events in database: ${sync.signInEventsInDb}`, { allowDuplicate: true });
+        }
+        if (sync.reason) {
+            appendAppsSyncLog(`Method: ${sync.reason}`, { allowDuplicate: true });
+        }
+        if (sync.message) {
+            appendAppsSyncLog(`${sync.message}`, { allowDuplicate: true });
+        }
+        
+        // Log apps data
+        const apps = payload.apps || [];
+        appendAppsSyncLog(`Applications found: ${apps.length}`, { allowDuplicate: true });
+        if (apps.length > 0) {
+            appendAppsSyncLog(`App names: ${apps.map(a => a.name).join(', ')}`, { allowDuplicate: true });
+        } else if (sync.signInEventsInDb === 0) {
+            appendAppsSyncLog(`⚠️ No sign-in events in database. Sync from Activity page first!`, { allowDuplicate: true });
         }
 
         applyAppsDataset(payload);
@@ -700,22 +765,28 @@ async function syncApplications(event) {
 
         dismissSyncToast();
 
-        const sync = payload.sync || {};
-
         if (sync.error && sync.reason === 'graph-throttled') {
+            appendAppsSyncLog('Warning: Microsoft Graph throttled (HTTP 429)', { allowDuplicate: true });
             showToast('Microsoft Graph throttled requests (HTTP 429). Showing cached data.', 'warning');
         } else if (sync.reason === 'throttled') {
+            appendAppsSyncLog('Using recently cached data', { allowDuplicate: true });
             showToast('Microsoft Graph recently synced. Using cached data.', 'info');
         } else if (sync.synced) {
             const count = sync.count || 0;
+            appendAppsSyncLog(`✓ Sync completed successfully`, { allowDuplicate: true });
             showToast(`Applications synced from recent activity (${count} sign-ins processed).`, 'success');
         } else if (sync.error) {
+            appendAppsSyncLog(`Error: ${sync.message || 'Graph sync failed'}`, { allowDuplicate: true });
             showToast(sync.message || 'Microsoft Graph sync failed. Showing cached data.', 'error');
         } else {
+            appendAppsSyncLog('Loaded from cached data', { allowDuplicate: true });
             showToast('Applications refreshed from cached data.', 'info');
         }
+        
+        appendAppsSyncLog('Apps sync completed.', { allowDuplicate: true });
     } catch (error) {
         console.error('Apps sync error:', error);
+        appendAppsSyncLog(`Fatal error: ${error.message}`, { allowDuplicate: true });
         dismissSyncToast();
         showToast(error.message || 'Failed to sync applications', 'error');
         await loadApps();
@@ -1204,4 +1275,16 @@ function escapeHtml(value) {
 
     document.head.appendChild(style);
 })();
+
+function toggleAppsSyncLog() {
+    const content = document.getElementById('apps-sync-log-content');
+    const toggle = document.getElementById('apps-sync-log-toggle');
+    
+    if (content && toggle) {
+        content.classList.toggle('expanded');
+        toggle.classList.toggle('expanded');
+    }
+}
+
+window.toggleAppsSyncLog = toggleAppsSyncLog;
 

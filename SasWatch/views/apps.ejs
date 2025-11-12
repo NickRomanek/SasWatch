@@ -232,6 +232,16 @@
                         </tbody>
                     </table>
                 </div>
+
+                <div class="sync-log-container">
+                    <div class="sync-log-header" onclick="toggleAppsSyncLog()">
+                        <div class="sync-log-title">Sync Log</div>
+                        <span class="sync-log-toggle" id="apps-sync-log-toggle">▼</span>
+                    </div>
+                    <div class="sync-log-content" id="apps-sync-log-content">
+                        <pre id="apps-sync-log-output" class="sync-log-output">Ready to sync applications.</pre>
+                    </div>
+                </div>
             </section>
         </div>
     </main>

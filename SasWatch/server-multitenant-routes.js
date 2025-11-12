@@ -540,6 +540,7 @@ function setupAccountRoutes(app) {
     app.post('/api/account/entra/sync', auth.requireAuth, async (req, res) => {
         try {
             const mode = typeof req.query.mode === 'string' ? req.query.mode.toLowerCase() : null;
+            const background = req.query.background === 'true';
             const body = req.body || {};
             const targets = Array.isArray(body.targets) ? body.targets.map(t => String(t).toLowerCase()) : null;
 
@@ -586,9 +587,146 @@ function setupAccountRoutes(app) {
 
             const errors = [];
 
+            // Background, fast path for Activity sync: trigger and return immediately
+            if (background && includeSignIns) {
+                try {
+                    const accountId = req.session.accountId;
+                    const syncStart = Date.now();
+
+                    // Initialize sync status
+                    activeSyncs.set(accountId, {
+                        active: true,
+                        message: 'Connecting to Microsoft Graph API...',
+                        progress: 5,
+                        startedAt: new Date(),
+                        lastUpdate: new Date(),
+                        debug: {
+                            accountId,
+                            mode: mode || 'manual',
+                            background: true,
+                            force: true,
+                            backfillHours: 24,
+                            maxPages: 5,
+                            syncStart: new Date(syncStart).toISOString()
+                        }
+                    });
+
+                    const progressCallback = (progress) => {
+                        activeSyncs.set(accountId, {
+                            active: true,
+                            message: progress.message,
+                            progress: Math.min(90, Math.max(10, (progress.page / 10) * 100)),
+                            startedAt: new Date(syncStart),
+                            lastUpdate: new Date(),
+                            details: progress,
+                            debug: {
+                                accountId,
+                                mode: mode || 'manual',
+                                background: true,
+                                force: true,
+                                backfillHours: 24,
+                                maxPages: 5,
+                                syncStart: new Date(syncStart).toISOString()
+                            }
+                        });
+                    };
+
+                    // Safety timeout similar to /api/usage/recent to ensure state transition
+                    let safetyTimeoutId = setTimeout(() => {
+                        const current = activeSyncs.get(accountId);
+                        if (current?.active) {
+                            activeSyncs.set(accountId, {
+                                active: false,
+                                message: `Sync timed out after ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s. Large datasets may take longer.`,
+                                progress: 0,
+                                startedAt: new Date(syncStart),
+                                lastUpdate: new Date(),
+                                error: { reason: 'timeout', message: `Sync exceeded ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s. Try again or check your internet connection.` }
+                            });
+                            setTimeout(() => activeSyncs.delete(accountId), 30000);
+                        }
+                    }, REQUEST_TIMEOUT_MS);
+
+                    // Fire-and-forget bounded sync
+                    db.syncEntraSignInsIfNeeded(accountId, {
+                        force: true,
+                        backfillHours: 24,
+                        maxPages: 5,
+                        onProgress: progressCallback
+                    })
+                        .then(result => {
+                            if (safetyTimeoutId) {
+                                clearTimeout(safetyTimeoutId);
+                                safetyTimeoutId = null;
+                            }
+                            activeSyncs.set(accountId, {
+                                active: false,
+                                message: `Sync completed: ${result.count || 0} events synced`,
+                                progress: 100,
+                                startedAt: new Date(syncStart),
+                                lastUpdate: new Date(),
+                                result,
+                                debug: {
+                                    accountId,
+                                    mode: mode || 'manual',
+                                    background: true,
+                                    completedAt: new Date().toISOString(),
+                                    duration: Date.now() - syncStart
+                                }
+                            });
+                            setTimeout(() => activeSyncs.delete(accountId), 30000);
+                        })
+                        .catch(error => {
+                            if (safetyTimeoutId) {
+                                clearTimeout(safetyTimeoutId);
+                                safetyTimeoutId = null;
+                            }
+                            const isGraphThrottle = error?.statusCode === 429 || error?.code === 'TooManyRequests';
+                            const errorResult = {
+                                error: true,
+                                reason: isGraphThrottle ? 'graph-throttled' : (error?.reason || 'error'),
+                                message: error?.message || (isGraphThrottle ? 'Microsoft Graph returned 429 (Too Many Requests).' : 'Failed to sync Microsoft Entra sign-ins'),
+                                statusCode: error?.statusCode
+                            };
+                            activeSyncs.set(accountId, {
+                                active: false,
+                                message: `Sync failed: ${errorResult.message}`,
+                                progress: 0,
+                                startedAt: new Date(syncStart),
+                                lastUpdate: new Date(),
+                                error: errorResult
+                            });
+                            setTimeout(() => activeSyncs.delete(accountId), 30000);
+                        });
+
+                    return res.status(202).json({
+                        success: true,
+                        status: 'background',
+                        mode: mode || 'manual'
+                    });
+                } catch (bgError) {
+                    console.error('Background Entra sign-in sync init failed:', bgError);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Failed to start background sync'
+                    });
+                }
+            }
+
             if (includeSignIns) {
                 try {
-                    results.signIns = await db.syncEntraSignInsIfNeeded(req.session.accountId, { force: true });
+                    // Bound workload by default to keep manual syncs fast
+                    // Allow query params to override for even faster syncs
+                    const maxPages = req.query.maxPages ? parseInt(req.query.maxPages, 10) : 5;
+                    const backfillHours = req.query.backfillHours ? parseInt(req.query.backfillHours, 10) : 24;
+                    const top = req.query.top ? parseInt(req.query.top, 10) : undefined;
+                    
+                    results.signIns = await db.syncEntraSignInsIfNeeded(req.session.accountId, {
+                        force: true,
+                        backfillHours: Math.max(1, Math.min(backfillHours, 168)), // 1 hour to 7 days
+                        maxPages: Math.max(1, Math.min(maxPages, 10)), // 1 to 10 pages
+                        top: top ? Math.max(1, Math.min(top, 100)) : undefined // 1 to 100 events per page
+                    });
                 } catch (error) {
                     console.error('Manual Entra sign-in sync error:', error);
                     const message = error?.message || error?.code || 'Failed to sync sign-in logs';
@@ -1868,33 +2006,25 @@ function setupAppsRoutes(app) {
     });
 
     app.post('/api/apps/sync', auth.requireAuth, async (req, res) => {
-        const backfillHours = Number.parseInt(req.body?.backfillHours, 10) || 24;
-        let syncResult;
-
-        try {
-            syncResult = await db.syncEntraSignInsIfNeeded(req.session.accountId, {
-                force: true,
-                backfillHours,
-                maxPages: 5
-            });
-            if (!syncResult) {
-                syncResult = { synced: false, reason: 'unknown' };
-            }
-        } catch (error) {
-            console.warn('Apps sync encountered error:', error);
-            const isGraphThrottle = error?.statusCode === 429 || error?.code === 'TooManyRequests';
-            syncResult = {
-                error: true,
-                reason: isGraphThrottle ? 'graph-throttled' : (error?.reason || 'error'),
-                message: isGraphThrottle
-                    ? 'Microsoft Graph returned 429 (Too Many Requests).'
-                    : (error?.message || 'Failed to sync Microsoft Entra sign-ins'),
-                statusCode: error?.statusCode
-            };
-        }
+        // Apps sync now just aggregates from the database
+        // Use Activity page sync to populate the database first
+        const syncResult = {
+            synced: false,
+            reason: 'aggregated-from-db',
+            message: 'Aggregated apps from existing sign-in data in database'
+        };
 
         try {
             const appsData = await db.getAppsData(req.session.accountId);
+            
+            // Count how many sign-in events are in the database
+            const signInCount = await db.prisma.entraSignIn.count({
+                where: { accountId: req.session.accountId }
+            });
+            
+            syncResult.signInEventsInDb = signInCount;
+            syncResult.appsFound = appsData.apps?.length || 0;
+            
             res.json({
                 success: true,
                 sync: syncResult,

@@ -36,6 +36,40 @@ const notifier = {
     }
 };
 
+function getSyncLogElement() {
+    return document.getElementById('sync-log-output');
+}
+
+function appendSyncLog(message, { allowDuplicate = false } = {}) {
+    if (!message) return;
+    if (!allowDuplicate && appendSyncLog.lastMessage === message) {
+        return;
+    }
+    appendSyncLog.lastMessage = message;
+
+    const logEl = getSyncLogElement();
+    if (!logEl) return;
+
+    const timestamp = new Date().toLocaleTimeString();
+    const line = `[${timestamp}] ${message}`;
+    logEl.textContent = logEl.textContent
+        ? `${logEl.textContent}\n${line}`
+        : line;
+    logEl.scrollTop = logEl.scrollHeight;
+}
+appendSyncLog.lastMessage = null;
+
+function resetSyncLog(initialMessage) {
+    appendSyncLog.lastMessage = null;
+    const logEl = getSyncLogElement();
+    if (logEl) {
+        logEl.textContent = '';
+    }
+    if (initialMessage) {
+        appendSyncLog(initialMessage, { allowDuplicate: true });
+    }
+}
+
 // Theme management
 function initTheme() {
     const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -136,10 +170,6 @@ function startSyncStatusPolling() {
         clearInterval(syncStatusPoller);
     }
 
-    // Show cancel button
-    const cancelBtn = document.getElementById('cancel-sync-btn');
-    if (cancelBtn) cancelBtn.style.display = 'inline-block';
-
     console.log('[SYNC-DEBUG] Starting status polling');
     let pollCount = 0;
 
@@ -163,18 +193,18 @@ function startSyncStatusPolling() {
                 clearInterval(syncStatusPoller);
                 syncStatusPoller = null;
 
-                // Hide cancel button
-                if (cancelBtn) cancelBtn.style.display = 'none';
-
+                appendSyncLog(status.message, { allowDuplicate: true });
                 if (status.result && status.result.count > 0) {
                     notifier.success(status.message);
                 } else if (status.error) {
                     const errorToast = notifier.error(status.message);
+                    appendSyncLog(status.error.message || status.message, { allowDuplicate: true });
                     // Show help text if available
                     if (status.error.helpText) {
                         setTimeout(() => {
                             notifier.info(status.error.helpText, 8000);
                         }, 3000);
+                        appendSyncLog(status.error.helpText, { allowDuplicate: true });
                     }
                 } else {
                     notifier.info(status.message);
@@ -192,9 +222,8 @@ function startSyncStatusPolling() {
             console.log('[SYNC-DEBUG] Safety timeout reached, stopping polling');
             clearInterval(syncStatusPoller);
             syncStatusPoller = null;
-            // Hide cancel button
-            if (cancelBtn) cancelBtn.style.display = 'none';
             notifier.warning('Sync monitoring timed out - refresh the page to check status');
+            appendSyncLog('Sync monitoring timed out - refresh the page to check status', { allowDuplicate: true });
         }
     }, 2000); // Poll every 2 seconds
 }
@@ -204,10 +233,6 @@ function stopSyncStatusPolling() {
         clearInterval(syncStatusPoller);
         syncStatusPoller = null;
     }
-
-    // Hide cancel button
-    const cancelBtn = document.getElementById('cancel-sync-btn');
-    if (cancelBtn) cancelBtn.style.display = 'none';
 }
 
 async function cancelSync() {
@@ -233,18 +258,21 @@ async function cancelSync() {
 
 function updateSyncProgress(status) {
     const existingToast = document.querySelector('.sync-progress-toast');
+    const text = `${status.message} (${status.progress}%)`;
+    appendSyncLog(text);
     if (existingToast) {
-        existingToast.remove();
+        // Update in place to avoid popping effect
+        existingToast.textContent = text;
+        return;
     }
-
-    const toast = notifier.info(`${status.message} (${status.progress}%)`, 0);
+    const toast = notifier.info(text, 0);
     if (toast && toast.classList) {
         toast.classList.add('sync-progress-toast');
     }
 }
 
 async function refreshData(options = {}) {
-    const { silent = false, allowBackfill = true, awaitSync = false, force = false } = options;
+    const { silent = false, allowBackfill = true, awaitSync = false, force = false, preservePolling = false } = options;
     console.log('[SYNC-DEBUG] refreshData called with options:', options);
     
     const activityContainer = document.getElementById('recent-activity');
@@ -366,7 +394,9 @@ async function refreshData(options = {}) {
         } else if (loaderToast && loaderToast.parentElement) {
             loaderToast.parentElement.removeChild(loaderToast);
         }
-        stopSyncStatusPolling();
+        if (!preservePolling) {
+            stopSyncStatusPolling();
+        }
     }
 }
 
@@ -710,6 +740,30 @@ function showError(message) {
     notifier.error(message);
 }
 
+// Helper to await background sync completion with polling (separate from UI poller)
+async function waitForSyncCompletion(maxMs = 5 * 60 * 1000) {
+    appendSyncLog('Waiting for background sync to finish…');
+    const start = Date.now();
+    while (Date.now() - start < maxMs) {
+        try {
+            const status = await fetchJson('/api/sync/status');
+            if (!status.active && status.lastUpdate) {
+                const finalMessage = status.message || 'Background sync finished.';
+                appendSyncLog(finalMessage, { allowDuplicate: true });
+                if (status.error?.message) {
+                    appendSyncLog(`Error: ${status.error.message}`, { allowDuplicate: true });
+                }
+                return status;
+            }
+        } catch (e) {
+            // ignore transient errors
+        }
+        await new Promise(r => setTimeout(r, 2000));
+    }
+    appendSyncLog('Sync wait timeout', { allowDuplicate: true });
+    return { active: false, message: 'Sync wait timeout' };
+}
+
 // Expose functions globally for inline onclick handlers
 async function startManualSync() {
     console.log('[SYNC-DEBUG] startManualSync called');
@@ -718,27 +772,141 @@ async function startManualSync() {
     const original = button ? button.innerHTML : null;
     console.log('[SYNC-DEBUG] Button found:', !!button);
 
+    resetSyncLog('Manual sync requested');
+    appendSyncLog('> GET /api/dev/graph/activity?limit=10&hours=24&force=false', { allowDuplicate: true });
+
     if (button) {
         addButtonSpinner(button, original || '🔄 Sync');
     }
 
-    // Start polling immediately for better UX
-    console.log('[SYNC-DEBUG] Starting status polling');
-    startSyncStatusPolling();
-
     try {
-        console.log('[SYNC-DEBUG] Calling refreshData with awaitSync=true, force=true');
-        await refreshData({ awaitSync: true, force: true });
-        console.log('[SYNC-DEBUG] refreshData completed successfully');
+        // EXACTLY what the dev tab does - fetch directly from Graph and display
+        console.log('[SYNC-DEBUG] Fetching directly from Graph API');
+        const syncResp = await fetch('/api/dev/graph/activity?limit=10&hours=24&force=false');
+        
+        if (!syncResp.ok) {
+            let errorMsg = `HTTP ${syncResp.status}`;
+            try {
+                const errorData = await syncResp.json();
+                if (errorData.error) {
+                    errorMsg = errorData.error;
+                    appendSyncLog(`Fetch failed: ${errorMsg}`, { allowDuplicate: true });
+                    if (errorData.details) {
+                        appendSyncLog(`Details: ${JSON.stringify(errorData.details)}`, { allowDuplicate: true });
+                    }
+                }
+            } catch {
+                const text = await syncResp.text().catch(() => '');
+                errorMsg = text || 'Failed to fetch activity';
+                appendSyncLog(`Fetch failed: ${errorMsg}`, { allowDuplicate: true });
+            }
+            throw new Error(errorMsg);
+        }
+        
+        const result = await syncResp.json();
+        appendSyncLog(`HTTP ${syncResp.status} OK`, { allowDuplicate: true });
+        appendSyncLog(`Command: ${result.command || 'N/A'}`, { allowDuplicate: true });
+        appendSyncLog(`Fetched ${result.data?.length || 0} sign-in events in ${result.durationMs || 0}ms`, { allowDuplicate: true });
+        
+        // Display the Graph data directly in the activity table
+        if (result.data && result.data.length > 0) {
+            displayGraphActivityData(result.data);
+            
+            // Now save to database in the background
+            appendSyncLog('Saving events to database...', { allowDuplicate: true });
+            try {
+                const saveResp = await fetch('/api/account/entra/sync?mode=activity&maxPages=1&backfillHours=168&top=100', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targets: ['signins'] })
+                });
+                
+                if (saveResp.ok) {
+                    const saveResult = await saveResp.json();
+                    if (saveResult.signIns?.count !== undefined) {
+                        appendSyncLog(`Saved ${saveResult.signIns.count} events to database`, { allowDuplicate: true });
+                        if (saveResult.signIns.count === 0 && saveResult.signIns.reason) {
+                            appendSyncLog(`Reason: ${saveResult.signIns.reason}`, { allowDuplicate: true });
+                        }
+                    } else if (saveResult.signIns?.synced === false) {
+                        appendSyncLog(`Database sync skipped: ${saveResult.signIns.reason || 'unknown'}`, { allowDuplicate: true });
+                    } else {
+                        appendSyncLog('Database sync completed', { allowDuplicate: true });
+                    }
+                } else {
+                    const errorText = await saveResp.text().catch(() => '');
+                    appendSyncLog(`Warning: Failed to save to database - ${errorText}`, { allowDuplicate: true });
+                }
+            } catch (saveError) {
+                console.warn('Database save failed:', saveError);
+                appendSyncLog(`Warning: Database save error - ${saveError.message}`, { allowDuplicate: true });
+            }
+            
+            notifier.success(`Fetched ${result.data.length} events from Microsoft Graph`);
+        } else {
+            appendSyncLog('No sign-in events found in the specified time range.', { allowDuplicate: true });
+            notifier.info('No sign-in events found');
+            // Clear the table
+            const container = document.getElementById('recent-activity');
+            if (container) {
+                container.innerHTML = '<div class="empty-state">No sign-in activity found in the last 24 hours.</div>';
+            }
+        }
     } catch (error) {
         console.error('[SYNC-DEBUG] Manual sync error:', error);
-        notifier.error(error?.message || 'Manual sync failed');
-        stopSyncStatusPolling();
+        notifier.error(error?.message || 'Failed to fetch activity');
+        appendSyncLog(error?.message || 'Failed to fetch activity', { allowDuplicate: true });
     } finally {
         if (button) {
             removeButtonSpinner(button);
         }
         console.log('[SYNC-DEBUG] startManualSync completed');
+        appendSyncLog('Sync completed.', { allowDuplicate: true });
+    }
+}
+
+// New function to display Graph API data directly in the activity table
+function displayGraphActivityData(events) {
+    const container = document.getElementById('recent-activity');
+    if (!container) return;
+
+    if (!events || events.length === 0) {
+        container.innerHTML = '<div class="empty-state">No activity data available.</div>';
+        return;
+    }
+
+    // Convert Graph API format to activity table format
+    const activities = events.map(event => ({
+        receivedAt: event.createdDateTime,
+        when: event.createdDateTime,
+        appDisplayName: event.appDisplayName || 'Unknown Application',  // Maps to APPLICATION column
+        clientAppUsed: event.clientAppUsed,
+        deviceDisplayName: event.deviceDetail?.displayName,
+        computerName: event.deviceDetail?.displayName,
+        userPrincipalName: event.userPrincipalName || 'Unknown',
+        windowsUser: event.userPrincipalName,
+        userDisplayName: event.userDisplayName,
+        source: 'entra',
+        ipAddress: event.ipAddress,
+        locationCity: event.location?.city,
+        locationCountryOrRegion: event.location?.countryOrRegion,
+        operatingSystem: event.deviceDetail?.operatingSystem,
+        browser: event.deviceDetail?.browser,
+        status: event.status?.errorCode === 0 ? 'Success' : 'Failed'
+    }));
+
+    // Use the existing updateActivityList function
+    updateActivityList('recent-activity', activities);
+    appendSyncLog('Activity table updated with Graph data.');
+}
+
+function toggleSyncLog() {
+    const content = document.getElementById('sync-log-content');
+    const toggle = document.getElementById('sync-log-toggle');
+    
+    if (content && toggle) {
+        content.classList.toggle('expanded');
+        toggle.classList.toggle('expanded');
     }
 }
 
@@ -748,3 +916,4 @@ window.clearData = clearData;
 window.toggleTheme = toggleTheme;
 window.startManualSync = startManualSync;
 window.cancelSync = cancelSync;
+window.toggleSyncLog = toggleSyncLog;
