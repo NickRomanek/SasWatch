@@ -815,6 +815,9 @@
             }
         }
 
+        // Expose to window for onclick handler
+        window.disconnectEntra = disconnectEntra;
+
         // Handle success/error messages from query params
         document.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
