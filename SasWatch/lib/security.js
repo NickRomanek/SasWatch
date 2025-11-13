@@ -101,7 +101,8 @@ function setupHelmet(app) {
             directives: {
                 defaultSrc: ["'self'"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://static.cloudflareinsights.com"],
+                scriptSrcAttr: ["'unsafe-inline'"],
                 imgSrc: ["'self'", "data:", "https:"],
                 connectSrc: ["'self'", "https://graph.microsoft.com", "https://login.microsoftonline.com"],
                 fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
