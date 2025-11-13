@@ -202,10 +202,13 @@ body {
 }
 
 .sidebar-logo .logo-image {
-    width: 32px;
-    height: 32px;
+    width: 32px !important;
+    height: 32px !important;
+    max-width: 32px !important;
+    max-height: 32px !important;
     object-fit: contain;
     flex-shrink: 0;
+    display: block;
 }
 
 .sidebar.collapsed .sidebar-logo span {
