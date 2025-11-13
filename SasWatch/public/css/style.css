@@ -299,6 +299,64 @@ body {
     justify-content: center;
 }
 
+/* Beta Badge */
+.nav-beta-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #ffffff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: auto;
+    box-shadow: 0 2px 4px rgba(217, 119, 6, 0.3);
+    line-height: 1.2;
+}
+
+.sidebar.collapsed .nav-beta-badge {
+    display: none;
+}
+
+/* Beta Notice Banner */
+.beta-notice-banner {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-primary);
+}
+
+.beta-notice-banner .beta-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.beta-notice-banner .beta-content {
+    flex: 1;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.beta-notice-banner .beta-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 0.5rem;
+    box-shadow: 0 2px 4px rgba(217, 119, 6, 0.3);
+}
+
 /* When collapsed, hide text but keep icons */
 .sidebar.collapsed .sidebar-nav-link > span:not(.nav-icon) {
     display: none;
@@ -402,7 +460,7 @@ header {
     background: var(--hero-gradient);
     border: 1px solid var(--hero-border);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     box-shadow: var(--shadow-lg);
 }
 
@@ -774,12 +832,16 @@ header h1 {
     align-items: center;
     justify-content: flex-end;
     width: 100%;
+    overflow: visible;
+    position: relative;
+    z-index: 1;
 }
 
 /* Dropdown Wrapper */
 .dropdown-wrapper {
     position: relative;
     display: inline-block;
+    z-index: 1001;
 }
 
 .dropdown-btn {
@@ -811,7 +873,7 @@ header h1 {
     border-radius: 8px;
     box-shadow: var(--shadow-lg);
     min-width: 180px;
-    z-index: 1000;
+    z-index: 1002;
     display: none;
     overflow: hidden;
 }
@@ -1636,7 +1698,7 @@ nav a.active {
     width: 100%;
     min-width: 800px; /* Minimum width to prevent squishing */
     border-collapse: collapse;
-    table-layout: fixed; /* Better for responsive tables */
+    table-layout: auto; /* Allow dynamic column sizing */
 }
 
 .users-table th,
@@ -1650,13 +1712,32 @@ nav a.active {
 }
 
 /* Specific column widths */
-.users-table th:nth-child(1), .users-table td:nth-child(1) { width: 40px; } /* Checkbox */
-.users-table th:nth-child(2), .users-table td:nth-child(2) { width: 200px; } /* Name */
-.users-table th:nth-child(3), .users-table td:nth-child(3) { width: 250px; } /* Email */
-.users-table th:nth-child(4), .users-table td:nth-child(4) { width: 120px; } /* Status */
-.users-table th:nth-child(5), .users-table td:nth-child(5) { width: 120px; } /* Licenses */
-.users-table th:nth-child(6), .users-table td:nth-child(6) { width: 120px; } /* Last Activity */
-.users-table th:nth-child(7), .users-table td:nth-child(7) { width: 100px; } /* Actions */
+.users-table th:nth-child(1), .users-table td:nth-child(1) { width: 40px; min-width: 40px; max-width: 40px; } /* Checkbox */
+.users-table th:nth-child(2), .users-table td:nth-child(2) { width: auto; min-width: 120px; } /* Name */
+.users-table th:nth-child(3), .users-table td:nth-child(3) { 
+    width: auto; 
+    min-width: 180px; 
+    max-width: 220px; 
+    overflow: hidden;
+    text-overflow: ellipsis;
+} /* Email */
+.users-table th:nth-child(4), .users-table td:nth-child(4) { width: auto; min-width: 200px; } /* Licenses */
+.users-table th:nth-child(5), .users-table td:nth-child(5) { 
+    width: 145px; 
+    min-width: 145px; 
+    max-width: 145px; 
+    padding: 1rem 0.5rem; 
+    text-align: center;
+} /* Last Activity */
+.users-table th:nth-child(6), .users-table td:nth-child(6) { 
+    width: 100px; 
+    min-width: 100px; 
+    max-width: 100px; 
+    padding: 1rem 0.5rem; 
+    text-align: center;
+} /* Activity */
+.users-table th:nth-child(7), .users-table td:nth-child(7) { width: auto; min-width: 100px; } /* Entra Status */
+.users-table th:nth-child(8), .users-table td:nth-child(8) { width: 80px; min-width: 80px; max-width: 80px; } /* Actions */
 
 /* Checkbox column styling */
 .users-table th:first-child,
@@ -1758,8 +1839,8 @@ nav a.active {
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 500;
-    margin-right: 0.5rem;
     margin-bottom: 0.25rem;
+    white-space: nowrap;
 }
 
 .license-acrobat {
@@ -1790,6 +1871,59 @@ nav a.active {
 .license-none {
     background: var(--bg-tertiary);
     color: var(--text-secondary);
+}
+
+/* Licenses Container */
+.licenses-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.licenses-visible {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.licenses-hidden {
+    display: none;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+
+.licenses-hidden .license-badge,
+.licenses-visible[style*="column"] .license-badge {
+    width: fit-content;
+    display: inline-block;
+}
+
+.license-expand-btn {
+    background: transparent;
+    border: none;
+    color: var(--accent-primary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    margin-top: 0.25rem;
+    text-align: left;
+    transition: all 0.2s;
+    border-radius: 4px;
+    align-self: flex-start;
+}
+
+.license-expand-btn:hover {
+    background: var(--bg-hover);
+    color: var(--accent-primary);
+    text-decoration: underline;
+}
+
+.license-expand-btn:active {
+    opacity: 0.7;
 }
 
 /* Activity Indicators */
@@ -2389,13 +2523,26 @@ nav a.active {
     }
 
     /* Adjust column widths for mobile */
-    .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 35px; } /* Checkbox */
-    .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 140px; } /* Name */
-    .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 180px; } /* Email */
-    .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 80px; } /* Status */
-    .users-table th:nth-child(5), .users-table td:nth-child(5) { width: 80px; } /* Licenses */
-    .users-table th:nth-child(6), .users-table td:nth-child(6) { width: 80px; } /* Last Activity */
-    .users-table th:nth-child(7), .users-table td:nth-child(7) { width: 70px; } /* Actions */
+    .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 35px; min-width: 35px; max-width: 35px; } /* Checkbox */
+    .users-table th:nth-child(2), .users-table td:nth-child(2) { width: auto; min-width: 100px; } /* Name */
+    .users-table th:nth-child(3), .users-table td:nth-child(3) { width: auto; min-width: 150px; } /* Email */
+    .users-table th:nth-child(4), .users-table td:nth-child(4) { width: auto; min-width: 150px; } /* Licenses */
+    .users-table th:nth-child(5), .users-table td:nth-child(5) { 
+        width: 125px; 
+        min-width: 125px; 
+        max-width: 125px; 
+        padding: 0.75rem 0.25rem; 
+        text-align: center;
+    } /* Last Activity */
+    .users-table th:nth-child(6), .users-table td:nth-child(6) { 
+        width: 85px; 
+        min-width: 85px; 
+        max-width: 85px; 
+        padding: 0.75rem 0.25rem; 
+        text-align: center;
+    } /* Activity */
+    .users-table th:nth-child(7), .users-table td:nth-child(7) { width: auto; min-width: 80px; } /* Entra Status */
+    .users-table th:nth-child(8), .users-table td:nth-child(8) { width: 70px; min-width: 70px; max-width: 70px; } /* Actions */
 }
 
 /* ============================================

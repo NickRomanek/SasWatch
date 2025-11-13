@@ -237,7 +237,7 @@ function renderUsersTable() {
                 <input type="checkbox" class="user-checkbox" data-email="${user.email.replace(/"/g, '&quot;')}" onchange="handleCheckboxChange()">
             </td>
             <td><strong>${user.firstName} ${user.lastName}</strong></td>
-            <td>${user.email}</td>
+            <td>${renderEmail(user.email)}</td>
             <td>${renderLicenses(getDisplayLicenses(user))}</td>
             <td>${renderLastActivity(user.lastActivity)}</td>
             <td>
@@ -283,12 +283,71 @@ function renderLicenses(licenses) {
         return '<span class="license-badge license-none">No License</span>';
     }
 
-    return licenses.map(license => {
-        // Clean up license name by removing (DIRECT - ...) suffix
-        const cleanLicense = license.replace(/\s*\(DIRECT\s*-\s*[A-Z0-9]+\)/gi, '').trim();
-        const className = getLicenseClass(cleanLicense);
-        return `<span class="license-badge ${className}">${cleanLicense}</span>`;
+    // Clean up license names
+    const cleanedLicenses = licenses.map(license => {
+        return license.replace(/\s*\(DIRECT\s*-\s*[A-Z0-9]+\)/gi, '').trim();
+    });
+
+    const maxVisible = 3;
+    const hasMore = cleanedLicenses.length > maxVisible;
+    const visibleLicenses = hasMore ? cleanedLicenses.slice(0, maxVisible) : cleanedLicenses;
+    const hiddenLicenses = hasMore ? cleanedLicenses.slice(maxVisible) : [];
+
+    // Generate unique ID for this license set
+    const licenseId = 'licenses-' + Math.random().toString(36).substr(2, 9);
+
+    let html = '<div class="licenses-container">';
+    html += '<div class="licenses-visible">';
+    html += visibleLicenses.map(license => {
+        const className = getLicenseClass(license);
+        return `<span class="license-badge ${className}">${license}</span>`;
     }).join(' ');
+    html += '</div>';
+
+    if (hasMore) {
+        html += `<div class="licenses-hidden" id="${licenseId}-hidden" style="display: none; flex-direction: column;">`;
+        html += hiddenLicenses.map(license => {
+            const className = getLicenseClass(license);
+            return `<span class="license-badge ${className}">${license}</span>`;
+        }).join(' ');
+        html += '</div>';
+        html += `<button class="license-expand-btn" onclick="toggleLicenses('${licenseId}')" type="button" title="Show ${hiddenLicenses.length} more licenses">+${hiddenLicenses.length} more</button>`;
+    }
+
+    html += '</div>';
+    return html;
+}
+
+function toggleLicenses(licenseId) {
+    const hiddenDiv = document.getElementById(licenseId + '-hidden');
+    if (!hiddenDiv) return;
+    
+    // Find the button and visible container
+    const container = hiddenDiv.parentElement;
+    const btn = container?.querySelector('.license-expand-btn');
+    const visibleDiv = container?.querySelector('.licenses-visible');
+    
+    if (!btn || !visibleDiv) return;
+
+    const isExpanded = hiddenDiv.style.display !== 'none';
+    
+    if (isExpanded) {
+        // Collapse: hide hidden licenses, make visible licenses horizontal
+        hiddenDiv.style.display = 'none';
+        visibleDiv.style.flexDirection = 'row';
+        visibleDiv.style.flexWrap = 'wrap';
+        const count = hiddenDiv.querySelectorAll('.license-badge').length;
+        btn.textContent = `+${count} more`;
+        btn.title = `Show ${count} more licenses`;
+    } else {
+        // Expand: show hidden licenses, make all licenses vertical
+        hiddenDiv.style.display = 'flex';
+        hiddenDiv.style.flexDirection = 'column';
+        visibleDiv.style.flexDirection = 'column';
+        visibleDiv.style.flexWrap = 'nowrap';
+        btn.textContent = 'Show less';
+        btn.title = 'Hide additional licenses';
+    }
 }
 
 function getLicenseClass(license) {
@@ -297,6 +356,16 @@ function getLicenseClass(license) {
     if (license.includes('Photoshop')) return 'license-photoshop';
     if (license.includes('Illustrator')) return 'license-illustrator';
     return 'license-other';
+}
+
+function renderEmail(email) {
+    if (!email) return '';
+    const maxLength = 25;
+    if (email.length <= maxLength) {
+        return email;
+    }
+    const truncated = email.substring(0, maxLength) + '...';
+    return `<span title="${email.replace(/"/g, '&quot;')}">${truncated}</span>`;
 }
 
 function renderLastActivity(lastActivity) {
@@ -312,15 +381,16 @@ function renderLastActivity(lastActivity) {
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     
     if (diffMinutes < 60) {
-        return `<span class="activity-recent">${diffMinutes} minutes ago</span>`;
+        return `<span class="activity-recent" title="${diffMinutes} minutes ago">${diffMinutes}m</span>`;
     } else if (diffHours < 24) {
-        return `<span class="activity-recent">${diffHours} hours ago</span>`;
+        return `<span class="activity-recent" title="${diffHours} hours ago">${diffHours}h</span>`;
     } else if (diffDays < 7) {
-        return `<span class="activity-recent">${diffDays} days ago</span>`;
+        return `<span class="activity-recent" title="${diffDays} days ago">${diffDays}d</span>`;
     } else if (diffDays < 30) {
-        return `<span class="activity-inactive">${diffDays} days ago</span>`;
+        return `<span class="activity-inactive" title="${diffDays} days ago">${diffDays}d</span>`;
     } else {
-        return `<span class="activity-old">${date.toLocaleDateString()}</span>`;
+        const shortDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `<span class="activity-old" title="${date.toLocaleDateString()}">${shortDate}</span>`;
     }
 }
 
@@ -557,7 +627,7 @@ function editUser(user) {
                     </div>
 
                     <div class="form-info">
-                        <p><strong>Activity Count:</strong> ${user.activityCount || 0} events</p>
+                        <p><strong>Activity:</strong> ${user.activityCount || 0} events</p>
                         <p><strong>Last Activity:</strong> ${user.lastActivity ? new Date(user.lastActivity).toLocaleString() : 'Never'}</p>
                         <p><strong>Imported:</strong> ${user.importedAt ? new Date(user.importedAt).toLocaleString() : 'Unknown'}</p>
                     </div>

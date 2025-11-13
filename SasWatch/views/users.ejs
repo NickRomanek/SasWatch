@@ -30,12 +30,14 @@
                 <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
                     <span class="nav-icon">📦</span>
                     <span>Apps</span>
+                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
                     <span class="nav-icon">📊</span>
                     <span>Activity</span>
+                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
@@ -325,7 +327,7 @@
                 <thead>
                     <tr>
                         <th>Windows Username</th>
-                        <th>Activity Count</th>
+                        <th>Activity</th>
                         <th>First Seen</th>
                         <th>Map to User</th>
                         <th>Action</th>
@@ -432,9 +434,9 @@
                                     <th onclick="sortTable('email')">Email <span class="sort-icon">↕</span></th>
                                     <th onclick="sortTable('licenses')">Licenses <span class="sort-icon">↕</span></th>
                                     <th onclick="sortTable('lastActivity')">Last Activity <span class="sort-icon">↕</span></th>
-                                    <th onclick="sortTable('activityCount')">Activity Count <span class="sort-icon">↕</span></th>
+                                    <th onclick="sortTable('activityCount')">Activity <span class="sort-icon">↕</span></th>
                                     <th>Entra Status</th>
-                                    <th>Actions</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody id="users-table-body">
