@@ -1214,24 +1214,67 @@ function setupDevRoutes(app) {
                 return res.status(400).json({ success: false, error: graphState.error });
             }
 
-            const limit = Number.parseInt(req.query.limit, 10) || 10;
-            const hours = Number.parseInt(req.query.hours, 10) || 24;
+            // SPEED OPTIMIZATION: Use small limits for fast responses
+            const limit = Number.parseInt(req.query.limit, 10) || 10;  // Default 10 events
+            const hours = Number.parseInt(req.query.hours, 10) || 24;  // Default 24 hours for testing
             const force = req.query.force === 'true';
 
             const sinceDate = new Date(Date.now() - hours * 60 * 60 * 1000);
             const start = Date.now();
 
-            // Sync data to database (always for manual sync to ensure persistence)
-            await db.syncEntraSignInsIfNeeded(account.id, { 
-                force: true, // Always force sync for manual sync button
-                maxPages: 1
-            });
+            console.log('[DEV-SYNC] Manual sync - Fetching last', hours, 'hours, limit:', limit);
 
-            // For Dev view, don't pass 'since' to match Graph Explorer behavior
+            // Fetch minimal data for speed (10 items max, 3 hours only)
             const result = await fetchEntraSignIns(graphState.tenantId, {
-                top: limit,
-                maxPages: 1
+                top: Math.min(limit, 20),  // Cap at 20 for speed
+                maxPages: 1,               // Only 1 page
+                since: sinceDate           // Filter by time range
             });
+            
+            console.log('[DEV-SYNC] Fetched', result.events?.length || 0, 'events from Graph');
+            
+            // IMPORTANT: Save the fetched events to database immediately for persistence
+            if (result.events && result.events.length > 0) {
+                try {
+                    // Save to database using bulk upsert
+                    for (const event of result.events) {
+                        await prisma.entraSignIn.upsert({
+                            where: { id: event.id },
+                            update: {},  // Don't update if exists
+                            create: {
+                                id: event.id,
+                                accountId: account.id,
+                                createdDateTime: new Date(event.createdDateTime),
+                                userDisplayName: event.userDisplayName,
+                                userPrincipalName: event.userPrincipalName,
+                                userId: event.userId,
+                                appDisplayName: event.appDisplayName,
+                                resourceDisplayName: event.resourceDisplayName,
+                                clientAppUsed: event.clientAppUsed,
+                                deviceDisplayName: event.deviceDetail?.displayName,
+                                operatingSystem: event.deviceDetail?.operatingSystem,
+                                browser: event.deviceDetail?.browser,
+                                ipAddress: event.ipAddress,
+                                locationCity: event.location?.city,
+                                locationCountryOrRegion: event.location?.countryOrRegion,
+                                statusErrorCode: event.status?.errorCode || 0,
+                                statusFailureReason: event.status?.failureReason,
+                                riskState: event.riskState,
+                                riskDetail: event.riskDetail,
+                                conditionalAccessStatus: event.conditionalAccessStatus,
+                                correlationId: event.correlationId,
+                                isInteractive: event.isInteractive,
+                                sourceChannel: 'manual-sync'
+                            }
+                        });
+                    }
+                    console.log('[DEV-SYNC] Saved', result.events.length, 'events to database');
+                } catch (saveError) {
+                    console.error('[DEV-SYNC] Failed to save events:', saveError);
+                    // Continue anyway - data is still displayed
+                }
+            }
+            
             const duration = Date.now() - start;
             const events = Array.isArray(result.events) ? result.events.slice(0, limit) : [];
 

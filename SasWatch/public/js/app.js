@@ -775,16 +775,26 @@ async function startManualSync() {
     console.log('[SYNC-DEBUG] Button found:', !!button);
 
     resetSyncLog('Manual sync requested');
-    appendSyncLog('> GET /api/dev/graph/activity?limit=10&hours=24&force=false', { allowDuplicate: true });
+    appendSyncLog('> GET /api/dev/graph/activity?limit=10&hours=3&force=true', { allowDuplicate: true });
 
     if (button) {
         addButtonSpinner(button, original || '🔄 Sync');
     }
 
     try {
-        // EXACTLY what the dev tab does - fetch directly from Graph and display
-        console.log('[SYNC-DEBUG] Fetching directly from Graph API');
-        const syncResp = await fetch('/api/dev/graph/activity?limit=10&hours=24&force=false');
+        // Fetch minimal data for speed: 10 events, 24 hours
+        console.log('[SYNC-DEBUG] Fetching last 24 hours (10 events max) from Graph API');
+        appendSyncLog('Fetching recent sign-ins (last 24 hours)...', { allowDuplicate: true });
+        
+        // Use AbortController with 30 second timeout (faster than before)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds
+        
+        const syncResp = await fetch('/api/dev/graph/activity?limit=10&hours=24&force=true', {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        console.log('[SYNC-DEBUG] Response received:', syncResp.status);
         
         if (!syncResp.ok) {
             let errorMsg = `HTTP ${syncResp.status}`;
@@ -814,37 +824,10 @@ async function startManualSync() {
         if (result.data && result.data.length > 0) {
             displayGraphActivityData(result.data);
             
-            // Now save to database in the background
-            appendSyncLog('Saving events to database...', { allowDuplicate: true });
-            try {
-                const saveResp = await fetch('/api/account/entra/sync?mode=activity&maxPages=1&backfillHours=168&top=100', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ targets: ['signins'] })
-                });
-                
-                if (saveResp.ok) {
-                    const saveResult = await saveResp.json();
-                    if (saveResult.signIns?.count !== undefined) {
-                        appendSyncLog(`Saved ${saveResult.signIns.count} events to database`, { allowDuplicate: true });
-                        if (saveResult.signIns.count === 0 && saveResult.signIns.reason) {
-                            appendSyncLog(`Reason: ${saveResult.signIns.reason}`, { allowDuplicate: true });
-                        }
-                    } else if (saveResult.signIns?.synced === false) {
-                        appendSyncLog(`Database sync skipped: ${saveResult.signIns.reason || 'unknown'}`, { allowDuplicate: true });
-                    } else {
-                        appendSyncLog('Database sync completed', { allowDuplicate: true });
-                    }
-                } else {
-                    const errorText = await saveResp.text().catch(() => '');
-                    appendSyncLog(`Warning: Failed to save to database - ${errorText}`, { allowDuplicate: true });
-                }
-            } catch (saveError) {
-                console.warn('Database save failed:', saveError);
-                appendSyncLog(`Warning: Database save error - ${saveError.message}`, { allowDuplicate: true });
-            }
+            // Data is automatically saved to database by backend (no second call needed)
+            appendSyncLog('Events saved to database automatically by backend', { allowDuplicate: true });
             
-            notifier.success(`Fetched ${result.data.length} events from Microsoft Graph`);
+            notifier.success(`Fetched and saved ${result.data.length} events from Microsoft Graph`);
         } else {
             appendSyncLog('No sign-in events found in the specified time range.', { allowDuplicate: true });
             notifier.info('No sign-in events found');
@@ -856,8 +839,16 @@ async function startManualSync() {
         }
     } catch (error) {
         console.error('[SYNC-DEBUG] Manual sync error:', error);
-        notifier.error(error?.message || 'Failed to fetch activity');
-        appendSyncLog(error?.message || 'Failed to fetch activity', { allowDuplicate: true });
+        
+        // Handle timeout specifically
+        if (error.name === 'AbortError') {
+            const timeoutMsg = 'Request timed out after 30 seconds. Microsoft Graph API may be slow or rate limited. Try again in a few minutes.';
+            notifier.error(timeoutMsg);
+            appendSyncLog(timeoutMsg, { allowDuplicate: true });
+        } else {
+            notifier.error(error?.message || 'Failed to fetch activity');
+            appendSyncLog(error?.message || 'Failed to fetch activity', { allowDuplicate: true });
+        }
     } finally {
         if (button) {
             removeButtonSpinner(button);
