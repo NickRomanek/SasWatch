@@ -872,6 +872,10 @@
             icon.textContent = isCollapsed ? '▶' : '◀';
         }
 
+        // Expose to window for onclick handlers
+        window.toggleTheme = toggleTheme;
+        window.toggleSidebar = toggleSidebar;
+
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
             // Initialize theme (default to dark)

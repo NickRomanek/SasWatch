@@ -221,6 +221,10 @@
             overlay.classList.remove('active');
         }
 
+        // Expose to window for onclick handlers
+        window.toggleSidebar = toggleSidebar;
+        window.closeMobileMenu = closeMobileMenu;
+
         // Handle window resize
         window.addEventListener('resize', () => {
             if (window.innerWidth > 768) {

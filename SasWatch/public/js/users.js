@@ -931,3 +931,9 @@ setInterval(() => {
         .catch(err => console.error('Auto-refresh error:', err));
 }, 30000);
 
+// Expose functions to window for onclick handlers
+window.deleteAllUsers = deleteAllUsers;
+window.deleteSelectedUsers = deleteSelectedUsers;
+window.removeUsernameElement = removeUsernameElement;
+window.removeLicenseElement = removeLicenseElement;
+
