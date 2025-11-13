@@ -722,8 +722,10 @@ async function clearData(event) {
             notifier.success('All activity data cleared successfully');
             // Stop any existing polling first
             stopSyncStatusPolling();
-            // Start fresh sync with force
-            await refreshData({ awaitSync: true, force: true, allowBackfill: false });
+            // Clear cached data and update UI to show empty state (no sync)
+            cachedActivityData = { adobe: [], wrapper: [], entra: [] };
+            updateActivityList('recent-activity', []);
+            appendSyncLog('Data cleared. UI reset to empty state.');
         } else {
             throw new Error('Failed to clear data');
         }

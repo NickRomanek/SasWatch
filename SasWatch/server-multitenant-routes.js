@@ -10,6 +10,15 @@ const { generateMonitorScript, generateDeploymentInstructions } = require('./lib
 const { generateIntunePackage, getPackageFilename } = require('./lib/intune-package-generator');
 const { fetchEntraDirectory, fetchEntraSignIns, fetchEntraApplications } = require('./lib/entra-sync');
 const prisma = require('./lib/prisma');
+const { 
+    loginLimiter, 
+    signupLimiter, 
+    signupValidation, 
+    loginValidation, 
+    handleValidationErrors,
+    auditLog,
+    generateSecureToken 
+} = require('./lib/security');
 
 const REQUEST_TIMEOUT_MS = 180000; // 3 minutes to allow for Graph API calls that can take up to 2 minutes
 
@@ -21,8 +30,13 @@ const activeSyncs = new Map();
 // ============================================
 
 function setupSession(app) {
+    // Require SESSION_SECRET in all environments
+    if (!process.env.SESSION_SECRET) {
+        throw new Error('SESSION_SECRET environment variable is required. Generate one with: openssl rand -hex 32');
+    }
+
     const sessionConfig = {
-        secret: process.env.SESSION_SECRET || 'your-super-secret-key-change-in-production',
+        secret: process.env.SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
         proxy: true, // Trust Railway proxy
@@ -70,32 +84,19 @@ function setupAuthRoutes(app) {
         res.render('signup', { error: null });
     });
     
-    // Signup handler
-    app.post('/signup', async (req, res) => {
+    // Signup handler with rate limiting and validation
+    app.post('/signup', signupLimiter, signupValidation, handleValidationErrors, async (req, res) => {
         try {
-            const { name, email, password, confirmPassword } = req.body;
-            
-            // Validation
-            if (!name || !email || !password) {
-                return res.render('signup', { 
-                    error: 'All fields are required' 
-                });
-            }
-            
-            if (password !== confirmPassword) {
-                return res.render('signup', { 
-                    error: 'Passwords do not match' 
-                });
-            }
-            
-            if (password.length < 8) {
-                return res.render('signup', { 
-                    error: 'Password must be at least 8 characters' 
-                });
-            }
+            const { name, email, password } = req.body;
             
             // Create account
             const account = await auth.createAccount(name, email, password);
+            
+            // Log successful signup
+            auditLog('SIGNUP_SUCCESS', account.id, {
+                email: email,
+                name: name
+            }, req);
             
             // Auto-login after signup
             req.session.accountId = account.id;
@@ -104,6 +105,13 @@ function setupAuthRoutes(app) {
             res.redirect('/');
         } catch (error) {
             console.error('Signup error:', error);
+            
+            // Log failed signup attempt
+            auditLog('SIGNUP_FAILED', null, {
+                email: req.body.email,
+                error: error.message
+            }, req);
+            
             res.render('signup', { 
                 error: error.message || 'Failed to create account' 
             });
@@ -118,24 +126,24 @@ function setupAuthRoutes(app) {
         res.render('login', { error: null, message: null });
     });
     
-    // Login handler
-    app.post('/login', async (req, res) => {
+    // Login handler with rate limiting and validation
+    app.post('/login', loginLimiter, loginValidation, handleValidationErrors, async (req, res) => {
         try {
             const { email, password } = req.body;
             
             console.log('Login attempt for email:', email);
             
-            if (!email || !password) {
-                return res.render('login', { 
-                    error: 'Email and password are required',
-                    message: null
-                });
-            }
-            
             const account = await auth.authenticateAccount(email, password);
             
             if (!account) {
                 console.log('Authentication failed for email:', email);
+                
+                // Log failed login attempt
+                auditLog('LOGIN_FAILED', null, {
+                    email: email,
+                    reason: 'Invalid credentials'
+                }, req);
+                
                 return res.render('login', { 
                     error: 'Invalid email or password',
                     message: null
@@ -143,6 +151,11 @@ function setupAuthRoutes(app) {
             }
             
             console.log('Authentication successful for account:', account.id);
+            
+            // Log successful login
+            auditLog('LOGIN_SUCCESS', account.id, {
+                email: email
+            }, req);
             
             // Create session
             req.session.accountId = account.id;
@@ -154,6 +167,11 @@ function setupAuthRoutes(app) {
             req.session.save((err) => {
                 if (err) {
                     console.error('Session save error:', err);
+                    
+                    auditLog('SESSION_ERROR', account.id, {
+                        error: err.message
+                    }, req);
+                    
                     return res.render('login', { 
                         error: 'Session error - please try again',
                         message: null
@@ -165,6 +183,12 @@ function setupAuthRoutes(app) {
             });
         } catch (error) {
             console.error('Login error:', error);
+            
+            auditLog('LOGIN_ERROR', null, {
+                email: req.body.email,
+                error: error.message
+            }, req);
+            
             res.render('login', { 
                 error: error.message || 'Login failed',
                 message: null
@@ -174,10 +198,18 @@ function setupAuthRoutes(app) {
     
     // Logout
     app.get('/logout', (req, res) => {
+        const accountId = req.session?.accountId;
+        
         req.session.destroy((err) => {
             if (err) {
                 console.error('Logout error:', err);
             }
+            
+            // Log logout event
+            auditLog('LOGOUT', accountId, {
+                message: 'User logged out'
+            }, req);
+            
             res.redirect('/login');
         });
     });
@@ -418,12 +450,23 @@ function setupAccountRoutes(app) {
 
             const newApiKey = await auth.regenerateApiKey(accountId);
             
+            // Log API key regeneration (security-sensitive action)
+            auditLog('API_KEY_REGENERATED', accountId, {
+                message: 'API key was regenerated',
+                reason: 'Security rotation or compromise'
+            }, req);
+            
             res.json({ 
                 success: true, 
                 apiKey: newApiKey 
             });
         } catch (error) {
             console.error('Regenerate API key error:', error);
+            
+            auditLog('API_KEY_REGENERATION_FAILED', accountId, {
+                error: error.message
+            }, req);
+            
             res.status(500).json({ 
                 success: false, 
                 error: error?.message || 'Failed to regenerate API key' 
@@ -1178,9 +1221,11 @@ function setupDevRoutes(app) {
             const sinceDate = new Date(Date.now() - hours * 60 * 60 * 1000);
             const start = Date.now();
 
-            if (force) {
-                await db.syncEntraSignInsIfNeeded(account.id, { force: true });
-            }
+            // Sync data to database (always for manual sync to ensure persistence)
+            await db.syncEntraSignInsIfNeeded(account.id, { 
+                force: true, // Always force sync for manual sync button
+                maxPages: 1
+            });
 
             // For Dev view, don't pass 'since' to match Graph Explorer behavior
             const result = await fetchEntraSignIns(graphState.tenantId, {

@@ -527,6 +527,13 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
         }
+
+        // Expose functions to window for onclick handlers
+        window.setDevTab = setDevTab;
+        window.runDevFetch = runDevFetch;
+        window.populateTestData = populateTestData;
+        window.clearAllData = clearAllData;
+        window.simulateStuckSync = simulateStuckSync;
     </script>
 </body>
 </html>

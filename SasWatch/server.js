@@ -3,9 +3,29 @@ const path = require('path');
 require('dotenv').config();
 
 const { startBackgroundSync } = require('./lib/background-sync');
+const { 
+    setupHelmet, 
+    requireHTTPS, 
+    addRequestId, 
+    validateSessionSecret,
+    auditLog 
+} = require('./lib/security');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ============================================
+// Security Validation
+// ============================================
+
+// Validate critical security configuration
+try {
+    validateSessionSecret();
+} catch (error) {
+    console.error('❌ CRITICAL SECURITY ERROR:', error.message);
+    console.error('   Application cannot start without proper security configuration.');
+    process.exit(1);
+}
 
 // ============================================
 // Middleware Setup
@@ -15,6 +35,15 @@ const PORT = process.env.PORT || 3000;
 if (process.env.NODE_ENV === 'production') {
     app.set('trust proxy', 1);
 }
+
+// Security: HTTPS enforcement (must be first)
+app.use(requireHTTPS);
+
+// Security: HTTP security headers via Helmet
+setupHelmet(app);
+
+// Security: Add unique request IDs for tracing
+app.use(addRequestId);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
