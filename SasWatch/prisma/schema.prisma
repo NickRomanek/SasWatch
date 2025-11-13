@@ -18,6 +18,7 @@ model Account {
   password          String             // Hashed password
   apiKey            String             @unique @default(uuid()) // Unique API key for this account
   isActive          Boolean            @default(true)
+  isSuperAdmin      Boolean            @default(false) // Super admin access (requires env variable match)
   subscriptionTier  String             @default("free") // free, pro, enterprise
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt

@@ -1224,10 +1224,13 @@ function setupDevRoutes(app) {
 
             console.log('[DEV-SYNC] Manual sync - Fetching last', hours, 'hours, limit:', limit);
 
-            // Fetch minimal data for speed (10 items max, 3 hours only)
+            // Fetch data - use limit to determine pages needed
+            // Each page can have up to 999 events, but we'll fetch multiple pages if needed
+            const eventsPerPage = Math.min(limit, 999);
+            const pagesNeeded = Math.ceil(limit / eventsPerPage);
             const result = await fetchEntraSignIns(graphState.tenantId, {
-                top: Math.min(limit, 20),  // Cap at 20 for speed
-                maxPages: 1,               // Only 1 page
+                top: eventsPerPage,
+                maxPages: Math.max(1, Math.min(pagesNeeded, 5)),  // Fetch up to 5 pages to get enough data
                 since: sinceDate           // Filter by time range
             });
             
@@ -2296,8 +2299,208 @@ function setupMultiTenantRoutes(app) {
     setupDevRoutes(app);
     setupDashboardRoutes(app);
     setupAppsRoutes(app);
+    setupAdminRoutes(app);
 
     console.log('✓ Multi-tenant routes configured');
+}
+
+// ============================================
+// Admin Routes (Super Admin Only)
+// ============================================
+
+function setupAdminRoutes(app) {
+    // Admin dashboard - list all accounts
+    app.get('/admin', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const accounts = await prisma.account.findMany({
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    subscriptionTier: true,
+                    isActive: true,
+                    isSuperAdmin: true,
+                    createdAt: true,
+                    lastLoginAt: true,
+                    entraConnectedAt: true,
+                    entraTenantId: true
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            // Get stats for each account
+            const accountsWithStats = await Promise.all(
+                accounts.map(async (account) => {
+                    const stats = await db.getDatabaseStats(account.id);
+                    return {
+                        ...account,
+                        stats
+                    };
+                })
+            );
+
+            res.render('admin', {
+                title: 'Admin Dashboard',
+                accounts: accountsWithStats,
+                currentAccount: req.account
+            });
+        } catch (error) {
+            console.error('Admin dashboard error:', error);
+            res.status(500).send('Error loading admin dashboard');
+        }
+    });
+
+    // Get activity data for a specific account
+    app.get('/api/admin/accounts/:id/activity', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const accountId = req.params.id;
+            
+            // Verify account exists
+            const account = await prisma.account.findUnique({
+                where: { id: accountId },
+                select: { id: true, email: true, name: true }
+            });
+
+            if (!account) {
+                return res.status(404).json({ error: 'Account not found' });
+            }
+
+            // Get recent activity
+            const [recentSignIns, recentEvents, userCount, appCount] = await Promise.all([
+                prisma.entraSignIn.findMany({
+                    where: { accountId },
+                    orderBy: { createdDateTime: 'desc' },
+                    take: 10,
+                    select: {
+                        id: true,
+                        createdDateTime: true,
+                        userDisplayName: true,
+                        userPrincipalName: true,
+                        appDisplayName: true,
+                        ipAddress: true,
+                        riskState: true,
+                        conditionalAccessStatus: true
+                    }
+                }),
+                prisma.usageEvent.findMany({
+                    where: { accountId },
+                    orderBy: { when: 'desc' },
+                    take: 10,
+                    select: {
+                        id: true,
+                        event: true,
+                        url: true,
+                        when: true,
+                        source: true
+                    }
+                }),
+                prisma.user.count({ where: { accountId } }),
+                prisma.application.count({ where: { accountId } })
+            ]);
+
+            res.json({
+                success: true,
+                account: {
+                    id: account.id,
+                    email: account.email,
+                    name: account.name
+                },
+                activity: {
+                    recentSignIns,
+                    recentEvents,
+                    userCount,
+                    appCount
+                }
+            });
+        } catch (error) {
+            console.error('Admin activity error:', error);
+            res.status(500).json({ error: 'Failed to fetch account activity' });
+        }
+    });
+
+    // Toggle account active status
+    app.post('/admin/accounts/:id/toggle-active', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const accountId = req.params.id;
+            const { isActive } = req.body;
+
+            // Prevent disabling yourself
+            if (accountId === req.account.id && isActive === false) {
+                return res.status(400).json({ 
+                    error: 'Cannot disable your own account' 
+                });
+            }
+
+            const account = await prisma.account.update({
+                where: { id: accountId },
+                data: { isActive: isActive === true || isActive === 'true' },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    isActive: true
+                }
+            });
+
+            // Log admin action
+            auditLog('ADMIN_ACCOUNT_TOGGLE', req.account.id, {
+                action: isActive ? 'enabled' : 'disabled',
+                targetAccountId: accountId,
+                targetEmail: account.email,
+                targetName: account.name
+            }, req);
+
+            res.json({
+                success: true,
+                account,
+                message: `Account ${account.isActive ? 'enabled' : 'disabled'} successfully`
+            });
+        } catch (error) {
+            console.error('Toggle account error:', error);
+            res.status(500).json({ error: 'Failed to update account status' });
+        }
+    });
+
+    // View single account details
+    app.get('/admin/accounts/:id', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const accountId = req.params.id;
+            
+            const account = await prisma.account.findUnique({
+                where: { id: accountId },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    subscriptionTier: true,
+                    isActive: true,
+                    isSuperAdmin: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    lastLoginAt: true,
+                    entraConnectedAt: true,
+                    entraTenantId: true,
+                    entraLastSyncAt: true
+                }
+            });
+
+            if (!account) {
+                return res.status(404).send('Account not found');
+            }
+
+            const stats = await db.getDatabaseStats(accountId);
+
+            res.render('admin-account-detail', {
+                title: `Account: ${account.name}`,
+                account,
+                stats,
+                currentAccount: req.account
+            });
+        } catch (error) {
+            console.error('Admin account detail error:', error);
+            res.status(500).send('Error loading account details');
+        }
+    });
 }
 
 module.exports = {
@@ -2311,6 +2514,7 @@ module.exports = {
     setupUserManagementRoutes: setupDataRoutes,  // Alias for consistency
     setupDashboardRoutes,
     setupAppsRoutes,
+    setupAdminRoutes,
     // Original names for backward compatibility
     setupScriptRoutes,
     setupTrackingAPI,

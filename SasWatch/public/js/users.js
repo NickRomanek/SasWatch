@@ -7,6 +7,9 @@ let filteredUsers = [...usersData];
 document.addEventListener('DOMContentLoaded', () => {
     setupUploadHandlers();
 
+    // Apply initial filters (including hidden users filter)
+    applyFilters();
+
     // Show skeleton loaders while initializing
     if (usersData && usersData.length > 0) {
         showSkeletonLoaders();
@@ -370,12 +373,28 @@ function setupSearch() {
     }
 }
 
+// Get hidden users from localStorage
+function getHiddenUsers() {
+    try {
+        const hidden = localStorage.getItem('hiddenUsers');
+        return hidden ? JSON.parse(hidden) : [];
+    } catch {
+        return [];
+    }
+}
+
 function applyFilters() {
     const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || '';
     const licenseFilter = document.getElementById('license-filter')?.value || '';
     const statusFilter = document.getElementById('status-filter')?.value || '';
+    const hiddenUsers = getHiddenUsers();
     
     filteredUsers = usersData.filter(user => {
+        // Hide filter - exclude hidden users
+        if (hiddenUsers.includes(user.email)) {
+            return false;
+        }
+        
         // Search filter
         const matchesSearch = !searchTerm || 
             user.firstName.toLowerCase().includes(searchTerm) ||
@@ -405,6 +424,9 @@ function applyFilters() {
     
     renderUsersTable();
 }
+
+// Expose applyFilters to window for modal to call
+window.applyUserFilters = applyFilters;
 
 function sortTable(column) {
     if (currentSort.column === column) {

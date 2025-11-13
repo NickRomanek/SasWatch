@@ -317,8 +317,16 @@ async function refreshData(options = {}) {
 
         const initialSyncProblem = finalMeta?.sync?.reason === 'timeout' || finalMeta?.sync?.error === true || finalMeta?.sync?.reason === 'graph-throttled';
         const looksIncomplete = totals.all === 0 || totals.entra === 0; // handle cases where only 1 local event exists
+        
+        // Check if data was recently cleared (within last 5 minutes) - don't auto-backfill
+        const dataClearedAt = sessionStorage.getItem('dataClearedAt');
+        const wasRecentlyCleared = dataClearedAt && (Date.now() - parseInt(dataClearedAt, 10)) < 5 * 60 * 1000; // 5 minutes
+        if (wasRecentlyCleared && looksIncomplete) {
+            console.log('[SYNC-DEBUG] Data was recently cleared, skipping auto-backfill');
+            sessionStorage.removeItem('dataClearedAt'); // Clear the flag after use
+        }
 
-        if ((looksIncomplete || initialSyncProblem) && allowBackfill) {
+        if ((looksIncomplete || initialSyncProblem) && allowBackfill && !wasRecentlyCleared) {
             const backfillToast = silent ? null : notifier.info('No recent events found — fetching last 24 hours…', 0);
             try {
                 const backfillParams = new URLSearchParams({
@@ -726,6 +734,8 @@ async function clearData(event) {
             cachedActivityData = { adobe: [], wrapper: [], entra: [] };
             updateActivityList('recent-activity', []);
             appendSyncLog('Data cleared. UI reset to empty state.');
+            // Set a flag to prevent auto-backfill on next page load
+            sessionStorage.setItem('dataClearedAt', Date.now().toString());
         } else {
             throw new Error('Failed to clear data');
         }
@@ -782,15 +792,15 @@ async function startManualSync() {
     }
 
     try {
-        // Fetch minimal data for speed: 10 events, 24 hours
-        console.log('[SYNC-DEBUG] Fetching last 24 hours (10 events max) from Graph API');
+        // Fetch data: request more events to ensure we get enough
+        console.log('[SYNC-DEBUG] Fetching last 24 hours (100 events) from Graph API');
         appendSyncLog('Fetching recent sign-ins (last 24 hours)...', { allowDuplicate: true });
         
-        // Use AbortController with 30 second timeout (faster than before)
+        // Use AbortController with 60 second timeout (more time for multiple pages)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 seconds for multiple pages
         
-        const syncResp = await fetch('/api/dev/graph/activity?limit=10&hours=24&force=true', {
+        const syncResp = await fetch('/api/dev/graph/activity?limit=100&hours=24&force=true', {
             signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -820,22 +830,19 @@ async function startManualSync() {
         appendSyncLog(`Command: ${result.command || 'N/A'}`, { allowDuplicate: true });
         appendSyncLog(`Fetched ${result.data?.length || 0} sign-in events in ${result.durationMs || 0}ms`, { allowDuplicate: true });
         
-        // Display the Graph data directly in the activity table
+        // Refresh data from database to show all saved events (not just the returned subset)
+        // This ensures we display all events that were saved, not just the limited response
+        appendSyncLog('Refreshing activity list from database...', { allowDuplicate: true });
+        await refreshData({ silent: true, awaitSync: false, allowBackfill: false });
+        
+        // Data is automatically saved to database by backend
+        appendSyncLog(`Events saved to database automatically by backend`, { allowDuplicate: true });
+        
         if (result.data && result.data.length > 0) {
-            displayGraphActivityData(result.data);
-            
-            // Data is automatically saved to database by backend (no second call needed)
-            appendSyncLog('Events saved to database automatically by backend', { allowDuplicate: true });
-            
             notifier.success(`Fetched and saved ${result.data.length} events from Microsoft Graph`);
         } else {
             appendSyncLog('No sign-in events found in the specified time range.', { allowDuplicate: true });
             notifier.info('No sign-in events found');
-            // Clear the table
-            const container = document.getElementById('recent-activity');
-            if (container) {
-                container.innerHTML = '<div class="empty-state">No sign-in activity found in the last 24 hours.</div>';
-            }
         }
     } catch (error) {
         console.error('[SYNC-DEBUG] Manual sync error:', error);

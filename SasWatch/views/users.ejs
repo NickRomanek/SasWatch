@@ -11,7 +11,7 @@
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="sidebar-logo">
-                <span>📊</span>
+                <img src="/images/logoTransp.png" alt="SasWatch" class="logo-image">
                 <span>SasWatch</span>
             </div>
             <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
@@ -44,12 +44,22 @@
                     <span>Account</span>
                 </a>
             </div>
+            <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
             <div class="sidebar-nav-item">
                 <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
                     <span class="nav-icon">🛠️</span>
                     <span>Dev</span>
                 </a>
             </div>
+            <% } %>
+            <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
+            <div class="sidebar-nav-item">
+                <a href="/admin" class="sidebar-nav-link" data-tooltip="Admin">
+                    <span class="nav-icon">👑</span>
+                    <span>Admin</span>
+                </a>
+            </div>
+            <% } %>
         </nav>
         
         <div class="sidebar-footer">
@@ -95,12 +105,14 @@
                         <span>Account</span>
                     </a>
                 </div>
+                <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
                 <div class="mobile-nav-item">
                     <a href="/dev" class="mobile-nav-link">
                         <span>🛠️</span>
                         <span>Dev</span>
                     </a>
                 </div>
+                <% } %>
             </nav>
 
             <header>
@@ -128,6 +140,10 @@
                     
                     <button class="btn btn-secondary" onclick="toggleImportSection('licenses')">
                         📋 Licenses
+                    </button>
+                    
+                    <button class="btn btn-secondary" onclick="toggleImportSection('users')">
+                        👥 Users
                     </button>
                     
                     <div class="dropdown-wrapper">
@@ -339,6 +355,23 @@
         </div>
         <% } %>
 
+        <!-- Users Management Modal (collapsible) -->
+        <div class="import-section" id="users-import-section" style="display: none;">
+            <div class="upload-card">
+                <div class="upload-header" style="display: flex !important; flex-direction: row !important; justify-content: center !important; align-items: center !important; gap: 1rem;">
+                    <h2 style="margin: 0;">👥 Manage Users</h2>
+                    <button class="btn btn-primary" onclick="closeUsersSection()">
+                        Close
+                    </button>
+                </div>
+                <div id="users-list" style="margin-top: 1.5rem;">
+                    <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        Loading users...
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Users Table Section -->
         <div class="users-section">
             <div class="users-header">
@@ -379,38 +412,38 @@
                     <% } %>
                 </div>
                 <% } %>
-            </div>
+                </div>
 
-            <% if (!users || users.length === 0) { %>
-            <div class="empty-state">
-                <div class="empty-icon">📋</div>
-                <h3>No Users Imported</h3>
-                <p>Upload your Adobe Admin Console user export CSV to get started.</p>
+                <% if (!users || users.length === 0) { %>
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <h3>No Users Imported</h3>
+                        <p>Upload your Adobe Admin Console user export CSV to get started.</p>
+                    </div>
+                <% } else { %>
+                    <div class="users-table-container">
+                        <table class="users-table" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="select-all-checkbox" title="Select all users">
+                                    </th>
+                                    <th onclick="sortTable('name')">Name <span class="sort-icon">↕</span></th>
+                                    <th onclick="sortTable('email')">Email <span class="sort-icon">↕</span></th>
+                                    <th onclick="sortTable('licenses')">Licenses <span class="sort-icon">↕</span></th>
+                                    <th onclick="sortTable('lastActivity')">Last Activity <span class="sort-icon">↕</span></th>
+                                    <th onclick="sortTable('activityCount')">Activity Count <span class="sort-icon">↕</span></th>
+                                    <th>Entra Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <!-- Will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                <% } %>
             </div>
-            <% } else { %>
-            <div class="users-table-container">
-                <table class="users-table" id="users-table">
-                <thead>
-                    <tr>
-                        <th style="width: 40px;">
-                            <input type="checkbox" id="select-all-checkbox" title="Select all users">
-                        </th>
-                        <th onclick="sortTable('name')">Name <span class="sort-icon">↕</span></th>
-                        <th onclick="sortTable('email')">Email <span class="sort-icon">↕</span></th>
-                        <th onclick="sortTable('licenses')">Licenses <span class="sort-icon">↕</span></th>
-                        <th onclick="sortTable('lastActivity')">Last Activity <span class="sort-icon">↕</span></th>
-                        <th onclick="sortTable('activityCount')">Activity Count <span class="sort-icon">↕</span></th>
-                        <th>Entra Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="users-table-body">
-                    <!-- Will be populated by JavaScript -->
-                </tbody>
-                </table>
-            </div>
-            <% } %>
-        </div>
         </div>
     </main>
 
@@ -505,6 +538,11 @@
                 // Load licenses when section is opened
                 if (sectionName === 'licenses' && !isVisible) {
                     loadLicenses();
+                }
+                
+                // Load users when section is opened
+                if (sectionName === 'users' && !isVisible) {
+                    loadUsers();
                 }
             }
         }
@@ -612,6 +650,171 @@
             // Reload page to show updated license visibility in user list
             window.location.reload();
         };
+        
+        // Close users section
+        window.closeUsersSection = function() {
+            const section = document.getElementById('users-import-section');
+            if (section) {
+                section.style.display = 'none';
+            }
+        };
+        
+        // Load and display users in the modal
+        async function loadUsers() {
+            const usersList = document.getElementById('users-list');
+            if (!usersList) return;
+            
+            usersList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading users...</div>';
+            
+            try {
+                const response = await fetch('/api/users');
+                const data = await response.json();
+                
+                if (data.users && Array.isArray(data.users)) {
+                    if (data.users.length === 0) {
+                        usersList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No users imported yet. Import users to see them here.</div>';
+                        return;
+                    }
+                    
+                    // Get hidden users list
+                    const hiddenUsers = (() => {
+                        try {
+                            const hidden = localStorage.getItem('hiddenUsers');
+                            return hidden ? JSON.parse(hidden) : [];
+                        } catch {
+                            return [];
+                        }
+                    })();
+                    
+                    const usersHtml = data.users.map(user => {
+                        const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+                        const licenseCount = user.licenses ? (Array.isArray(user.licenses) ? user.licenses.length : 0) : 0;
+                        const isHidden = hiddenUsers.includes(user.email);
+                        const badgeClass = isHidden ? 'status-neutral' : 'status-success';
+                        const showButtonStyle = isHidden ? '' : 'display: none;';
+                        const hideButtonStyle = isHidden ? 'display: none;' : '';
+                        
+                        return `
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
+                                    <span class="status-badge ${badgeClass}">${isHidden ? '👁️‍🗨️ Hidden' : '✓ Visible'}</span>
+                                    <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1;">
+                                        <span style="font-weight: 500; color: var(--text-primary);">${fullName}</span>
+                                        <div style="font-size: 0.875rem; color: var(--text-secondary);">${user.email}</div>
+                                        <div style="font-size: 0.75rem; color: var(--text-secondary);">${licenseCount} license(s)</div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-secondary btn-xs user-show-btn" data-user-id="${user.id}" data-email="${user.email.replace(/"/g, '&quot;')}" style="${showButtonStyle}">
+                                        Show
+                                    </button>
+                                    <button class="btn btn-danger btn-xs user-hide-btn" data-user-id="${user.id}" data-email="${user.email.replace(/"/g, '&quot;')}" style="${hideButtonStyle}">
+                                        Hide
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    usersList.innerHTML = `
+                        <div style="background: var(--bg-secondary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
+                            ${usersHtml}
+                        </div>
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color);">
+                            <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
+                                <strong>Note:</strong> Hiding a user will remove them from the users table view. They can be shown again at any time.
+                            </p>
+                        </div>
+                    `;
+                    
+                    // Attach event listeners to buttons
+                    usersList.querySelectorAll('.user-show-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            const userId = this.getAttribute('data-user-id');
+                            const email = this.getAttribute('data-email');
+                            toggleUserVisibility(userId, email, false);
+                        });
+                    });
+                    
+                    usersList.querySelectorAll('.user-hide-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            const userId = this.getAttribute('data-user-id');
+                            const email = this.getAttribute('data-email');
+                            toggleUserVisibility(userId, email, true);
+                        });
+                    });
+                } else {
+                    usersList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Failed to load users.</div>';
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                usersList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--danger);">Error loading users: ' + error.message + '</div>';
+            }
+        }
+        
+        // Get hidden users from localStorage
+        function getHiddenUsers() {
+            try {
+                const hidden = localStorage.getItem('hiddenUsers');
+                return hidden ? JSON.parse(hidden) : [];
+            } catch {
+                return [];
+            }
+        }
+        
+        // Save hidden users to localStorage
+        function setHiddenUsers(hiddenUsers) {
+            try {
+                localStorage.setItem('hiddenUsers', JSON.stringify(hiddenUsers));
+            } catch (error) {
+                console.error('Failed to save hidden users:', error);
+            }
+        }
+        
+        // Toggle user visibility
+        async function toggleUserVisibility(userId, email, hide) {
+            try {
+                const hiddenUsers = getHiddenUsers();
+                
+                if (hide) {
+                    // Add to hidden list if not already there
+                    if (!hiddenUsers.includes(email)) {
+                        hiddenUsers.push(email);
+                        setHiddenUsers(hiddenUsers);
+                    }
+                } else {
+                    // Remove from hidden list
+                    const index = hiddenUsers.indexOf(email);
+                    if (index > -1) {
+                        hiddenUsers.splice(index, 1);
+                        setHiddenUsers(hiddenUsers);
+                    }
+                }
+                
+                // Update the users table if it exists
+                if (typeof window.applyUserFilters === 'function') {
+                    window.applyUserFilters();
+                } else if (typeof window.renderUsersTable === 'function') {
+                    window.renderUsersTable();
+                }
+                
+                if (typeof Toast !== 'undefined') {
+                    Toast.success(`User ${hide ? 'hidden' : 'shown'}: ${email}`);
+                } else {
+                    alert(`User ${hide ? 'hidden' : 'shown'}: ${email}`);
+                }
+                
+                // Reload users list in modal to update the UI
+                await loadUsers();
+            } catch (error) {
+                console.error('Error toggling user visibility:', error);
+                if (typeof Toast !== 'undefined') {
+                    Toast.error('Failed to update user: ' + error.message);
+                } else {
+                    alert('Failed to update user: ' + error.message);
+                }
+            }
+        }
         
         // Close dropdowns when clicking outside
         document.addEventListener('click', function(event) {

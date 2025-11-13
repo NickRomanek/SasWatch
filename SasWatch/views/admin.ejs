@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - SasWatch</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .admin-header h1 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 2rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .accounts-table {
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+        }
+
+        .table-header {
+            background: var(--bg-secondary);
+            padding: 16px 24px;
+            border-bottom: 2px solid var(--border-color);
+            font-weight: 600;
+            color: var(--text-primary);
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr 1fr 1fr 1fr 1fr 1fr 120px;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .table-row {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr 1fr 1fr 1fr 1fr 1fr 120px;
+            gap: 16px;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .table-row:hover {
+            background: var(--bg-hover);
+        }
+
+        .table-row:last-child {
+            border-bottom: none;
+        }
+
+        .account-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .account-email {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: var(--success);
+            color: white;
+        }
+
+        .status-inactive {
+            background: var(--danger);
+            color: white;
+        }
+
+        .status-super-admin {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .tier-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+        }
+
+        .stat-number {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .expand-btn {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .expand-btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .toggle-active-btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .toggle-active-btn:hover {
+            background: #dc2626;
+        }
+
+        .toggle-active-btn.active {
+            background: var(--success);
+        }
+
+        .toggle-active-btn.active:hover {
+            background: #16a34a;
+        }
+
+        .activity-section {
+            grid-column: 1 / -1;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .activity-section.expanded {
+            display: block;
+        }
+
+        .activity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .activity-header h3 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+        }
+
+        .activity-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .activity-stat {
+            background: var(--bg-card);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .activity-stat-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+
+        .activity-stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .activity-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .activity-item {
+            padding: 12px;
+            background: var(--bg-card);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 0.875rem;
+        }
+
+        .activity-item-time {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin-top: 4px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 1200px) {
+            .table-header,
+            .table-row {
+                grid-template-columns: 2fr 2fr 1fr 1fr 1fr 1fr 100px;
+            }
+            
+            .table-header .hide-mobile,
+            .table-row .hide-mobile {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <img src="/images/logoTransp.png" alt="SasWatch" class="logo-image">
+                <span>SasWatch</span>
+            </div>
+            <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+                <span id="sidebar-toggle-icon">◀</span>
+            </button>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <div class="sidebar-nav-item">
+                <a href="/" class="sidebar-nav-link" data-tooltip="Users">
+                    <span class="nav-icon">👥</span>
+                    <span>Users</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
+                    <span class="nav-icon">📦</span>
+                    <span>Apps</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
+                    <span class="nav-icon">📊</span>
+                    <span>Activity</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/account" class="sidebar-nav-link" data-tooltip="Account">
+                    <span class="nav-icon">⚙️</span>
+                    <span>Account</span>
+                </a>
+            </div>
+            <% if (currentAccount && currentAccount.isSuperAdmin) { %>
+            <div class="sidebar-nav-item">
+                <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
+                    <span class="nav-icon">🛠️</span>
+                    <span>Dev</span>
+                </a>
+            </div>
+            <% } %>
+            <% if (currentAccount && currentAccount.isSuperAdmin) { %>
+            <div class="sidebar-nav-item">
+                <a href="/admin" class="sidebar-nav-link active" data-tooltip="Admin">
+                    <span class="nav-icon">👑</span>
+                    <span>Admin</span>
+                </a>
+            </div>
+            <% } %>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-actions">
+                <a href="/logout" class="sidebar-footer-link">
+                    <span class="nav-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+                <button class="sidebar-footer-link" onclick="toggleTheme()" style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;" title="Toggle theme">
+                    <span class="nav-icon" id="theme-icon">☀️</span>
+                    <span>Theme</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="admin-container">
+            <div class="admin-header">
+                <h1>
+                    <span>👑</span>
+                    <span>Admin Dashboard</span>
+                </h1>
+                <div>
+                    <span style="color: var(--text-secondary);">Total Accounts: <strong><%= accounts.length %></strong></span>
+                </div>
+            </div>
+
+            <% if (accounts.length === 0) { %>
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <h2>No accounts found</h2>
+                    <p>No accounts have been created yet.</p>
+                </div>
+            <% } else { %>
+                <div class="accounts-table">
+                    <div class="table-header">
+                        <div>Account</div>
+                        <div>Email</div>
+                        <div class="hide-mobile">Tier</div>
+                        <div>Status</div>
+                        <div>Users</div>
+                        <div>Events</div>
+                        <div class="hide-mobile">Sign-Ins</div>
+                        <div class="hide-mobile">Created</div>
+                        <div>Actions</div>
+                    </div>
+                    <% accounts.forEach((account) => { %>
+                        <div class="table-row" data-account-id="<%= account.id %>">
+                            <div>
+                                <div class="account-name">
+                                    <%= account.name %>
+                                    <% if (account.isSuperAdmin) { %>
+                                        <span class="status-badge status-super-admin" style="margin-left: 8px;">Admin</span>
+                                    <% } %>
+                                </div>
+                            </div>
+                            <div class="account-email"><%= account.email %></div>
+                            <div class="hide-mobile">
+                                <span class="tier-badge"><%= account.subscriptionTier %></span>
+                            </div>
+                            <div>
+                                <span class="status-badge <%= account.isActive ? 'status-active' : 'status-inactive' %>">
+                                    <%= account.isActive ? 'Active' : 'Inactive' %>
+                                </span>
+                            </div>
+                            <div class="stat-number"><%= account.stats.users || 0 %></div>
+                            <div class="stat-number"><%= account.stats.usageEvents || 0 %></div>
+                            <div class="hide-mobile stat-number"><%= account.stats.signInEvents || 0 %></div>
+                            <div class="hide-mobile" style="font-size: 0.75rem; color: var(--text-secondary);">
+                                <%= new Date(account.createdAt).toLocaleDateString() %>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="expand-btn" onclick="toggleActivity('<%= account.id %>')" data-account-id="<%= account.id %>">
+                                    📊 View
+                                </button>
+                                <button 
+                                    class="toggle-active-btn <%= account.isActive ? 'active' : '' %>" 
+                                    onclick="toggleAccountActive('<%= account.id %>', <%= account.isActive %>)"
+                                    <%= account.id === currentAccount.id ? 'disabled title="Cannot disable your own account"' : '' %>
+                                >
+                                    <%= account.isActive ? 'Disable' : 'Enable' %>
+                                </button>
+                            </div>
+                            <div class="activity-section" id="activity-<%= account.id %>">
+                                <div class="activity-header">
+                                    <h3>Activity for <%= account.name %></h3>
+                                    <button onclick="toggleActivity('<%= account.id %>')" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer;">✕</button>
+                                </div>
+                                <div class="activity-stats">
+                                    <div class="activity-stat">
+                                        <div class="activity-stat-number"><%= account.stats.users || 0 %></div>
+                                        <div class="activity-stat-label">Users</div>
+                                    </div>
+                                    <div class="activity-stat">
+                                        <div class="activity-stat-number"><%= account.stats.usageEvents || 0 %></div>
+                                        <div class="activity-stat-label">Usage Events</div>
+                                    </div>
+                                    <div class="activity-stat">
+                                        <div class="activity-stat-number"><%= account.stats.signInEvents || 0 %></div>
+                                        <div class="activity-stat-label">Sign-Ins</div>
+                                    </div>
+                                    <div class="activity-stat">
+                                        <div class="activity-stat-number"><%= account.stats.unmappedUsernames || 0 %></div>
+                                        <div class="activity-stat-label">Unmapped</div>
+                                    </div>
+                                </div>
+                                <div class="activity-list" id="activity-list-<%= account.id %>">
+                                    <div class="loading">Loading activity...</div>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } %>
+        </div>
+    </main>
+
+    <script src="/js/theme.js"></script>
+    <script src="/js/ui-components.js"></script>
+    <script>
+        async function toggleActivity(accountId) {
+            const activitySection = document.getElementById(`activity-${accountId}`);
+            const activityList = document.getElementById(`activity-list-${accountId}`);
+            const isExpanded = activitySection.classList.contains('expanded');
+
+            if (isExpanded) {
+                activitySection.classList.remove('expanded');
+            } else {
+                activitySection.classList.add('expanded');
+                
+                // Load activity if not already loaded
+                if (activityList.innerHTML.includes('Loading activity')) {
+                    try {
+                        const response = await fetch(`/api/admin/accounts/${accountId}/activity`);
+                        const data = await response.json();
+
+                        if (data.success) {
+                            let html = '';
+                            
+                            if (data.activity.recentSignIns.length > 0) {
+                                html += '<h4 style="margin: 16px 0 8px 0; color: var(--text-primary);">Recent Sign-Ins</h4>';
+                                data.activity.recentSignIns.forEach(signIn => {
+                                    html += `
+                                        <div class="activity-item">
+                                            <strong>${signIn.userDisplayName || signIn.userPrincipalName || 'Unknown'}</strong> - ${signIn.appDisplayName || 'Unknown App'}
+                                            ${signIn.ipAddress ? `<br>IP: ${signIn.ipAddress}` : ''}
+                                            ${signIn.riskState ? `<br>Risk: ${signIn.riskState}` : ''}
+                                            <div class="activity-item-time">${new Date(signIn.createdDateTime).toLocaleString()}</div>
+                                        </div>
+                                    `;
+                                });
+                            }
+
+                            if (data.activity.recentEvents.length > 0) {
+                                html += '<h4 style="margin: 16px 0 8px 0; color: var(--text-primary);">Recent Events</h4>';
+                                data.activity.recentEvents.forEach(event => {
+                                    html += `
+                                        <div class="activity-item">
+                                            <strong>${event.event}</strong> - ${event.url || 'N/A'}
+                                            <div class="activity-item-time">${new Date(event.when).toLocaleString()}</div>
+                                        </div>
+                                    `;
+                                });
+                            }
+
+                            if (html === '') {
+                                html = '<div class="empty-state" style="padding: 20px;"><p>No recent activity</p></div>';
+                            }
+
+                            activityList.innerHTML = html;
+                        } else {
+                            activityList.innerHTML = '<div class="empty-state" style="padding: 20px;"><p>Failed to load activity</p></div>';
+                        }
+                    } catch (error) {
+                        console.error('Failed to load activity:', error);
+                        activityList.innerHTML = '<div class="empty-state" style="padding: 20px;"><p>Error loading activity</p></div>';
+                    }
+                }
+            }
+        }
+
+        async function toggleAccountActive(accountId, currentStatus) {
+            if (!confirm(`Are you sure you want to ${currentStatus ? 'disable' : 'enable'} this account?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/accounts/${accountId}/toggle-active`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        isActive: !currentStatus
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    if (typeof Toast !== 'undefined') {
+                        Toast.success(data.message);
+                    } else {
+                        alert(data.message);
+                    }
+                    // Reload page to reflect changes
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    throw new Error(data.error || 'Failed to update account');
+                }
+            } catch (error) {
+                console.error('Toggle account error:', error);
+                if (typeof Toast !== 'undefined') {
+                    Toast.error('Failed to update account: ' + error.message);
+                } else {
+                    alert('Failed to update account: ' + error.message);
+                }
+            }
+        }
+
+        // Sidebar toggle functionality
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('sidebar-toggle-icon');
+            sidebar.classList.toggle('collapsed');
+            
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
+            icon.textContent = isCollapsed ? '▶' : '◀';
+        }
+
+        // Initialize sidebar state
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarIcon = document.getElementById('sidebar-toggle-icon');
+            const savedSidebarState = localStorage.getItem('sidebarCollapsed') === 'true';
+            if (savedSidebarState) {
+                sidebar.classList.add('collapsed');
+                sidebarIcon.textContent = '▶';
+            }
+        });
+
+        // Expose to window for onclick handlers
+        window.toggleSidebar = toggleSidebar;
+    </script>
+</body>
+</html>
+
