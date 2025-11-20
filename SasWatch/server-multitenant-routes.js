@@ -19,8 +19,21 @@ const {
     auditLog,
     generateSecureToken 
 } = require('./lib/security');
+const { sendSurveyEmail, SURVEY_EMAIL_REGEX } = require('./lib/email-sender');
 
 const REQUEST_TIMEOUT_MS = 180000; // 3 minutes to allow for Graph API calls that can take up to 2 minutes
+const surveySubmissionLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+        res.status(429).json({
+            success: false,
+            message: 'Too many survey submissions. Please try again later.'
+        });
+    }
+});
 
 // Global sync status tracking
 const activeSyncs = new Map();
@@ -470,6 +483,58 @@ function setupAccountRoutes(app) {
             res.status(500).json({ 
                 success: false, 
                 error: error?.message || 'Failed to regenerate API key' 
+            });
+        }
+    });
+
+    // Survey feedback submission
+    app.post('/api/survey/submit', auth.requireAuth, surveySubmissionLimiter, async (req, res) => {
+        try {
+            const { email, feedback, rating } = req.body || {};
+
+            if (typeof email !== 'string' || !SURVEY_EMAIL_REGEX.test(email.trim())) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'A valid email address is required.'
+                });
+            }
+
+            if (feedback && typeof feedback !== 'string') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Feedback must be a string value.'
+                });
+            }
+
+            if (rating && typeof rating !== 'string') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Rating must be a string value.'
+                });
+            }
+
+            await sendSurveyEmail({
+                email: email.trim(),
+                feedback: feedback?.trim(),
+                rating: rating?.trim(),
+                submittedAt: new Date().toISOString(),
+                context: {
+                    accountId: req.session?.accountId,
+                    accountEmail: req.session?.accountEmail,
+                    ip: req.ip,
+                    userAgent: req.get('user-agent')
+                }
+            });
+
+            res.json({
+                success: true,
+                message: 'Thanks for the feedback!'
+            });
+        } catch (error) {
+            console.error('Survey submission error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'We could not send your feedback right now. Please try again later.'
             });
         }
     });

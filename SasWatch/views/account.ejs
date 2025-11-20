@@ -444,6 +444,143 @@
             font-weight: 500;
         }
 
+        .survey-tab-button {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--accent-primary);
+            color: #fff;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.3);
+            cursor: pointer;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            font-size: 1rem;
+            z-index: 1200;
+            transition: all 0.2s ease;
+        }
+
+        .survey-tab-button:hover {
+            background: var(--accent-hover);
+            box-shadow: 0 25px 50px rgba(15, 23, 42, 0.35);
+            transform: translateY(-2px);
+        }
+
+        .survey-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1300;
+            padding: 24px;
+        }
+
+        .survey-modal.open {
+            display: flex;
+        }
+
+        .survey-modal-content {
+            background: var(--bg-card);
+            border-radius: 16px;
+            width: min(520px, 95vw);
+            padding: 32px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 25px 55px rgba(15, 23, 42, 0.35);
+            animation: slideUp 0.25s ease;
+        }
+
+        .survey-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .survey-modal-header h3 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .survey-modal-header p {
+            margin: 4px 0 0 0;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .survey-modal-close {
+            border: none;
+            background: transparent;
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .survey-modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .survey-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .survey-form label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--text-primary);
+        }
+
+        .survey-form input,
+        .survey-form textarea,
+        .survey-form select {
+            width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px 14px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+
+        .survey-form textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .survey-submit-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            background: var(--accent-primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .survey-submit-btn:hover:not(:disabled) {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .survey-submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         @media (max-width: 768px) {
             .account-header {
                 flex-direction: column;
@@ -461,6 +598,13 @@
 
             .download-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .survey-tab-button {
+                bottom: 16px;
+                right: 16px;
+                padding: 12px 20px;
+                font-size: 0.95rem;
             }
         }
     </style>
@@ -752,8 +896,53 @@
         </div>
     </div>
 
+    <button class="survey-tab-button" id="surveyTabButton" type="button" aria-controls="surveyModal" aria-haspopup="dialog">
+        Feedback
+    </button>
+
+    <div class="survey-modal" id="surveyModal" aria-hidden="true">
+        <div class="survey-modal-content" role="dialog" aria-modal="true" aria-labelledby="surveyModalTitle">
+            <div class="survey-modal-header">
+                <div>
+                    <h3 id="surveyModalTitle">Share Your Feedback</h3>
+                    <p>Tell us how SasWatch is working for your team.</p>
+                </div>
+                <button class="survey-modal-close" id="surveyModalClose" type="button" aria-label="Close survey form">×</button>
+            </div>
+
+            <form class="survey-form" id="surveyForm">
+                <div>
+                    <label for="surveyEmail">Work Email <span style="color: var(--accent-primary);">*</span></label>
+                    <input type="email" id="surveyEmail" name="email" placeholder="you@company.com" required>
+                </div>
+
+                <div>
+                    <label for="surveyRating">Overall experience</label>
+                    <select id="surveyRating" name="rating">
+                        <option value="">Choose an option</option>
+                        <option value="Amazing">Amazing</option>
+                        <option value="Good">Good</option>
+                        <option value="Okay">Okay</option>
+                        <option value="Needs improvement">Needs improvement</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="surveyFeedback">Feedback or feature requests</label>
+                    <textarea id="surveyFeedback" name="feedback" placeholder="Share any thoughts you'd like us to know"></textarea>
+                </div>
+
+                <button type="submit" class="survey-submit-btn" id="surveySubmitButton">
+                    <span>Send Feedback</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
     <script src="/js/ui-components.js"></script>
     <script>
+        const SURVEY_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
         async function copyApiKey() {
             const input = document.getElementById('apiKeyInput');
             await copyToClipboard(input.value, '✓ API key copied to clipboard!');
@@ -917,6 +1106,92 @@
                 sidebarIcon.textContent = '▶';
             }
         });
+
+        function initSurveyModal() {
+            const modal = document.getElementById('surveyModal');
+            const tabButton = document.getElementById('surveyTabButton');
+            const closeButton = document.getElementById('surveyModalClose');
+            const form = document.getElementById('surveyForm');
+            const submitButton = document.getElementById('surveySubmitButton');
+
+            if (!modal || !tabButton || !closeButton || !form || !submitButton) {
+                return;
+            }
+
+            const openModal = () => {
+                modal.classList.add('open');
+                modal.setAttribute('aria-hidden', 'false');
+                const firstField = form.querySelector('input, textarea, select');
+                if (firstField) {
+                    firstField.focus();
+                }
+            };
+
+            const closeModal = () => {
+                modal.classList.remove('open');
+                modal.setAttribute('aria-hidden', 'true');
+            };
+
+            tabButton.addEventListener('click', openModal);
+            closeButton.addEventListener('click', closeModal);
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    closeModal();
+                }
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && modal.classList.contains('open')) {
+                    closeModal();
+                }
+            });
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (submitButton.disabled) return;
+
+                const email = form.email.value.trim();
+                const feedback = form.feedback.value.trim();
+                const rating = form.rating.value.trim();
+
+                if (!SURVEY_EMAIL_REGEX.test(email)) {
+                    Toast.error('Please enter a valid email address.');
+                    form.email.focus();
+                    return;
+                }
+
+                submitButton.disabled = true;
+                const previousContent = submitButton.innerHTML;
+                submitButton.innerHTML = '<span class="spinner"></span> Sending...';
+
+                try {
+                    const response = await fetch('/api/survey/submit', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ email, feedback, rating })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || 'Unable to send feedback right now.');
+                    }
+
+                    Toast.success('Thanks for sharing your feedback!');
+                    form.reset();
+                    closeModal();
+                } catch (error) {
+                    Toast.error(error.message || 'Unable to send feedback right now.');
+                } finally {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = previousContent;
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', initSurveyModal);
     </script>
         </div>
     </main>
