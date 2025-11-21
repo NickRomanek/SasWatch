@@ -84,6 +84,42 @@ function auditLog(action, accountId, details = {}, req = null) {
     }
 }
 
+/**
+ * Log application errors with full context
+ * Separate from security audit log - focuses on application errors
+ * @param {Error} error - Error object
+ * @param {object} context - Additional context (req, accountId, etc.)
+ */
+function logApplicationError(error, context = {}) {
+    const errorData = {
+        timestamp: new Date().toISOString(),
+        message: error.message,
+        name: error.name,
+        statusCode: error.statusCode || 500,
+        stack: error.stack,
+        isOperational: error.isOperational || false,
+        ...context
+    };
+
+    // Add request context if available
+    if (context.req) {
+        const req = context.req;
+        errorData.requestId = req.id;
+        errorData.accountId = req.session?.accountId;
+        errorData.accountEmail = req.session?.accountEmail;
+        errorData.url = req.originalUrl || req.url;
+        errorData.method = req.method;
+        errorData.ip = req.ip || req.headers['x-forwarded-for'];
+        errorData.userAgent = req.headers['user-agent'];
+        
+        // Remove req from errorData to avoid circular references
+        delete errorData.req;
+    }
+
+    // Log to error.log
+    securityLogger.error('Application Error', errorData);
+}
+
 // ============================================
 // HTTP Security Headers (Helmet)
 // ============================================
@@ -440,6 +476,7 @@ module.exports = {
     
     // Logging
     auditLog,
+    logApplicationError,
     securityLogger,
     
     // Middleware

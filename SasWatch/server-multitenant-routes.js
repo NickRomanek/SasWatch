@@ -19,7 +19,7 @@ const {
     auditLog,
     generateSecureToken 
 } = require('./lib/security');
-const { sendSurveyEmail, SURVEY_EMAIL_REGEX } = require('./lib/email-sender');
+const { sendSurveyEmail, sendVerificationEmail, SURVEY_EMAIL_REGEX } = require('./lib/email-sender');
 
 const REQUEST_TIMEOUT_MS = 180000; // 3 minutes to allow for Graph API calls that can take up to 2 minutes
 const surveySubmissionLimiter = rateLimit({
@@ -102,8 +102,20 @@ function setupAuthRoutes(app) {
         try {
             const { name, email, password } = req.body;
             
-            // Create account
+            // Create account (now includes verification token)
             const account = await auth.createAccount(name, email, password);
+            
+            // Send verification email
+            try {
+                await sendVerificationEmail({
+                    to: email,
+                    token: account.emailVerificationToken,
+                    accountName: name
+                });
+            } catch (emailError) {
+                console.error('Failed to send verification email:', emailError);
+                // Continue even if email fails - user can request resend
+            }
             
             // Log successful signup
             auditLog('SIGNUP_SUCCESS', account.id, {
@@ -111,11 +123,10 @@ function setupAuthRoutes(app) {
                 name: name
             }, req);
             
-            // Auto-login after signup
-            req.session.accountId = account.id;
-            req.session.accountEmail = account.email;
+            // DO NOT auto-login - require verification first
+            // Show verification pending page instead
+            res.render('verification-pending', { email, name });
             
-            res.redirect('/');
         } catch (error) {
             console.error('Signup error:', error);
             
@@ -159,11 +170,25 @@ function setupAuthRoutes(app) {
                 
                 return res.render('login', { 
                     error: 'Invalid email or password',
-                    message: null
+                    message: null,
+                    showResendLink: false,
+                    email: null
                 });
             }
             
             console.log('Authentication successful for account:', account.id);
+            
+            // Check if email is verified
+            if (!account.emailVerified) {
+                auditLog('LOGIN_BLOCKED_UNVERIFIED', account.id, { email }, req);
+                
+                return res.render('login', {
+                    error: 'Please verify your email before logging in. Check your inbox for the verification link.',
+                    message: null,
+                    showResendLink: true,
+                    email: email
+                });
+            }
             
             // Log successful login
             auditLog('LOGIN_SUCCESS', account.id, {
@@ -205,6 +230,78 @@ function setupAuthRoutes(app) {
             res.render('login', { 
                 error: error.message || 'Login failed',
                 message: null
+            });
+        }
+    });
+    
+    // Email verification endpoint
+    app.get('/verify-email', async (req, res) => {
+        try {
+            const { token } = req.query;
+            
+            if (!token) {
+                return res.render('verification-result', {
+                    success: false,
+                    message: 'Invalid verification link'
+                });
+            }
+            
+            const result = await auth.verifyEmail(token);
+            
+            if (result.success) {
+                auditLog('EMAIL_VERIFIED', result.accountId, { email: result.email }, req);
+                
+                // Auto-login after successful verification
+                req.session.accountId = result.accountId;
+                req.session.accountEmail = result.email;
+                
+                return res.render('verification-result', {
+                    success: true,
+                    message: 'Email verified successfully! Redirecting to dashboard...'
+                });
+            } else {
+                return res.render('verification-result', {
+                    success: false,
+                    message: result.message
+                });
+            }
+        } catch (error) {
+            console.error('Verification error:', error);
+            res.render('verification-result', {
+                success: false,
+                message: 'Verification failed. Please try again.'
+            });
+        }
+    });
+    
+    // Resend verification email
+    app.post('/resend-verification', async (req, res) => {
+        try {
+            const { email } = req.body;
+            
+            if (!email) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Email address is required'
+                });
+            }
+            
+            const account = await auth.resendVerificationEmail(email);
+            
+            await sendVerificationEmail({
+                to: email,
+                token: account.emailVerificationToken,
+                accountName: account.name
+            });
+            
+            auditLog('VERIFICATION_RESENT', account.id, { email }, req);
+            
+            res.json({ success: true, message: 'Verification email sent!' });
+        } catch (error) {
+            console.error('Resend verification error:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Failed to resend verification email'
             });
         }
     });

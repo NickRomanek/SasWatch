@@ -182,6 +182,13 @@
                 <span>⚠️</span>
                 <span><%= error %></span>
             </div>
+            <% if (typeof showResendLink !== 'undefined' && showResendLink && typeof email !== 'undefined' && email) { %>
+                <div style="text-align: center; margin-top: 16px;">
+                    <button onclick="resendVerification()" id="resendBtn" style="background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
+                        Resend Verification Email
+                    </button>
+                </div>
+            <% } %>
         <% } %>
 
         <% if (typeof message !== 'undefined' && message) { %>
@@ -209,6 +216,43 @@
             Don't have an account? <a href="/signup">Sign up</a>
         </div>
     </div>
+
+    <% if (typeof showResendLink !== 'undefined' && showResendLink && typeof email !== 'undefined' && email) { %>
+    <script>
+        async function resendVerification() {
+            const btn = document.getElementById('resendBtn');
+            const originalText = btn.textContent;
+            
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            
+            try {
+                const response = await fetch('/resend-verification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: '<%= email %>'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Verification email sent! Check your inbox.');
+                } else {
+                    alert('❌ ' + result.message);
+                }
+            } catch (error) {
+                alert('❌ Failed to send email. Please try again.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+    </script>
+    <% } %>
 </body>
 </html>
 

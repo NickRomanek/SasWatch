@@ -25,6 +25,7 @@ async function comparePassword(password, hash) {
 
 async function createAccount(name, email, password) {
     const hashedPassword = await hashPassword(password);
+    const { generateSecureToken } = require('./security');
     
     // Check if email already exists
     const existing = await prisma.account.findUnique({
@@ -35,6 +36,10 @@ async function createAccount(name, email, password) {
         throw new Error('Account with this email already exists');
     }
     
+    // Generate email verification token
+    const verificationToken = generateSecureToken();
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    
     // Create account with auto-generated API key
     const account = await prisma.account.create({
         data: {
@@ -42,7 +47,10 @@ async function createAccount(name, email, password) {
             email,
             password: hashedPassword,
             subscriptionTier: 'free',
-            isActive: true
+            isActive: true,
+            emailVerified: false,
+            emailVerificationToken: verificationToken,
+            emailVerificationExpires: verificationExpires
         }
     });
     
@@ -118,6 +126,84 @@ async function regenerateApiKey(accountId) {
     });
 
     return account.apiKey;
+}
+
+// ============================================
+// Email Verification
+// ============================================
+
+async function verifyEmail(token) {
+    if (!token) {
+        return { success: false, message: 'Verification token is required' };
+    }
+
+    // Find account by token
+    const account = await prisma.account.findUnique({
+        where: { emailVerificationToken: token }
+    });
+
+    if (!account) {
+        return { success: false, message: 'Invalid or expired verification link' };
+    }
+
+    // Check if already verified
+    if (account.emailVerified) {
+        return { success: false, message: 'Email already verified' };
+    }
+
+    // Check if token expired
+    if (account.emailVerificationExpires && new Date() > account.emailVerificationExpires) {
+        return { success: false, message: 'Verification link has expired. Please request a new one.' };
+    }
+
+    // Verify email and clear token
+    await prisma.account.update({
+        where: { id: account.id },
+        data: {
+            emailVerified: true,
+            emailVerificationToken: null,
+            emailVerificationExpires: null
+        }
+    });
+
+    return {
+        success: true,
+        accountId: account.id,
+        email: account.email
+    };
+}
+
+async function resendVerificationEmail(email) {
+    const { generateSecureToken } = require('./security');
+
+    // Find account by email
+    const account = await prisma.account.findUnique({
+        where: { email }
+    });
+
+    if (!account) {
+        throw new Error('No account found with this email address');
+    }
+
+    // Check if already verified
+    if (account.emailVerified) {
+        throw new Error('Email is already verified');
+    }
+
+    // Generate new verification token
+    const verificationToken = generateSecureToken();
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Update account with new token
+    const updatedAccount = await prisma.account.update({
+        where: { id: account.id },
+        data: {
+            emailVerificationToken: verificationToken,
+            emailVerificationExpires: verificationExpires
+        }
+    });
+
+    return updatedAccount;
 }
 
 // ============================================
@@ -267,6 +353,10 @@ module.exports = {
     getAccountById,
     getAccountByApiKey,
     regenerateApiKey,
+    
+    // Email verification
+    verifyEmail,
+    resendVerificationEmail,
     
     // Middleware
     requireAuth,

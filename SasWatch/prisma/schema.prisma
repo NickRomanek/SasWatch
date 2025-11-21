@@ -30,6 +30,17 @@ model Account {
   entraSignInLastSyncAt   DateTime?
   hiddenLicenses    String[]             @default([]) // Licenses to hide from user display
   
+  // Email Verification
+  emailVerified          Boolean   @default(false)
+  emailVerificationToken String?   @unique
+  emailVerificationExpires DateTime?
+  
+  // MFA/2FA (for future use - fields added now to avoid migration later)
+  mfaEnabled            Boolean   @default(false)
+  mfaSecret             String?   // TOTP secret (encrypted)
+  mfaBackupCodes        String[]  @default([]) // Encrypted backup codes
+  mfaMethod             String?   // 'totp', 'sms', 'email' (for future)
+  
   // Relations
   users             User[]
   usageEvents       UsageEvent[]
