@@ -14,12 +14,14 @@ const {
     loginLimiter, 
     signupLimiter, 
     signupValidation, 
-    loginValidation, 
+    loginValidation,
+    forgotPasswordValidation,
+    resetPasswordValidation, 
     handleValidationErrors,
     auditLog,
     generateSecureToken 
 } = require('./lib/security');
-const { sendSurveyEmail, sendVerificationEmail, SURVEY_EMAIL_REGEX } = require('./lib/email-sender');
+const { sendSurveyEmail, sendVerificationEmail, sendPasswordResetEmail, SURVEY_EMAIL_REGEX } = require('./lib/email-sender');
 
 const REQUEST_TIMEOUT_MS = 180000; // 3 minutes to allow for Graph API calls that can take up to 2 minutes
 const surveySubmissionLimiter = rateLimit({
@@ -322,6 +324,165 @@ function setupAuthRoutes(app) {
             
             res.redirect('/login');
         });
+    });
+    
+    // Forgot password page
+    app.get('/forgot-password', (req, res) => {
+        if (req.session && req.session.accountId) {
+            return res.redirect('/');
+        }
+        res.render('forgot-password', { error: null, message: null });
+    });
+    
+    // Forgot password handler
+    app.post('/forgot-password', loginLimiter, forgotPasswordValidation, handleValidationErrors, async (req, res) => {
+        try {
+            const { email } = req.body;
+            
+            console.log('Password reset request for email:', email);
+            
+            // Request password reset (always returns success for security)
+            const result = await auth.requestPasswordReset(email);
+            
+            console.log('Password reset result:', { success: result.success, hasToken: !!result.token, hasEmail: !!result.email });
+            
+            if (result.success && result.token && result.email) {
+                // Send password reset email (same pattern as verification email)
+                try {
+                    console.log('Sending password reset email to:', result.email);
+                    await sendPasswordResetEmail({
+                        to: result.email,
+                        token: result.token,
+                        accountName: result.accountName
+                    });
+                    
+                    console.log('Password reset email sent successfully to:', result.email);
+                    auditLog('PASSWORD_RESET_REQUESTED', result.accountId, { email: result.email }, req);
+                } catch (emailError) {
+                    console.error('Failed to send password reset email:', emailError);
+                    console.error('Error details:', {
+                        message: emailError.message,
+                        stack: emailError.stack
+                    });
+                    auditLog('PASSWORD_RESET_EMAIL_FAILED', result.accountId, {
+                        email: result.email,
+                        error: emailError.message
+                    }, req);
+                    // Still show success message for security (don't reveal if account exists)
+                }
+            } else {
+                console.log('No password reset email sent - account may not exist or token generation failed');
+            }
+            
+            // Always show success message (security best practice)
+            res.render('forgot-password', {
+                error: null,
+                message: 'If an account with that email exists, we\'ve sent you a password reset link.'
+            });
+        } catch (error) {
+            console.error('Forgot password error:', error);
+            console.error('Error stack:', error.stack);
+            
+            auditLog('PASSWORD_RESET_ERROR', null, {
+                email: req.body.email,
+                error: error.message
+            }, req);
+            
+            // Still show success message for security
+            res.render('forgot-password', {
+                error: null,
+                message: 'If an account with that email exists, we\'ve sent you a password reset link.'
+            });
+        }
+    });
+    
+    // Reset password page
+    app.get('/reset-password', async (req, res) => {
+        try {
+            const { token } = req.query;
+            
+            if (!token) {
+                return res.render('reset-password', {
+                    error: 'Invalid reset link. Please request a new password reset.',
+                    token: null
+                });
+            }
+            
+            // Verify token exists (but don't change password yet)
+            const account = await prisma.account.findUnique({
+                where: { passwordResetToken: token }
+            });
+            
+            if (!account) {
+                return res.render('reset-password', {
+                    error: 'Invalid or expired reset link. Please request a new password reset.',
+                    token: null
+                });
+            }
+            
+            // Check if token expired
+            if (account.passwordResetExpires && new Date() > account.passwordResetExpires) {
+                return res.render('reset-password', {
+                    error: 'Reset link has expired. Please request a new password reset.',
+                    token: null
+                });
+            }
+            
+            // Show reset form
+            res.render('reset-password', {
+                error: null,
+                message: null,
+                token: token
+            });
+        } catch (error) {
+            console.error('Reset password page error:', error);
+            res.render('reset-password', {
+                error: 'An error occurred. Please try again.',
+                token: null
+            });
+        }
+    });
+    
+    // Reset password handler
+    app.post('/reset-password', loginLimiter, resetPasswordValidation, handleValidationErrors, async (req, res) => {
+        try {
+            const { token, password } = req.body;
+            
+            console.log('Password reset attempt for token:', token ? 'provided' : 'missing');
+            
+            const result = await auth.resetPassword(token, password);
+            
+            if (result.success) {
+                auditLog('PASSWORD_RESET_SUCCESS', result.accountId, { email: result.email }, req);
+                
+                return res.render('reset-password', {
+                    error: null,
+                    message: 'Your password has been successfully reset! You can now log in with your new password.',
+                    success: true,
+                    token: null
+                });
+            } else {
+                auditLog('PASSWORD_RESET_FAILED', null, {
+                    reason: result.message
+                }, req);
+                
+                return res.render('reset-password', {
+                    error: result.message || 'Failed to reset password. Please request a new reset link.',
+                    token: token
+                });
+            }
+        } catch (error) {
+            console.error('Reset password error:', error);
+            
+            auditLog('PASSWORD_RESET_ERROR', null, {
+                error: error.message
+            }, req);
+            
+            res.render('reset-password', {
+                error: error.message || 'An error occurred. Please try again.',
+                token: req.body.token || null
+            });
+        }
     });
 }
 

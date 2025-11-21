@@ -12,35 +12,39 @@ datasource db {
 
 // Account model - represents organizations/tenants
 model Account {
-  id                String             @id @default(uuid())
-  name              String             // Organization name
-  email             String             @unique // Admin email
-  password          String             // Hashed password
-  apiKey            String             @unique @default(uuid()) // Unique API key for this account
-  isActive          Boolean            @default(true)
-  isSuperAdmin      Boolean            @default(false) // Super admin access (requires env variable match)
-  subscriptionTier  String             @default("free") // free, pro, enterprise
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  lastLoginAt       DateTime?
-  entraLastSyncAt   DateTime?
-  entraTenantId     String?              // Tenant ID from admin consent
-  entraConnectedAt  DateTime?             // When admin consent was granted
-  entraSignInCursor       String?
-  entraSignInLastSyncAt   DateTime?
-  hiddenLicenses    String[]             @default([]) // Licenses to hide from user display
-  
+  id                    String    @id @default(uuid())
+  name                  String // Organization name
+  email                 String    @unique // Admin email
+  password              String // Hashed password
+  apiKey                String    @unique @default(uuid()) // Unique API key for this account
+  isActive              Boolean   @default(true)
+  isSuperAdmin          Boolean   @default(false) // Super admin access (requires env variable match)
+  subscriptionTier      String    @default("free") // free, pro, enterprise
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  lastLoginAt           DateTime?
+  entraLastSyncAt       DateTime?
+  entraTenantId         String? // Tenant ID from admin consent
+  entraConnectedAt      DateTime? // When admin consent was granted
+  entraSignInCursor     String?
+  entraSignInLastSyncAt DateTime?
+  hiddenLicenses        String[]  @default([]) // Licenses to hide from user display
+
   // Email Verification
-  emailVerified          Boolean   @default(false)
-  emailVerificationToken String?   @unique
+  emailVerified            Boolean   @default(false)
+  emailVerificationToken   String?   @unique
   emailVerificationExpires DateTime?
-  
+
+  // Password Reset
+  passwordResetToken   String?   @unique
+  passwordResetExpires DateTime?
+
   // MFA/2FA (for future use - fields added now to avoid migration later)
-  mfaEnabled            Boolean   @default(false)
-  mfaSecret             String?   // TOTP secret (encrypted)
-  mfaBackupCodes        String[]  @default([]) // Encrypted backup codes
-  mfaMethod             String?   // 'totp', 'sms', 'email' (for future)
-  
+  mfaEnabled     Boolean  @default(false)
+  mfaSecret      String? // TOTP secret (encrypted)
+  mfaBackupCodes String[] @default([]) // Encrypted backup codes
+  mfaMethod      String? // 'totp', 'sms', 'email' (for future)
+
   // Relations
   users             User[]
   usageEvents       UsageEvent[]
@@ -56,28 +60,28 @@ model Account {
 
 // User model - stores Adobe users and their information
 model User {
-  id                String             @id @default(uuid())
-  accountId         String             // Links to account (multi-tenant)
-  account           Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  email             String             
-  firstName         String
-  lastName          String
-  adminRoles        String?
-  userGroups        String?
-  licenses          String[]           // Array of license names
-  lastActivity      DateTime?
-  activityCount     Int                @default(0)
-  importedAt        DateTime           @default(now())
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  entraId           String?
+  id                  String    @id @default(uuid())
+  accountId           String // Links to account (multi-tenant)
+  account             Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  email               String
+  firstName           String
+  lastName            String
+  adminRoles          String?
+  userGroups          String?
+  licenses            String[] // Array of license names
+  lastActivity        DateTime?
+  activityCount       Int       @default(0)
+  importedAt          DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  entraId             String?
   entraAccountEnabled Boolean?
-  entraLicenses     String[]           @default([])
-  entraLastSyncedAt DateTime?
-  
+  entraLicenses       String[]  @default([])
+  entraLastSyncedAt   DateTime?
+
   // Relations
-  windowsUsernames  WindowsUsername[]
-  
+  windowsUsernames WindowsUsername[]
+
   @@unique([accountId, email]) // Email unique per account
   @@index([accountId])
   @@index([email])
@@ -92,7 +96,7 @@ model WindowsUsername {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
-  
+
   @@index([username])
   @@index([userId])
   @@map("windows_usernames")
@@ -101,13 +105,13 @@ model WindowsUsername {
 // Unmapped usernames - Windows usernames that haven't been mapped to a user yet
 model UnmappedUsername {
   id            String   @id @default(uuid())
-  accountId     String   // Links to account (multi-tenant)
+  accountId     String // Links to account (multi-tenant)
   account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   username      String
   activityCount Int      @default(0)
   firstSeen     DateTime @default(now())
   lastSeen      DateTime @default(now())
-  
+
   @@unique([accountId, username]) // Username unique per account
   @@index([accountId])
   @@index([username])
@@ -116,27 +120,27 @@ model UnmappedUsername {
 
 // Usage events - tracks all Adobe usage (web and desktop)
 model UsageEvent {
-  id            String    @id @default(uuid())
-  accountId     String    // Links to account (multi-tenant)
-  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  event         String    // Event type (adobe_web_login_detected, adobe_desktop_usage, etc.)
-  url           String    // URL or application name
-  tabId         Int?      // Browser tab ID (null for desktop apps)
-  clientId      String    // Client/device identifier
-  why           String    // Why the event was triggered
-  when          DateTime  // When the event occurred
-  receivedAt    DateTime  @default(now()) // When we received the event
-  
+  id         String   @id @default(uuid())
+  accountId  String // Links to account (multi-tenant)
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  event      String // Event type (adobe_web_login_detected, adobe_desktop_usage, etc.)
+  url        String // URL or application name
+  tabId      Int? // Browser tab ID (null for desktop apps)
+  clientId   String // Client/device identifier
+  why        String // Why the event was triggered
+  when       DateTime // When the event occurred
+  receivedAt DateTime @default(now()) // When we received the event
+
   // Desktop-specific fields (optional)
-  windowsUser   String?
-  userDomain    String?
-  computerName  String?
-  
+  windowsUser  String?
+  userDomain   String?
+  computerName String?
+
   // Source tracking
-  source        String    // 'adobe' or 'wrapper'
-  
-  createdAt     DateTime  @default(now())
-  
+  source String // 'adobe' or 'wrapper'
+
+  createdAt DateTime @default(now())
+
   @@index([accountId])
   @@index([clientId])
   @@index([windowsUser])
@@ -149,16 +153,16 @@ model UsageEvent {
 
 // Application model - tracks software applications
 model Application {
-  id               String   @id @default(uuid())
-  accountId        String   // Links to account (multi-tenant)
-  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  vendor           String   // e.g., "Adobe", "Microsoft"
-  name             String   // e.g., "Acrobat Pro", "Photoshop"
-  detectedUsers    Int      @default(0) // Number of users detected using this app
-  licensesOwned    Int      @default(0) // Total licenses purchased for this app
-  isHidden         Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id            String   @id @default(uuid())
+  accountId     String // Links to account (multi-tenant)
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  vendor        String // e.g., "Adobe", "Microsoft"
+  name          String // e.g., "Acrobat Pro", "Photoshop"
+  detectedUsers Int      @default(0) // Number of users detected using this app
+  licensesOwned Int      @default(0) // Total licenses purchased for this app
+  isHidden      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([accountId, vendor, name]) // Unique app per account
   @@index([accountId])
@@ -168,16 +172,16 @@ model Application {
 
 // Application display overrides for auto-detected events
 model AppOverride {
-  id          String   @id @default(uuid())
-  accountId   String
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  sourceKey   String
-  vendor      String
-  name        String
-  licensesOwned Int    @default(0)
-  isHidden    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  accountId     String
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  sourceKey     String
+  vendor        String
+  name          String
+  licensesOwned Int      @default(0)
+  isHidden      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([accountId, sourceKey])
   @@index([accountId])

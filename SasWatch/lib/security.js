@@ -339,6 +339,46 @@ const loginValidation = [
 ];
 
 /**
+ * Validation rules for forgot password form
+ */
+const forgotPasswordValidation = [
+    body('email')
+        .trim()
+        .notEmpty()
+        .withMessage('Email is required')
+        .isEmail()
+        .withMessage('Invalid email address')
+        .normalizeEmail()
+];
+
+/**
+ * Validation rules for reset password form
+ */
+const resetPasswordValidation = [
+    body('token')
+        .notEmpty()
+        .withMessage('Reset token is required'),
+    
+    body('password')
+        .trim()
+        .notEmpty()
+        .withMessage('Password is required')
+        .isLength({ min: 8 })
+        .withMessage('Password must be at least 8 characters long'),
+    
+    body('confirmPassword')
+        .trim()
+        .notEmpty()
+        .withMessage('Please confirm your password')
+        .custom((value, { req }) => {
+            if (value !== req.body.password) {
+                throw new Error('Passwords do not match');
+            }
+            return true;
+        })
+];
+
+/**
  * Middleware to check validation results and render errors
  * @param {object} req - Express request
  * @param {object} res - Express response
@@ -358,10 +398,19 @@ function handleValidationErrors(req, res, next) {
         }, req);
         
         // Determine which page to render based on the route
-        const page = req.path.includes('signup') ? 'signup' : 'login';
-        const templateData = page === 'signup' 
-            ? { error: firstError.msg }
-            : { error: firstError.msg, message: null };
+        let page = 'login';
+        let templateData = { error: firstError.msg, message: null };
+        
+        if (req.path.includes('signup')) {
+            page = 'signup';
+            templateData = { error: firstError.msg };
+        } else if (req.path.includes('forgot-password')) {
+            page = 'forgot-password';
+            templateData = { error: firstError.msg };
+        } else if (req.path.includes('reset-password')) {
+            page = 'reset-password';
+            templateData = { error: firstError.msg, token: req.body.token || req.query.token };
+        }
         
         return res.status(400).render(page, templateData);
     }
@@ -472,6 +521,8 @@ module.exports = {
     // Input Validation
     signupValidation,
     loginValidation,
+    forgotPasswordValidation,
+    resetPasswordValidation,
     handleValidationErrors,
     
     // Logging

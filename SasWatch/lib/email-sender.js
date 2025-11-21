@@ -216,9 +216,93 @@ async function sendVerificationEmail({ to, token, accountName }) {
     }
 }
 
+function buildPasswordResetEmailBody(accountName, resetLink) {
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: #0066cc; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+                .button { display: inline-block; background: #0066cc; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+                .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+                .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 5px; margin: 20px 0; color: #856404; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Password Reset Request</h1>
+                </div>
+                <div class="content">
+                    <h2>Hi ${accountName},</h2>
+                    <p>We received a request to reset your password for your SasWatch account. Click the button below to reset your password:</p>
+                    <center>
+                        <a href="${resetLink}" class="button">Reset Password</a>
+                    </center>
+                    <p>Or copy and paste this link into your browser:</p>
+                    <p style="word-break: break-all; color: #0066cc;">${resetLink}</p>
+                    <div class="warning">
+                        <p><strong>This link will expire in 1 hour.</strong></p>
+                    </div>
+                    <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
+                    <p>For security reasons, never share this link with anyone.</p>
+                </div>
+                <div class="footer">
+                    <p>© ${new Date().getFullYear()} SasWatch. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+}
+
+async function sendPasswordResetEmail({ to, token, accountName }) {
+    if (!SURVEY_EMAIL_REGEX.test(to)) {
+        throw new Error('Invalid email address provided for password reset');
+    }
+
+    const graphToken = await acquireGraphToken();
+    const fromEmail = getEnvValue('GRAPH_FROM_EMAIL');
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const resetLink = `${baseUrl}/reset-password?token=${token}`;
+
+    const message = {
+        message: {
+            subject: 'Reset Your SasWatch Password',
+            body: {
+                contentType: 'HTML',
+                content: buildPasswordResetEmailBody(accountName, resetLink)
+            },
+            toRecipients: [{ emailAddress: { address: to } }]
+        },
+        saveToSentItems: false
+    };
+
+    try {
+        await axios.post(
+            `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`,
+            message,
+            {
+                headers: {
+                    Authorization: `Bearer ${graphToken}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            }
+        );
+    } catch (error) {
+        const graphError = error.response?.data?.error?.message || error.message;
+        throw new Error(`Failed to send password reset email via Microsoft Graph: ${graphError}`);
+    }
+}
+
 module.exports = {
     sendSurveyEmail,
     sendVerificationEmail,
+    sendPasswordResetEmail,
     SURVEY_EMAIL_REGEX
 };
 

@@ -207,6 +207,97 @@ async function resendVerificationEmail(email) {
 }
 
 // ============================================
+// Password Reset
+// ============================================
+
+async function requestPasswordReset(email) {
+    const { generateSecureToken } = require('./security');
+
+    // Find account by email
+    const account = await prisma.account.findUnique({
+        where: { email }
+    });
+
+    // Don't reveal if account exists for security (always return success)
+    if (!account) {
+        console.log('Password reset requested for non-existent email:', email);
+        return { success: true };
+    }
+
+    // Generate reset token
+    const resetToken = generateSecureToken();
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    try {
+        // Update account with reset token
+        await prisma.account.update({
+            where: { id: account.id },
+            data: {
+                passwordResetToken: resetToken,
+                passwordResetExpires: resetExpires
+            }
+        });
+        
+        console.log('Password reset token generated for account:', account.id);
+    } catch (error) {
+        console.error('Error updating account with password reset token:', error);
+        // Check if it's a schema error (column doesn't exist)
+        // Guard all error.message accesses to prevent TypeError if error.message is undefined
+        if (error.message && (error.message.includes('Unknown column') || (error.message.includes('column') && error.message.includes('does not exist')))) {
+            throw new Error('Database schema is out of date. Please run: npx prisma migrate dev --name add_password_reset');
+        }
+        throw error;
+    }
+
+    return {
+        success: true,
+        accountId: account.id,
+        email: account.email,
+        accountName: account.name,
+        token: resetToken
+    };
+}
+
+async function resetPassword(token, newPassword) {
+    if (!token) {
+        return { success: false, message: 'Reset token is required' };
+    }
+
+    // Find account by token
+    const account = await prisma.account.findUnique({
+        where: { passwordResetToken: token }
+    });
+
+    if (!account) {
+        return { success: false, message: 'Invalid or expired reset link' };
+    }
+
+    // Check if token expired
+    if (account.passwordResetExpires && new Date() > account.passwordResetExpires) {
+        return { success: false, message: 'Reset link has expired. Please request a new one.' };
+    }
+
+    // Hash new password
+    const hashedPassword = await hashPassword(newPassword);
+
+    // Update password and clear reset token
+    await prisma.account.update({
+        where: { id: account.id },
+        data: {
+            password: hashedPassword,
+            passwordResetToken: null,
+            passwordResetExpires: null
+        }
+    });
+
+    return {
+        success: true,
+        accountId: account.id,
+        email: account.email
+    };
+}
+
+// ============================================
 // Express Middleware
 // ============================================
 
@@ -358,6 +449,10 @@ module.exports = {
     verifyEmail,
     resendVerificationEmail,
     
+    // Password reset
+    requestPasswordReset,
+    resetPassword,
+    
     // Middleware
     requireAuth,
     requireApiKey,
@@ -369,4 +464,3 @@ module.exports = {
     generateRandomPassword,
     sanitizeAccountForClient
 };
-
