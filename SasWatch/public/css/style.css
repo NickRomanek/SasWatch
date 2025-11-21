@@ -3198,13 +3198,48 @@ nav a.active {
     text-align: center;
 }
 
-/* Center numeric columns in apps table */
-.apps-table th:nth-child(3),
-.apps-table td:nth-child(3),
-.apps-table th:nth-child(4),
-.apps-table td:nth-child(4) {
+/* Apps table column widths */
+.apps-table th:nth-child(1), .apps-table td:nth-child(1) { width: 40px; min-width: 40px; max-width: 40px; } /* Checkbox */
+.apps-table th:nth-child(2), .apps-table td:nth-child(2) { 
+    width: auto; 
+    min-width: 180px;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+} /* Application */
+.apps-table th:nth-child(3), .apps-table td:nth-child(3) { 
+    width: 140px; 
+    min-width: 120px; 
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+} /* Vendor */
+.apps-table th:nth-child(4), .apps-table td:nth-child(4) { 
+    width: 160px; 
+    min-width: 160px; 
+    max-width: 160px; 
     text-align: center;
-}
+} /* Detected Users */
+.apps-table th:nth-child(5), .apps-table td:nth-child(5) { 
+    width: 160px; 
+    min-width: 160px; 
+    max-width: 160px; 
+    text-align: center;
+} /* Licenses Owned */
+.apps-table th:nth-child(6), .apps-table td:nth-child(6) { 
+    width: 160px; 
+    min-width: 160px; 
+    max-width: 160px; 
+    text-align: center;
+} /* Unused Licenses */
+.apps-table th:nth-child(7), .apps-table td:nth-child(7) { 
+    width: 80px; 
+    min-width: 80px; 
+    max-width: 80px; 
+    text-align: center;
+} /* Actions */
 
 /* Responsive Design */
 @media (max-width: 768px) {
@@ -3266,5 +3301,4 @@ nav a.active {
     margin-top: 0.35rem;
     font-size: 0.8rem;
     color: var(--text-secondary);
-}
 }
