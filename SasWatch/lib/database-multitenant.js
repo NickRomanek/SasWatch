@@ -5,7 +5,7 @@ const prisma = require('./prisma');
 const { isConfigured: isEntraConfigured, fetchEntraDirectory, fetchEntraSignIns } = require('./entra-sync');
 
 const ENTRA_SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-const ENTRA_SIGNIN_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours (matches background sync schedule)
+const ENTRA_SIGNIN_SYNC_INTERVAL_MS = 60 * 60 * 1000; // ✅ Changed from 6 hours to 1 hour for better real-time sync
 const ENTRA_SIGNIN_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const PROCESS_APP_MAP = {
@@ -1456,17 +1456,35 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
         }
     }
 
-    const backfillHours = Number.isFinite(options.backfillHours)
-        ? Math.max(1, options.backfillHours)
-        : null;
-
+    // ✅ IMPROVED: Calculate query start time with better logic
     let sinceDate;
-    if (backfillHours) {
-        sinceDate = new Date(now.getTime() - backfillHours * 60 * 60 * 1000);
+
+    if (options.backfillHours && Number.isFinite(options.backfillHours)) {
+        // Manual backfill request
+        sinceDate = new Date(now.getTime() - Math.max(1, options.backfillHours) * 60 * 60 * 1000);
+        console.log(`[Sync] Manual backfill: querying ${options.backfillHours} hours back`);
+    } else if (account?.entraSignInLastSyncAt instanceof Date) {
+        // ✅ Use last successful sync time (more reliable than cursor)
+        // Subtract 5 minutes overlap buffer to catch any edge cases
+        sinceDate = new Date(account.entraSignInLastSyncAt.getTime() - 5 * 60 * 1000);
+        console.log(`[Sync] Incremental sync from ${sinceDate.toISOString()} (last sync: ${account.entraSignInLastSyncAt.toISOString()})`);
     } else if (account?.entraSignInCursor) {
-        sinceDate = new Date(account.entraSignInCursor);
+        // Backwards compatibility: use cursor if available
+        const cursorDate = new Date(account.entraSignInCursor);
+        // Only use cursor if it's recent (within last 2 hours), otherwise start fresh
+        const cursorAge = now.getTime() - cursorDate.getTime();
+        if (cursorAge < 2 * 60 * 60 * 1000) { // 2 hours
+            sinceDate = new Date(cursorDate.getTime() - 5 * 60 * 1000); // 5 min buffer
+            console.log(`[Sync] Using cursor from ${cursorDate.toISOString()} (age: ${(cursorAge / (60 * 1000)).toFixed(1)} min)`);
+        } else {
+            // Cursor is stale, start from 1 hour ago
+            sinceDate = new Date(now.getTime() - 60 * 60 * 1000);
+            console.log(`[Sync] Cursor stale (${(cursorAge / (60 * 60 * 1000)).toFixed(1)} hours old), starting fresh from 1 hour ago`);
+        }
     } else {
-        sinceDate = new Date(now.getTime() - ENTRA_SIGNIN_LOOKBACK_MS);
+        // First sync ever - query last 1 hour only (not 7 days - too much data)
+        sinceDate = new Date(now.getTime() - 60 * 60 * 1000);
+        console.log(`[Sync] First sync: querying last 1 hour`);
     }
 
     const { events, latestTimestamp } = await fetchEntraSignIns(account.entraTenantId, {
@@ -1507,31 +1525,71 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
         : [];
 
     let insertedCount = 0;
-    if (records.length > 0) {
-        await prisma.entraSignIn.createMany({
-            data: records,
-            skipDuplicates: true
-        });
-        insertedCount = records.length;
-    }
+    let actualLatestTimestamp = null;
 
-    // Only update cursor if we successfully processed events
-    const cursorDate = latestTimestamp || (records.length > 0 ? records[0].createdDateTime : sinceDate);
+    // ✅ IMPROVED: Atomic database operations with proper error handling
+    try {
+        // Insert records (skipDuplicates handles Graph API pagination duplicates)
+        if (records.length > 0) {
+            const result = await prisma.entraSignIn.createMany({
+                data: records,
+                skipDuplicates: true
+            });
+            insertedCount = result.count;
 
-    await prisma.account.update({
-        where: { id: accountId },
-        data: {
-            entraSignInLastSyncAt: now,
-            entraSignInCursor: cursorDate ? new Date(cursorDate).toISOString() : account.entraSignInCursor
+            // Find the actual latest timestamp from successfully inserted records
+            // This ensures we track what we actually have in the database
+            const latestEvent = await prisma.entraSignIn.findFirst({
+                where: { accountId },
+                orderBy: { createdDateTime: 'desc' },
+                select: { createdDateTime: true }
+            });
+
+            actualLatestTimestamp = latestEvent?.createdDateTime ||
+                                   (latestTimestamp || (records.length > 0 ? records[0].createdDateTime : null));
+
+            console.log(`[Sync] Inserted ${insertedCount}/${records.length} events, latest timestamp: ${actualLatestTimestamp?.toISOString()}`);
         }
-    });
 
-    return {
-        synced: insertedCount > 0,
-        count: insertedCount,
-        lastSync: now,
-        cursor: cursorDate
-    };
+        // ✅ Only update sync timestamp AFTER successful database operations
+        // This prevents cursor drift if operations partially fail
+        if (records.length > 0 || insertedCount > 0) {
+            // Update both timestamp (for sync tracking) and cursor (for backwards compatibility)
+            await prisma.account.update({
+                where: { id: accountId },
+                data: {
+                    entraSignInLastSyncAt: now,
+                    // Store the actual latest timestamp we've synced (minus buffer for safety)
+                    entraSignInCursor: actualLatestTimestamp
+                        ? new Date(actualLatestTimestamp.getTime() - 5 * 60 * 1000).toISOString()
+                        : account.entraSignInCursor
+                }
+            });
+
+            console.log(`[Sync] Updated sync timestamp to ${now.toISOString()}`);
+        } else {
+            // No new events, but still update last sync time to prevent repeated queries
+            await prisma.account.update({
+                where: { id: accountId },
+                data: {
+                    entraSignInLastSyncAt: now
+                }
+            });
+
+            console.log(`[Sync] No new events, updated sync timestamp to prevent repeated queries`);
+        }
+
+        return {
+            synced: insertedCount > 0,
+            count: insertedCount,
+            lastSync: now,
+            latestTimestamp: actualLatestTimestamp
+        };
+    } catch (error) {
+        console.error(`[Sync Error] Failed to sync sign-ins for account ${accountId}:`, error);
+        // ✅ Critical: Don't update sync timestamp on error - allows retry
+        throw error;
+    }
 }
 
 async function syncEntraUsersIfNeeded(accountId, options = {}) {

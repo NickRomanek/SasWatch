@@ -204,6 +204,15 @@ async function fetchEntraSignIns(tenantId, options = {}) {
         .orderby('createdDateTime desc')
         .top(pageSize);
 
+    // ✅ SERVER-SIDE FILTERING - Much more efficient than client-side filtering!
+    if (since) {
+        // Add 5-minute overlap buffer to catch any edge cases at sync boundaries
+        const filterDate = new Date(since.getTime() - 5 * 60 * 1000);
+        const filterDateStr = filterDate.toISOString();
+        request = request.filter(`createdDateTime ge ${filterDateStr}`);
+        console.log(`[Graph API] Filtering events since ${filterDateStr} (with 5min buffer for ${since.toISOString()})`);
+    }
+
     let response;
     let page = 0;
     let latestTimestamp = since ? since.getTime() : 0;
@@ -234,14 +243,10 @@ async function fetchEntraSignIns(tenantId, options = {}) {
                     if (!event?.id || !event?.createdDateTime) {
                         return;
                     }
-                    const createdTime = new Date(event.createdDateTime).getTime();
 
-                    // Only include events newer than 'since' if specified, but don't stop processing
-                    if (since && createdTime < since.getTime()) {
-                        return; // Skip this event but continue processing others
-                    }
-
+                    // ✅ No client-side filtering needed - Graph API already filtered server-side!
                     events.push(event);
+                    const createdTime = new Date(event.createdDateTime).getTime();
                     if (createdTime > latestTimestamp) {
                         latestTimestamp = createdTime;
                     }

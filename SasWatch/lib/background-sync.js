@@ -4,8 +4,8 @@ const { syncEntraSignInsIfNeeded, syncEntraUsersIfNeeded } = require('./database
 
 const prisma = new PrismaClient();
 
-// Run every 6 hours to stay within Azure's 7-day retention
-const SYNC_SCHEDULE = '0 */6 * * *'; // At minute 0 past every 6th hour
+// Run every hour for better real-time sync
+const SYNC_SCHEDULE = '0 * * * *'; // At minute 0 past every hour
 
 async function syncAllAccounts() {
     const startTime = new Date();
@@ -31,31 +31,68 @@ async function syncAllAccounts() {
         let totalSignIns = 0;
         let totalUsers = 0;
 
-        // Sync each account sequentially
-        for (const account of accounts) {
-            try {
-                // Sync sign-ins
-                const signInResult = await syncEntraSignInsIfNeeded(account.id, { 
-                    force: true,  // Override throttle
-                    maxPages: 10  // Limit to ~1000 events per sync
-                });
-                
-                // Sync users (less frequent, but keeps user data fresh)
-                const userResult = await syncEntraUsersIfNeeded(account.id, {
-                    force: false  // Respect 1-hour throttle for users
-                });
-                
-                if (signInResult.synced || userResult.synced) {
-                    successCount++;
-                    totalSignIns += signInResult.count || 0;
-                    totalUsers += userResult.count || 0;
-                    console.log(`[Background Sync] ✓ ${account.email}: ${signInResult.count || 0} sign-ins, ${userResult.count || 0} users`);
-                } else {
-                    console.log(`[Background Sync] ○ ${account.email}: ${signInResult.reason || userResult.reason}`);
+        // ✅ IMPROVED: Sync accounts in parallel with rate limiting
+        // Process in batches of 3 to avoid overwhelming Graph API
+        const BATCH_SIZE = 3;
+        let processed = 0;
+
+        for (let i = 0; i < accounts.length; i += BATCH_SIZE) {
+            const batch = accounts.slice(i, i + BATCH_SIZE);
+            console.log(`[Background Sync] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(accounts.length / BATCH_SIZE)} (${batch.length} accounts)`);
+
+            // Process batch in parallel
+            const batchPromises = batch.map(async (account) => {
+                try {
+                    // Sync sign-ins (higher priority)
+                    const signInResult = await syncEntraSignInsIfNeeded(account.id, {
+                        force: true,  // Override throttle for background sync
+                        maxPages: 5  // Limit to ~500 events per sync (reduced for parallel processing)
+                    });
+
+                    // Sync users (less frequent, but keeps user data fresh)
+                    const userResult = await syncEntraUsersIfNeeded(account.id, {
+                        force: false  // Respect 1-hour throttle for users
+                    });
+
+                    return {
+                        account,
+                        signInResult,
+                        userResult,
+                        success: true
+                    };
+                } catch (error) {
+                    return {
+                        account,
+                        error: error.message,
+                        success: false
+                    };
                 }
-            } catch (error) {
-                failCount++;
-                console.error(`[Background Sync] ✗ ${account.email}:`, error.message);
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+
+            // Process results
+            for (const result of batchResults) {
+                processed++;
+                if (result.success) {
+                    const { signInResult, userResult } = result;
+                    if (signInResult.synced || userResult.synced) {
+                        successCount++;
+                        totalSignIns += signInResult.count || 0;
+                        totalUsers += userResult.count || 0;
+                        console.log(`[Background Sync] ✓ ${result.account.email}: ${signInResult.count || 0} sign-ins, ${userResult.count || 0} users`);
+                    } else {
+                        console.log(`[Background Sync] ○ ${result.account.email}: ${signInResult.reason || userResult.reason}`);
+                    }
+                } else {
+                    failCount++;
+                    console.error(`[Background Sync] ✗ ${result.account.email}:`, result.error);
+                }
+            }
+
+            // Rate limiting between batches (1 second)
+            if (i + BATCH_SIZE < accounts.length) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
@@ -74,7 +111,7 @@ function startBackgroundSync() {
         return;
     }
     
-    console.log(`[Background Sync] Scheduling: ${SYNC_SCHEDULE} (every 6 hours)`);
+    console.log(`[Background Sync] Scheduling: ${SYNC_SCHEDULE} (every hour)`);
     
     // Schedule the job
     cron.schedule(SYNC_SCHEDULE, syncAllAccounts);

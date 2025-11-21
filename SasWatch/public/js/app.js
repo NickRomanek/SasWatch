@@ -778,90 +778,114 @@ async function waitForSyncCompletion(maxMs = 5 * 60 * 1000) {
 
 // Expose functions globally for inline onclick handlers
 async function startManualSync() {
-    console.log('[SYNC-DEBUG] startManualSync called');
-    
+    console.log('[SYNC] startManualSync called - Using improved timestamp-based sync');
+
     const button = document.querySelector('.dashboard-controls .btn.btn-primary') || document.querySelector('.btn.btn-primary');
     const original = button ? button.innerHTML : null;
-    console.log('[SYNC-DEBUG] Button found:', !!button);
+    console.log('[SYNC] Button found:', !!button);
 
     resetSyncLog('Manual sync requested');
-    appendSyncLog('> GET /api/dev/graph/activity?limit=10&hours=3&force=true', { allowDuplicate: true });
+    appendSyncLog('> POST /api/account/entra/sync (mode=activity, background=true)', { allowDuplicate: true });
 
     if (button) {
         addButtonSpinner(button, original || '🔄 Sync');
     }
 
     try {
-        // Fetch data: request more events to ensure we get enough
-        console.log('[SYNC-DEBUG] Fetching last 24 hours (100 events) from Graph API');
-        appendSyncLog('Fetching recent sign-ins (last 24 hours)...', { allowDuplicate: true });
-        
-        // Use AbortController with 60 second timeout (more time for multiple pages)
+        // ✅ Use the improved sync endpoint that leverages our timestamp-based logic
+        console.log('[SYNC] Starting background sync for sign-in activity...');
+        appendSyncLog('Starting sign-in activity sync...', { allowDuplicate: true });
+
+        // Use AbortController with reasonable timeout for sync initiation
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 seconds for multiple pages
-        
-        const syncResp = await fetch('/api/dev/graph/activity?limit=100&hours=24&force=true', {
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds for sync initiation
+
+        // Call the proper sync endpoint that uses our improved logic
+        const syncResp = await fetch('/api/account/entra/sync?mode=activity&background=true', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                includeSignIns: true,
+                maxPages: 5, // Limit pages for manual sync
+                backfillHours: 24 // Look back 24 hours
+            }),
             signal: controller.signal
         });
+
         clearTimeout(timeoutId);
-        console.log('[SYNC-DEBUG] Response received:', syncResp.status);
-        
+
         if (!syncResp.ok) {
-            let errorMsg = `HTTP ${syncResp.status}`;
+            const errorText = await syncResp.text();
+            throw new Error(`HTTP ${syncResp.status}: ${syncResp.statusText} - ${errorText}`);
+        }
+
+        const syncResult = await syncResp.json();
+        console.log('[SYNC] Sync initiated:', syncResult);
+
+        // The sync is running in background, so we need to poll for status
+        appendSyncLog('Sync initiated successfully. Monitoring progress...', { allowDuplicate: true });
+
+        // Poll for sync completion (up to 2 minutes)
+        const maxWaitTime = 120000; // 2 minutes
+        const pollInterval = 2000; // 2 seconds
+        const startTime = Date.now();
+
+        const pollSyncStatus = async () => {
             try {
-                const errorData = await syncResp.json();
-                if (errorData.error) {
-                    errorMsg = errorData.error;
-                    appendSyncLog(`Fetch failed: ${errorMsg}`, { allowDuplicate: true });
-                    if (errorData.details) {
-                        appendSyncLog(`Details: ${JSON.stringify(errorData.details)}`, { allowDuplicate: true });
+                const statusResp = await fetch('/api/account/entra/sync/status');
+                if (statusResp.ok) {
+                    const status = await statusResp.json();
+                    if (status.active) {
+                        appendSyncLog(`⏳ ${status.message} (${status.progress}%)`, { allowDuplicate: true });
+                        return false; // Still running
+                    } else if (status.result) {
+                        // Sync completed successfully
+                        const count = status.result.count || 0;
+                        appendSyncLog(`✅ Sync completed: ${count} events synced`, { allowDuplicate: true });
+                        console.log('[SYNC] Background sync completed:', status.result);
+
+                        // Refresh the activity data display
+                        await refreshData({ silent: true, awaitSync: false });
+                        return true; // Completed
                     }
                 }
-            } catch {
-                const text = await syncResp.text().catch(() => '');
-                errorMsg = text || 'Failed to fetch activity';
-                appendSyncLog(`Fetch failed: ${errorMsg}`, { allowDuplicate: true });
+            } catch (error) {
+                console.warn('[SYNC] Status check failed:', error);
             }
-            throw new Error(errorMsg);
+            return false; // Continue polling
+        };
+
+        // Poll until completion or timeout
+        while (Date.now() - startTime < maxWaitTime) {
+            if (await pollSyncStatus()) {
+                break; // Sync completed
+            }
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
-        
-        const result = await syncResp.json();
-        appendSyncLog(`HTTP ${syncResp.status} OK`, { allowDuplicate: true });
-        appendSyncLog(`Command: ${result.command || 'N/A'}`, { allowDuplicate: true });
-        appendSyncLog(`Fetched ${result.data?.length || 0} sign-in events in ${result.durationMs || 0}ms`, { allowDuplicate: true });
-        
-        // Refresh data from database to show all saved events (not just the returned subset)
-        // This ensures we display all events that were saved, not just the limited response
-        appendSyncLog('Refreshing activity list from database...', { allowDuplicate: true });
-        await refreshData({ silent: true, awaitSync: false, allowBackfill: false });
-        
-        // Data is automatically saved to database by backend
-        appendSyncLog(`Events saved to database automatically by backend`, { allowDuplicate: true });
-        
-        if (result.data && result.data.length > 0) {
-            notifier.success(`Fetched and saved ${result.data.length} events from Microsoft Graph`);
-        } else {
-            appendSyncLog('No sign-in events found in the specified time range.', { allowDuplicate: true });
-            notifier.info('No sign-in events found');
+
+        // Final status check
+        const finalStatus = await pollSyncStatus();
+        if (!finalStatus) {
+            appendSyncLog('⚠️ Sync may still be running in background. Check again in a few minutes.', { allowDuplicate: true });
         }
+
+        console.log('[SYNC] startManualSync completed');
+        appendSyncLog('Manual sync process completed.', { allowDuplicate: true });
+
     } catch (error) {
-        console.error('[SYNC-DEBUG] Manual sync error:', error);
-        
-        // Handle timeout specifically
-        if (error.name === 'AbortError') {
-            const timeoutMsg = 'Request timed out after 30 seconds. Microsoft Graph API may be slow or rate limited. Try again in a few minutes.';
-            notifier.error(timeoutMsg);
-            appendSyncLog(timeoutMsg, { allowDuplicate: true });
-        } else {
-            notifier.error(error?.message || 'Failed to fetch activity');
-            appendSyncLog(error?.message || 'Failed to fetch activity', { allowDuplicate: true });
+        console.error('[SYNC] Sync error:', error);
+        appendSyncLog(`❌ Sync failed: ${error.message}`, { allowDuplicate: true });
+
+        if (button) {
+            removeButtonSpinner(button, original || '🔄 Sync');
         }
+        throw error; // Re-throw for UI handling
     } finally {
         if (button) {
             removeButtonSpinner(button);
         }
-        console.log('[SYNC-DEBUG] startManualSync completed');
-        appendSyncLog('Sync completed.', { allowDuplicate: true });
     }
 }
 
@@ -917,3 +941,4 @@ window.toggleTheme = toggleTheme;
 window.startManualSync = startManualSync;
 window.cancelSync = cancelSync;
 window.toggleSyncLog = toggleSyncLog;
+

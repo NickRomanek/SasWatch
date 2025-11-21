@@ -673,6 +673,28 @@ function setupAccountRoutes(app) {
         res.json(status);
     });
 
+    // Entra sync status endpoint (for the improved activity sync)
+    app.get('/api/account/entra/sync/status', auth.requireAuth, (req, res) => {
+        const accountId = req.session.accountId;
+        const status = activeSyncs.get(accountId) || {
+            active: false,
+            message: 'No active sync',
+            progress: 0,
+            startedAt: null,
+            lastUpdate: null,
+            result: null
+        };
+
+        console.log(`[SYNC] Entra sync status request for account ${accountId}:`, {
+            active: status.active,
+            progress: status.progress,
+            message: status.message,
+            hasResult: !!status.result
+        });
+
+        res.json(status);
+    });
+
     // Cancel sync endpoint
     app.post('/api/sync/cancel', auth.requireAuth, (req, res) => {
         const accountId = req.session.accountId;
