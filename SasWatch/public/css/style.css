@@ -1751,7 +1751,6 @@ nav a.active {
     text-align: center;
 } /* Activity */
 .users-table th:nth-child(7), .users-table td:nth-child(7) { width: auto; min-width: 100px; } /* Entra Status */
-.users-table th:nth-child(8), .users-table td:nth-child(8) { width: 80px; min-width: 80px; max-width: 80px; } /* Actions */
 
 /* Checkbox column styling */
 .users-table th:first-child,
@@ -1820,6 +1819,7 @@ nav a.active {
 
 .users-table tbody tr {
     transition: all 0.2s;
+    cursor: pointer;
 }
 
 /* Override status-based colors for table rows - keep standard theme colors */
@@ -2556,7 +2556,6 @@ nav a.active {
         text-align: center;
     } /* Activity */
     .users-table th:nth-child(7), .users-table td:nth-child(7) { width: auto; min-width: 80px; } /* Entra Status */
-    .users-table th:nth-child(8), .users-table td:nth-child(8) { width: 70px; min-width: 70px; max-width: 70px; } /* Actions */
 }
 
 /* ============================================
@@ -2976,13 +2975,78 @@ nav a.active {
 }
 
 /* App detail modal - larger size */
+/* ✅ PHASE 1: Slide-over panel for app detail modal */
+#app-detail-modal.modal {
+    justify-content: flex-end; /* Align to right */
+    align-items: stretch; /* Stretch to full height */
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+}
+
+#app-detail-modal .modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 998;
+    cursor: pointer;
+}
+
 .app-detail-modal-large {
     max-width: 1400px !important;
-    width: 95% !important;
-    max-height: 90vh !important;
-    height: auto;
+    width: 75% !important;
+    min-width: 1000px;
+    max-height: 100vh !important;
+    height: 100vh;
+    margin: 0;
+    border-radius: 0;
     display: flex;
     flex-direction: column;
+    box-shadow: -12px 0 60px rgba(0, 0, 0, 0.6), -6px 0 30px rgba(0, 0, 0, 0.5), 0 0 100px rgba(0, 0, 0, 0.3);
+    border-left: 4px solid var(--accent-primary);
+    animation: slideInRightPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    z-index: 999;
+    background: var(--bg-card);
+    transform: translateX(0);
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInRightPop {
+    0% {
+        transform: translateX(100%) scale(0.95);
+        opacity: 0;
+    }
+    60% {
+        transform: translateX(-2%) scale(1.01);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(300%);
+        opacity: 0;
+    }
 }
 
 .app-detail-users-table {
@@ -2998,9 +3062,9 @@ nav a.active {
 
 #app-detail-modal .users-table th:nth-child(1),
 #app-detail-modal .users-table td:nth-child(1) {
-    width: 20%;
-    min-width: 150px;
-    max-width: 250px;
+    width: 18%;
+    min-width: 180px;
+    max-width: 300px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3008,9 +3072,9 @@ nav a.active {
 
 #app-detail-modal .users-table th:nth-child(2),
 #app-detail-modal .users-table td:nth-child(2) {
-    width: 20%;
-    min-width: 150px;
-    max-width: 250px;
+    width: 22%;
+    min-width: 200px;
+    max-width: 350px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3018,9 +3082,9 @@ nav a.active {
 
 #app-detail-modal .users-table th:nth-child(3),
 #app-detail-modal .users-table td:nth-child(3) {
-    width: 12%;
-    min-width: 100px;
-    max-width: 150px;
+    width: 15%;
+    min-width: 140px;
+    max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3028,9 +3092,9 @@ nav a.active {
 
 #app-detail-modal .users-table th:nth-child(4),
 #app-detail-modal .users-table td:nth-child(4) {
-    width: 15%;
-    min-width: 120px;
-    max-width: 200px;
+    width: 18%;
+    min-width: 160px;
+    max-width: 250px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3038,8 +3102,8 @@ nav a.active {
 
 #app-detail-modal .users-table th:nth-child(5),
 #app-detail-modal .users-table td:nth-child(5) {
-    width: 25%;
-    min-width: 200px;
+    width: 20%;
+    min-width: 250px;
     overflow: visible;
     white-space: normal;
     word-wrap: break-word;
@@ -3047,9 +3111,9 @@ nav a.active {
 
 #app-detail-modal .users-table th:nth-child(6),
 #app-detail-modal .users-table td:nth-child(6) {
-    width: 8%;
-    min-width: 80px;
-    max-width: 100px;
+    width: 7%;
+    min-width: 100px;
+    max-width: 120px;
     text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3088,6 +3152,150 @@ nav a.active {
     color: var(--text-secondary);
     margin-bottom: 1rem;
     line-height: 1.5;
+}
+
+/* ✅ PHASE 1: Active Users Badge */
+.active-users-badge {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.active-users-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    display: block;
+    margin-top: 0.125rem;
+}
+
+/* ✅ PHASE 1: License Utilization Bar */
+.license-utilization-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 150px;
+}
+
+.license-utilization-bar-wrapper {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.license-utilization-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--success) 0%, var(--accent-primary) 100%);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.license-utilization-bar[data-percent]::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.license-utilization-bar[data-percent="100"] {
+    background: var(--success);
+}
+
+.license-utilization-bar[data-percent]:not([data-percent="0"]) {
+    min-width: 4px;
+}
+
+.license-utilization-text {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.license-utilization-count {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.license-utilization-status {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.license-utilization-status.status-over {
+    color: var(--danger);
+}
+
+.license-utilization-status.status-under {
+    color: var(--success);
+}
+
+.license-utilization-status.status-balanced {
+    color: var(--text-secondary);
+}
+
+.license-utilization-status .status-icon {
+    font-size: 0.875rem;
+}
+
+.license-utilization-no-license {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
+/* ✅ User Edit Slide-Over Panel (same style as apps page) */
+#edit-user-modal.modal {
+    justify-content: flex-end; /* Align to right */
+    align-items: stretch; /* Stretch to full height */
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+}
+
+#edit-user-modal .modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 998;
+    cursor: pointer;
+}
+
+.user-edit-slide-over {
+    max-width: 900px !important;
+    width: 60% !important;
+    min-width: 700px;
+    max-height: 100vh !important;
+    height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -12px 0 60px rgba(0, 0, 0, 0.6), -6px 0 30px rgba(0, 0, 0, 0.5), 0 0 100px rgba(0, 0, 0, 0.3);
+    border-left: 4px solid var(--accent-primary);
+    animation: slideInRightPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    z-index: 999;
+    background: var(--bg-card);
+    transform: translateX(0);
+    overflow: hidden; /* Prevent outer scroll, let modal-body handle it */
+}
+
+.user-edit-slide-over .modal-body {
+    overflow-y: auto;
+    flex: 1;
+    max-height: calc(100vh - 180px); /* Account for header and footer */
 }
 
 .preview-table {
@@ -3361,11 +3569,6 @@ nav a.active {
     background: #d97706;
 }
 
-.users-table th:last-child,
-.users-table td:last-child {
-    width: 80px;
-    text-align: center;
-}
 
 /* Apps table column widths */
 .apps-table th:nth-child(1), .apps-table td:nth-child(1) { width: 40px; min-width: 40px; max-width: 40px; } /* Checkbox */

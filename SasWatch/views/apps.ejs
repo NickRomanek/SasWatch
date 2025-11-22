@@ -200,9 +200,9 @@
                                 </th>
                                 <th>Application</th>
                                 <th>Vendor</th>
+                                <th>Active Users</th>
                                 <th>Detected Users</th>
-                                <th>Licenses Owned</th>
-                                <th>Unused Licenses</th>
+                                <th>License Utilization</th>
                             </tr>
                         </thead>
                         <tbody id="apps-table-body">
@@ -228,21 +228,44 @@
                                             </a>
                                         </td>
                                         <td><%= app.vendor %></td>
-                                        <td><%= app.detectedUsers || 0 %></td>
-                                        <td><%= app.licensesOwned || 0 %></td>
                                         <td>
-                                            <span class="<%= (app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) > 0
-                                                ? 'status-badge status-success'
-                                                : ((app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) < 0
-                                                    ? 'status-badge status-danger'
-                                                    : 'status-badge status-neutral') %>">
-                                                <span><%= (app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) > 0 ? '🪑' : ((app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) < 0 ? '⚠️' : '✅') %></span>
-                                                <span><%= (app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) > 0
-                                                    ? `${app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))} unused`
-                                                    : ((app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0))) < 0
-                                                        ? `${Math.abs(app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0)))} short`
-                                                        : 'Balanced') %></span>
-                                            </span>
+                                            <span class="active-users-badge"><%= app.activeUsers || 0 %></span>
+                                            <span class="active-users-subtitle">last 30d</span>
+                                        </td>
+                                        <td><%= app.detectedUsers || 0 %></td>
+                                        <td>
+                                            <% 
+                                                const licensesOwned = app.licensesOwned || 0;
+                                                const detectedUsers = app.detectedUsers || 0;
+                                                const utilizationPercent = app.utilizationPercent || (licensesOwned > 0 ? Math.round((detectedUsers / licensesOwned) * 100) : 0);
+                                                const unusedLicenses = licensesOwned - detectedUsers;
+                                                const hasLicenses = licensesOwned > 0;
+                                            %>
+                                            <div class="license-utilization-container">
+                                                <% if (hasLicenses) { %>
+                                                    <div class="license-utilization-bar-wrapper">
+                                                        <div class="license-utilization-bar" 
+                                                             style="width: <%= Math.min(utilizationPercent, 100) %>%"
+                                                             data-percent="<%= utilizationPercent %>"
+                                                             title="<%= detectedUsers %> / <%= licensesOwned %> licenses used (<%= utilizationPercent %>% utilization)">
+                                                        </div>
+                                                    </div>
+                                                    <div class="license-utilization-text">
+                                                        <span class="license-utilization-count"><%= detectedUsers %> / <%= licensesOwned %></span>
+                                                        <span class="license-utilization-status <%= unusedLicenses < 0 ? 'status-over' : (unusedLicenses > 0 ? 'status-under' : 'status-balanced') %>">
+                                                            <% if (unusedLicenses < 0) { %>
+                                                                <span class="status-icon">⚠️</span> <%= Math.abs(unusedLicenses) %> short
+                                                            <% } else if (unusedLicenses > 0) { %>
+                                                                <span class="status-icon">🪑</span> <%= unusedLicenses %> unused
+                                                            <% } else { %>
+                                                                <span class="status-icon">✅</span> Balanced
+                                                            <% } %>
+                                                        </span>
+                                                    </div>
+                                                <% } else { %>
+                                                    <span class="license-utilization-no-license">No licenses configured</span>
+                                                <% } %>
+                                            </div>
                                         </td>
                                     </tr>
                                 <% }); %>
@@ -270,8 +293,9 @@
         </div>
     </main>
 
-    <!-- App Detail Modal -->
+    <!-- App Detail Modal (Slide-Over Panel) -->
     <div class="modal" id="app-detail-modal" style="display: none;">
+        <div class="modal-backdrop" onclick="closeAppDetailModal()"></div>
         <div class="modal-content app-detail-modal-large">
             <div class="modal-header">
                 <div class="app-header-info">

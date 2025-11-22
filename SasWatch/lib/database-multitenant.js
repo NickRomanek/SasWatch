@@ -654,9 +654,9 @@ async function addUsageEvent(accountId, eventData, source) {
             }
         });
         
-        // Update user activity if windowsUser is present
+        // ✅ Update user activity if windowsUser is present (use actual event timestamp)
         if (eventData.windowsUser) {
-            await updateUserActivityByUsername(accountId, eventData.windowsUser);
+            await updateUserActivityByUsername(accountId, eventData.windowsUser, new Date(eventData.when));
         }
     } catch (error) {
         console.error('Error adding usage event:', error);
@@ -756,7 +756,7 @@ async function getUserActivityData(accountId, userEmail, limit = 500) {
     }
 }
 
-async function updateUserActivityByUsername(accountId, windowsUser) {
+async function updateUserActivityByUsername(accountId, windowsUser, activityTimestamp = null) {
     try {
         // Find the username mapping scoped to this account
         const mapping = await prisma.windowsUsername.findFirst({
@@ -768,11 +768,16 @@ async function updateUserActivityByUsername(accountId, windowsUser) {
         });
         
         if (mapping && mapping.user) {
-            // Update user's last activity and increment count
+            // Use the activity timestamp if provided, otherwise use current time
+            const lastActivity = activityTimestamp || new Date();
+            
+            // Update user's last activity (use the most recent timestamp)
             await prisma.user.update({
                 where: { id: mapping.userId },
                 data: {
-                    lastActivity: new Date(),
+                    lastActivity: mapping.user.lastActivity 
+                        ? new Date(Math.max(new Date(mapping.user.lastActivity).getTime(), new Date(lastActivity).getTime()))
+                        : lastActivity,
                     activityCount: {
                         increment: 1
                     }
@@ -784,6 +789,210 @@ async function updateUserActivityByUsername(accountId, windowsUser) {
         }
     } catch (error) {
         console.error('Error updating user activity:', error);
+    }
+}
+
+// ✅ NEW: Update user activity by email (for Entra sign-ins and email-based events)
+async function updateUserActivityByEmail(accountId, email, activityTimestamp = null) {
+    if (!email) return;
+    
+    try {
+        // Normalize email (lowercase, trim)
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!normalizedEmail || !normalizedEmail.includes('@')) return;
+        
+        // Find user by email scoped to this account
+        const user = await prisma.user.findFirst({
+            where: {
+                accountId,
+                email: { equals: normalizedEmail, mode: 'insensitive' }
+            }
+        });
+        
+        if (user) {
+            // Use the activity timestamp if provided, otherwise use current time
+            const lastActivity = activityTimestamp || new Date();
+            
+            // Update user's last activity (use the most recent timestamp)
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    lastActivity: user.lastActivity 
+                        ? new Date(Math.max(new Date(user.lastActivity).getTime(), new Date(lastActivity).getTime()))
+                        : lastActivity,
+                    activityCount: {
+                        increment: 1
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error updating user activity by email:', error);
+    }
+}
+
+// ✅ NEW: Backfill user activity from existing Entra sign-ins (for fixing historical data)
+async function backfillUserActivityFromEntraSignIns(accountId) {
+    try {
+        console.log(`[Backfill] Starting user activity backfill for account ${accountId}`);
+        
+        // Get all unique emails from Entra sign-ins with their most recent activity timestamp
+        const signIns = await prisma.entraSignIn.findMany({
+            where: { accountId },
+            select: {
+                userPrincipalName: true,
+                createdDateTime: true
+            }
+        });
+        
+        // Group by email and find most recent timestamp for each
+        const emailActivity = new Map(); // email -> most recent timestamp
+        signIns.forEach(signIn => {
+            if (signIn.userPrincipalName) {
+                const email = signIn.userPrincipalName.trim().toLowerCase();
+                if (email && email.includes('@')) {
+                    const existing = emailActivity.get(email);
+                    if (!existing || signIn.createdDateTime > existing) {
+                        emailActivity.set(email, signIn.createdDateTime);
+                    }
+                }
+            }
+        });
+        
+        // Update user activity for each email
+        let updatedCount = 0;
+        for (const [email, timestamp] of emailActivity) {
+            const user = await prisma.user.findFirst({
+                where: {
+                    accountId,
+                    email: { equals: email, mode: 'insensitive' }
+                }
+            });
+            
+            if (user) {
+                // Only update if the sign-in timestamp is more recent than current lastActivity
+                const shouldUpdate = !user.lastActivity || timestamp > user.lastActivity;
+                if (shouldUpdate) {
+                    await prisma.user.update({
+                        where: { id: user.id },
+                        data: {
+                            lastActivity: timestamp
+                        }
+                    });
+                    updatedCount++;
+                }
+            }
+        }
+        
+        console.log(`[Backfill] Updated activity for ${updatedCount} users from ${emailActivity.size} unique emails`);
+        return { updatedCount, totalEmails: emailActivity.size };
+    } catch (error) {
+        console.error('Error backfilling user activity:', error);
+        throw error;
+    }
+}
+
+// ✅ NEW: Backfill user activity from existing usage events (for fixing historical data)
+async function backfillUserActivityFromUsageEvents(accountId) {
+    try {
+        console.log(`[Backfill] Starting usage events activity backfill for account ${accountId}`);
+        
+        // Get all usage events with Windows usernames
+        const usageEvents = await prisma.usageEvent.findMany({
+            where: { 
+                accountId,
+                windowsUser: { not: null }
+            },
+            select: {
+                windowsUser: true,
+                when: true
+            }
+        });
+        
+        // Group by Windows username and find most recent timestamp for each
+        const usernameActivity = new Map(); // username -> most recent timestamp
+        usageEvents.forEach(event => {
+            if (event.windowsUser) {
+                const username = event.windowsUser.trim().toLowerCase();
+                if (username) {
+                    const existing = usernameActivity.get(username);
+                    if (!existing || event.when > existing) {
+                        usernameActivity.set(username, event.when);
+                    }
+                }
+            }
+        });
+        
+        // Update user activity for each Windows username via mappings
+        let updatedCount = 0;
+        for (const [username, timestamp] of usernameActivity) {
+            // Find the username mapping scoped to this account
+            const mapping = await prisma.windowsUsername.findFirst({
+                where: {
+                    username: username,
+                    user: { accountId }
+                },
+                include: { user: true }
+            });
+            
+            if (mapping && mapping.user) {
+                // Only update if the event timestamp is more recent than current lastActivity
+                const shouldUpdate = !mapping.user.lastActivity || timestamp > mapping.user.lastActivity;
+                if (shouldUpdate) {
+                    await prisma.user.update({
+                        where: { id: mapping.user.id },
+                        data: {
+                            lastActivity: timestamp
+                        }
+                    });
+                    updatedCount++;
+                }
+            }
+        }
+        
+        console.log(`[Backfill] Updated activity for ${updatedCount} users from ${usernameActivity.size} unique Windows usernames`);
+        return { updatedCount, totalUsernames: usernameActivity.size };
+    } catch (error) {
+        console.error('Error backfilling user activity from usage events:', error);
+        throw error;
+    }
+}
+
+// ✅ NEW: Comprehensive backfill - processes both Entra sign-ins and usage events
+async function backfillAllUserActivity(accountId) {
+    try {
+        console.log(`[Backfill] Starting comprehensive user activity backfill for account ${accountId}`);
+        
+        const results = {
+            entra: { updatedCount: 0, totalEmails: 0 },
+            usageEvents: { updatedCount: 0, totalUsernames: 0 }
+        };
+        
+        // Backfill from Entra sign-ins
+        try {
+            results.entra = await backfillUserActivityFromEntraSignIns(accountId);
+        } catch (error) {
+            console.error('[Backfill] Error in Entra sign-ins backfill:', error);
+        }
+        
+        // Backfill from usage events
+        try {
+            results.usageEvents = await backfillUserActivityFromUsageEvents(accountId);
+        } catch (error) {
+            console.error('[Backfill] Error in usage events backfill:', error);
+        }
+        
+        const totalUpdated = results.entra.updatedCount + results.usageEvents.updatedCount;
+        console.log(`[Backfill] Comprehensive backfill complete: ${totalUpdated} users updated total`);
+        
+        return {
+            totalUpdated,
+            entra: results.entra,
+            usageEvents: results.usageEvents
+        };
+    } catch (error) {
+        console.error('Error in comprehensive backfill:', error);
+        throw error;
     }
 }
 
@@ -829,7 +1038,11 @@ async function importUsersFromCSV(accountId, csvData) {
 
 async function getAppsData(accountId) {
     try {
-        const [manualApps, overrides, usageEvents, signInEvents] = await Promise.all([
+        // ✅ PHASE 1: Calculate 30 days ago timestamp for active users
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const [manualApps, overrides, usageEvents, signInEvents, recentUsageEvents, recentSignInEvents] = await Promise.all([
             prisma.application.findMany({
                 where: { accountId, isHidden: false },
                 orderBy: [
@@ -848,7 +1061,8 @@ async function getAppsData(accountId) {
                     source: true,
                     windowsUser: true,
                     clientId: true,
-                    computerName: true
+                    computerName: true,
+                    when: true
                 }
             }),
             prisma.entraSignIn.findMany({
@@ -859,7 +1073,40 @@ async function getAppsData(accountId) {
                     clientAppUsed: true,
                     userPrincipalName: true,
                     userDisplayName: true,
-                    deviceDisplayName: true
+                    deviceDisplayName: true,
+                    createdDateTime: true
+                }
+            }),
+            // ✅ PHASE 1: Get recent usage events (last 30 days)
+            prisma.usageEvent.findMany({
+                where: { 
+                    accountId,
+                    when: { gte: thirtyDaysAgo }
+                },
+                select: {
+                    event: true,
+                    url: true,
+                    source: true,
+                    windowsUser: true,
+                    clientId: true,
+                    computerName: true,
+                    when: true
+                }
+            }),
+            // ✅ PHASE 1: Get recent sign-in events (last 30 days)
+            prisma.entraSignIn.findMany({
+                where: { 
+                    accountId,
+                    createdDateTime: { gte: thirtyDaysAgo }
+                },
+                select: {
+                    appDisplayName: true,
+                    resourceDisplayName: true,
+                    clientAppUsed: true,
+                    userPrincipalName: true,
+                    userDisplayName: true,
+                    deviceDisplayName: true,
+                    createdDateTime: true
                 }
             })
         ]);
@@ -890,6 +1137,7 @@ async function getAppsData(accountId) {
                 licensesOwned: app.licensesOwned || 0,
                 detectedUsers: app.detectedUsers || 0,
                 userIdentifiers: new Set(),
+                activeUserIdentifiers: new Set(), // ✅ PHASE 1: Track active users (last 30 days)
                 isManual: true,
                 hasOverride: false,
                 components: new Map()
@@ -929,6 +1177,7 @@ async function getAppsData(accountId) {
                     licensesOwned,
                     detectedUsers: 0,
                     userIdentifiers: new Set(),
+                    activeUserIdentifiers: new Set(), // ✅ PHASE 1: Track active users (last 30 days)
                     isManual: false,
                     hasOverride: !!override,
                     components: new Map()
@@ -979,6 +1228,7 @@ async function getAppsData(accountId) {
                     licensesOwned: override ? override.licensesOwned : 0,
                     detectedUsers: 0,
                     userIdentifiers: new Set(),
+                    activeUserIdentifiers: new Set(), // ✅ PHASE 1: Track active users (last 30 days)
                     isManual: false,
                     hasOverride: !!override,
                     components: new Map()
@@ -1009,6 +1259,36 @@ async function getAppsData(accountId) {
             });
         });
 
+        // ✅ PHASE 1: Process recent events to track active users (last 30 days)
+        recentUsageEvents.forEach(event => {
+            const metadata = resolveAppMetadataFromEvent(event);
+            if (!metadata || !metadata.key) {
+                return;
+            }
+            
+            const entry = appMap.get(metadata.key);
+            if (!entry) return;
+            
+            const identifier = (event.windowsUser || event.clientId || event.computerName || '').trim().toLowerCase();
+            if (identifier && entry.activeUserIdentifiers) {
+                entry.activeUserIdentifiers.add(identifier);
+            }
+        });
+        
+        recentSignInEvents.forEach(signIn => {
+            const rawName = (signIn.appDisplayName || signIn.resourceDisplayName || signIn.clientAppUsed || '').trim();
+            const displayName = rawName || 'Unknown Application';
+            const sourceKey = `entra:${displayName.toLowerCase()}`;
+            
+            const entry = appMap.get(sourceKey);
+            if (!entry) return;
+            
+            const identifier = (signIn.userPrincipalName || signIn.userDisplayName || signIn.deviceDisplayName || '').trim().toLowerCase();
+            if (identifier && entry.activeUserIdentifiers) {
+                entry.activeUserIdentifiers.add(identifier);
+            }
+        });
+
         const combinedMap = new Map();
 
         appMap.forEach(entry => {
@@ -1024,6 +1304,7 @@ async function getAppsData(accountId) {
                     name: normalizedName,
                     manualDetected: entry.isManual ? (entry.detectedUsers || 0) : 0,
                     autoIdentifiers: entry.isManual ? new Set() : new Set(entry.userIdentifiers),
+                    activeIdentifiers: entry.isManual ? new Set() : new Set(entry.activeUserIdentifiers || []), // ✅ PHASE 1: Track active users
                     licensesOwned: entry.licensesOwned || 0,
                     hasOverride: entry.hasOverride,
                     isManual: entry.isManual,
@@ -1040,6 +1321,10 @@ async function getAppsData(accountId) {
                     target.isManual = true;
                 } else {
                     entry.userIdentifiers.forEach(id => target.autoIdentifiers.add(id));
+                    // ✅ PHASE 1: Merge active user identifiers
+                    if (entry.activeUserIdentifiers) {
+                        entry.activeUserIdentifiers.forEach(id => target.activeIdentifiers.add(id));
+                    }
                     if (entry.sourceKey) {
                         target.sourceKeys.push(entry.sourceKey);
                     }
@@ -1070,8 +1355,10 @@ async function getAppsData(accountId) {
             .map(entry => {
                 const autoCount = entry.autoIdentifiers.size;
                 const detectedUsers = Math.max(autoCount, entry.manualDetected || 0);
+                const activeUsers = entry.activeIdentifiers ? entry.activeIdentifiers.size : 0; // ✅ PHASE 1: Active users (last 30 days)
                 const licensesOwned = entry.licensesOwned || 0;
                 const unusedLicenses = licensesOwned - detectedUsers;
+                const utilizationPercent = licensesOwned > 0 ? Math.round((detectedUsers / licensesOwned) * 100) : 0; // ✅ PHASE 1: Utilization percentage
 
                 return {
                     id: entry.ids.length > 0 ? entry.ids[0] : null,
@@ -1079,8 +1366,10 @@ async function getAppsData(accountId) {
                     vendor: entry.vendor,
                     name: entry.name,
                     detectedUsers,
+                    activeUsers, // ✅ PHASE 1: Active users (last 30 days)
                     licensesOwned,
                     unusedLicenses,
+                    utilizationPercent, // ✅ PHASE 1: Utilization percentage for progress bar
                     isManual: entry.isManual,
                     hasOverride: entry.hasOverride,
                     components: Array.from(entry.components?.values() || [])
@@ -1856,6 +2145,29 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
                                    (latestTimestamp || (records.length > 0 ? records[0].createdDateTime : null));
 
             console.log(`[Sync] Inserted ${insertedCount}/${records.length} events, latest timestamp: ${actualLatestTimestamp?.toISOString()}`);
+            
+            // ✅ NEW: Update user activity for each unique email found in sign-ins
+            const uniqueEmails = new Map(); // email -> most recent timestamp
+            records.forEach(record => {
+                if (record.userPrincipalName) {
+                    const email = record.userPrincipalName.trim().toLowerCase();
+                    if (email && email.includes('@')) {
+                        const existing = uniqueEmails.get(email);
+                        if (!existing || record.createdDateTime > existing) {
+                            uniqueEmails.set(email, record.createdDateTime);
+                        }
+                    }
+                }
+            });
+            
+            // Update user activity for each email
+            for (const [email, timestamp] of uniqueEmails) {
+                await updateUserActivityByEmail(accountId, email, timestamp);
+            }
+            
+            if (uniqueEmails.size > 0) {
+                console.log(`[Sync] Updated activity for ${uniqueEmails.size} users based on Entra sign-ins`);
+            }
         }
 
         // ✅ Only update sync timestamp AFTER successful database operations
@@ -2035,6 +2347,10 @@ module.exports = {
     addUsageEvent,
     deleteAllUsageEvents,
     updateUserActivityByUsername,
+    updateUserActivityByEmail,
+    backfillUserActivityFromEntraSignIns,
+    backfillUserActivityFromUsageEvents,
+    backfillAllUserActivity,
     
     // Utility (account-scoped)
     getDatabaseStats,

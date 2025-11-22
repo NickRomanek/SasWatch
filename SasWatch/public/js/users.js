@@ -224,13 +224,26 @@ function renderUsersTable() {
     tbody.innerHTML = '';
 
     if (filteredUsers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-secondary);">No users match the current filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-secondary);">No users match the current filters</td></tr>';
         return;
     }
     
     filteredUsers.forEach(user => {
         const row = document.createElement('tr');
         row.className = getStatusClass(user);
+        row.style.cursor = 'pointer';
+        row.title = 'Click to edit user';
+        
+        // ✅ Make row clickable (but not when clicking checkbox or links)
+        row.addEventListener('click', (e) => {
+            // Don't trigger if clicking checkbox, links, or buttons
+            if (e.target.closest('input[type="checkbox"]') || 
+                e.target.closest('a') || 
+                e.target.closest('button')) {
+                return;
+            }
+            editUser(user);
+        });
         
         row.innerHTML = `
             <td>
@@ -246,11 +259,6 @@ function renderUsersTable() {
                 </a>
             </td>
             <td>${renderStatusBadge(user)}</td>
-            <td>
-                <button class="btn btn-icon" onclick="editUserByEmail('${user.email.replace(/'/g, "\\'")}')" title="Edit user">
-                    ✏️
-                </button>
-            </td>
         `;
         
         tbody.appendChild(row);
@@ -557,7 +565,7 @@ function editUserByEmail(email) {
 }
 
 function editUser(user) {
-    // Create edit modal
+    // ✅ Convert to slide-over panel (same style as apps page)
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.id = 'edit-user-modal';
@@ -581,7 +589,8 @@ function editUser(user) {
         : '';
     
     modal.innerHTML = `
-        <div class="modal-content modal-large">
+        <div class="modal-backdrop" onclick="closeEditModal()"></div>
+        <div class="modal-content user-edit-slide-over">
             <div class="modal-header">
                 <h2>✏️ Edit User</h2>
                 <button class="modal-close" onclick="closeEditModal()">×</button>
@@ -642,15 +651,36 @@ function editUser(user) {
     
     document.body.appendChild(modal);
     
+    // ✅ Show modal with slide-over animation
+    modal.style.display = 'flex';
+    
     // Attach form submit handler
     const form = document.getElementById('edit-user-form');
     form.addEventListener('submit', saveUserEdit);
+    
+    // ✅ Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            closeEditModal();
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
 }
 
 function closeEditModal() {
     const modal = document.getElementById('edit-user-modal');
     if (modal) {
-        modal.remove();
+        // ✅ Add slide-out animation before removing
+        const modalContent = modal.querySelector('.user-edit-slide-over');
+        if (modalContent) {
+            modalContent.style.animation = 'slideOutRight 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
+            setTimeout(() => {
+                modal.remove();
+            }, 1000);
+        } else {
+            modal.remove();
+        }
     }
 }
 

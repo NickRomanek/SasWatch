@@ -601,8 +601,12 @@ async function openAppDetailModal(appId, sourceKey, event) {
         return Promise.reject(new Error('Detail modal not found'));
     }
 
-    // Show loading state
+    // ✅ Show loading state with slide-over
     detailModal.style.display = 'flex';
+    const modalContent = detailModal.querySelector('.app-detail-modal-large');
+    if (modalContent) {
+        modalContent.style.animation = 'slideInRightPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
+    }
     const usersTableBody = document.getElementById('app-detail-users-table-body');
     if (usersTableBody) {
         usersTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem;"><div class="loading">Loading application details...</div></td></tr>';
@@ -798,7 +802,19 @@ function switchAppDetailTab(tabName) {
 
 function closeAppDetailModal() {
     if (detailModal) {
-        detailModal.style.display = 'none';
+        // ✅ PHASE 1: Add slide-out animation before hiding
+        const modalContent = detailModal.querySelector('.app-detail-modal-large');
+        if (modalContent) {
+            modalContent.style.animation = 'slideOutRight 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
+            setTimeout(() => {
+                detailModal.style.display = 'none';
+                if (modalContent) {
+                    modalContent.style.animation = 'slideInRightPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                }
+            }, 1000);
+        } else {
+            detailModal.style.display = 'none';
+        }
     }
     currentDetailApp = null;
     currentAppContext = null;
