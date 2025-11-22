@@ -322,13 +322,17 @@ async function createUser(accountId, userData) {
 async function updateUser(accountId, email, updates) {
     const { windowsUsernames, ...userUpdates } = updates;
     
-    // Find user by account and email
+    // ✅ Find user by account and email (case-insensitive matching)
+    const normalizedEmail = email.trim().toLowerCase();
     const user = await prisma.user.findFirst({
-        where: { accountId, email }
+        where: { 
+            accountId, 
+            email: { equals: email, mode: 'insensitive' }
+        }
     });
     
     if (!user) {
-        throw new Error('User not found');
+        throw new Error(`User not found: ${email}`);
     }
     
     // Update user data

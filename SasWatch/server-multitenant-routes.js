@@ -1903,9 +1903,25 @@ function setupDataRoutes(app) {
                             );
                             
                             if (existingUser) {
-                                // Update existing user
+                                // Update existing user - merge licenses instead of replacing
                                 const licensesStr = userData.team_products || userData.licenses;
-                                const licensesArray = licensesStr ? licensesStr.split(',').map(l => l.trim()).filter(l => l) : existingUser.licenses;
+                                const csvLicensesArray = licensesStr ? licensesStr.split(',').map(l => l.trim()).filter(l => l) : [];
+                                
+                                // ✅ Merge CSV licenses with existing Adobe licenses (preserve existing, add new from CSV)
+                                // Note: entraLicenses are separate and managed by Entra sync, so we only merge Adobe licenses
+                                const existingAdobeLicenses = Array.isArray(existingUser.licenses) ? existingUser.licenses : [];
+                                const existingEntraLicenses = Array.isArray(existingUser.entraLicenses) ? existingUser.entraLicenses : [];
+                                const mergedLicenses = [...new Set([...existingAdobeLicenses, ...csvLicensesArray])]; // Deduplicate
+                                const licensesArray = mergedLicenses.length > 0 ? mergedLicenses : existingAdobeLicenses;
+                                
+                                // Debug logging for production troubleshooting
+                                if (csvLicensesArray.length > 0) {
+                                    console.log(`[Import] Updating user ${existingUser.email}:`);
+                                    console.log(`  - Existing Adobe licenses: ${existingAdobeLicenses.length}`, existingAdobeLicenses);
+                                    console.log(`  - Existing Entra licenses: ${existingEntraLicenses.length}`, existingEntraLicenses);
+                                    console.log(`  - CSV licenses: ${csvLicensesArray.length}`, csvLicensesArray);
+                                    console.log(`  - Merged Adobe licenses: ${licensesArray.length}`, licensesArray);
+                                }
                                 
                                 const updateData = {
                                     firstName: userData.first_name || userData.firstname || existingUser.firstName,
@@ -1915,7 +1931,8 @@ function setupDataRoutes(app) {
                                     userGroups: userData.user_groups || userData.usergroups || existingUser.userGroups
                                 };
                                 
-                                await db.updateUser(req.session.accountId, userData.email, updateData);
+                                // ✅ Use existing user's email (canonical from database) instead of CSV email to ensure case consistency
+                                await db.updateUser(req.session.accountId, existingUser.email, updateData);
                                 updated++;
                             } else {
                                 // Create new user
