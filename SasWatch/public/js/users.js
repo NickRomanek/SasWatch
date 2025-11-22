@@ -280,10 +280,15 @@ function renderUsersTable() {
 }
 
 function getDisplayLicenses(user) {
-    if (user.entraLicenses && user.entraLicenses.length > 0) {
-        return user.entraLicenses;
-    }
-    return user.licenses;
+    // ✅ Merge both Adobe licenses (user.licenses) and Microsoft licenses (user.entraLicenses)
+    const adobeLicenses = Array.isArray(user.licenses) ? user.licenses : [];
+    const entraLicenses = Array.isArray(user.entraLicenses) ? user.entraLicenses : [];
+    
+    // Combine and deduplicate
+    const allLicenses = [...adobeLicenses, ...entraLicenses];
+    const uniqueLicenses = [...new Set(allLicenses.map(l => String(l).trim()))].filter(l => l.length > 0);
+    
+    return uniqueLicenses;
 }
 
 function renderLicenses(licenses) {
@@ -570,13 +575,26 @@ function editUser(user) {
     modal.className = 'modal';
     modal.id = 'edit-user-modal';
     
-    const licensesHTML = user.licenses && user.licenses.length > 0 
-        ? user.licenses.map((license, idx) => `
-            <div class="license-input-group">
-                <input type="text" class="form-input license-input" value="${license}" data-index="${idx}">
-                <button type="button" class="btn btn-icon btn-danger" onclick="removeLicense(${idx})">🗑️</button>
+    // ✅ Merge both Adobe licenses (user.licenses) and Microsoft licenses (user.entraLicenses) for display
+    const adobeLicenses = Array.isArray(user.licenses) ? user.licenses : [];
+    const entraLicenses = Array.isArray(user.entraLicenses) ? user.entraLicenses : [];
+    const allLicenses = [...adobeLicenses, ...entraLicenses];
+    const uniqueLicenses = [...new Set(allLicenses.map(l => String(l).trim()))].filter(l => l.length > 0);
+    
+    // ✅ Track which licenses are from Entra (read-only)
+    const entraLicensesSet = new Set(entraLicenses.map(l => String(l).trim()));
+    
+    const licensesHTML = uniqueLicenses.length > 0 
+        ? uniqueLicenses.map((license, idx) => {
+            const isEntraLicense = entraLicensesSet.has(String(license).trim());
+            const escapedLicense = String(license).replace(/"/g, '&quot;');
+            return `
+            <div class="license-input-group" style="margin-bottom: 0.5rem;">
+                <input type="text" class="form-input license-input" value="${escapedLicense}" data-index="${idx}" ${isEntraLicense ? 'data-entra="true" readonly' : ''} ${isEntraLicense ? 'style="background: var(--bg-secondary); cursor: not-allowed;"' : ''}>
+                ${isEntraLicense ? '' : `<button type="button" class="btn btn-icon btn-danger" onclick="removeLicenseElement(this)">🗑️</button>`}
             </div>
-        `).join('')
+            ${isEntraLicense ? `<div style="margin-bottom: 0.5rem;"><span class="label-hint" style="font-size: 0.75rem; color: var(--text-tertiary);">Managed by Microsoft</span></div>` : ''}`;
+        }).join('')
         : '<p class="no-licenses-text">No licenses assigned</p>';
     
     const usernamesHTML = user.windowsUsernames && user.windowsUsernames.length > 0
@@ -749,8 +767,9 @@ async function saveUserEdit(event) {
     const adminRoles = adminRolesInput ? adminRolesInput.value.trim() : undefined;
     const userGroups = userGroupsInput ? userGroupsInput.value.trim() : undefined;
     
-    // Collect licenses
-    const licenseInputs = document.querySelectorAll('.license-input');
+    // ✅ Collect licenses - only save editable (non-Entra) licenses
+    // Entra licenses are read-only and managed by Microsoft sync
+    const licenseInputs = document.querySelectorAll('.license-input:not([data-entra="true"])');
     const licenses = Array.from(licenseInputs)
         .map(input => input.value.trim())
         .filter(value => value.length > 0);

@@ -2,26 +2,45 @@
 <style>
     .survey-tab-button {
         position: fixed;
-        bottom: 24px;
-        right: 24px;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 45px;
+        height: 120px;
         background: var(--accent-primary);
         color: #fff;
         border: none;
-        padding: 14px 24px;
-        border-radius: 12px;
-        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.3);
+        border-radius: 12px 0 0 12px; /* Only left corners rounded */
+        box-shadow: -4px 0 12px rgba(15, 23, 42, 0.3);
         cursor: pointer;
         font-weight: 600;
-        letter-spacing: 0.02em;
-        font-size: 1rem;
-        z-index: 1200;
+        letter-spacing: 0.05em;
+        font-size: 0.85rem;
+        z-index: 1100; /* Above slide-over panels (999) but below modal backdrop */
         transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column-reverse; /* Icon at bottom, text above */
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 10px 16px 10px; /* More top padding, less bottom */
     }
 
     .survey-tab-button:hover {
         background: var(--accent-hover);
-        box-shadow: 0 25px 50px rgba(15, 23, 42, 0.35);
-        transform: translateY(-2px);
+        box-shadow: -6px 0 20px rgba(15, 23, 42, 0.4);
+        transform: translateY(-50%) translateX(-4px); /* Slight left shift on hover */
+    }
+
+    .survey-tab-button .feedback-icon {
+        font-size: 1rem;
+        margin-top: 4px; /* Reduced space between icon and text */
+    }
+
+    .survey-tab-button .feedback-text {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        transform: rotate(180deg); /* Rotate so text reads bottom-to-top */
+        margin-bottom: 0; /* Reduced space */
     }
 
     .survey-modal {
@@ -139,16 +158,17 @@
 
     @media (max-width: 768px) {
         .survey-tab-button {
-            bottom: 16px;
-            right: 16px;
-            padding: 12px 20px;
-            font-size: 0.95rem;
+            width: 45px;
+            height: 120px;
+            font-size: 0.85rem;
+            padding: 16px 6px;
         }
     }
 </style>
 
 <button class="survey-tab-button" id="surveyTabButton" type="button" aria-controls="surveyModal" aria-haspopup="dialog">
-    Feedback
+    <span class="feedback-icon">💬</span>
+    <span class="feedback-text">Feedback</span>
 </button>
 
 <div class="survey-modal" id="surveyModal" aria-hidden="true">
