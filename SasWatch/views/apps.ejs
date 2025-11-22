@@ -203,7 +203,6 @@
                                 <th>Detected Users</th>
                                 <th>Licenses Owned</th>
                                 <th>Unused Licenses</th>
-                                <th></th>
                             </tr>
                         </thead>
                         <tbody id="apps-table-body">
@@ -220,7 +219,14 @@
                                                 data-app-licenses="<%= app.licensesOwned || 0 %>"
                                                 data-app-unused="<%= app.unusedLicenses || ((app.licensesOwned || 0) - (app.detectedUsers || 0)) %>">
                                         </td>
-                                        <td><%= app.name %></td>
+                                        <td>
+                                            <a href="#" onclick="openAppDetailModal('<%= app.id || '' %>', '<%= app.sourceKey || '' %>', event)" 
+                                               class="app-name-link" 
+                                               style="color: var(--text-primary); text-decoration: none; font-weight: 500; cursor: pointer;"
+                                               title="Click to view details">
+                                                <%= app.name %>
+                                            </a>
+                                        </td>
                                         <td><%= app.vendor %></td>
                                         <td><%= app.detectedUsers || 0 %></td>
                                         <td><%= app.licensesOwned || 0 %></td>
@@ -238,16 +244,11 @@
                                                         : 'Balanced') %></span>
                                             </span>
                                         </td>
-                                        <td>
-                                            <button class="btn btn-icon" onclick="openAppEditModal('<%= app.id || '' %>', '<%= app.sourceKey || '' %>')" title="Edit application">
-                                                ✏️
-                                            </button>
-                                        </td>
                                     </tr>
                                 <% }); %>
                             <% } else { %>
                                 <tr>
-                                    <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                    <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                                         No applications detected yet. Activity will populate this view automatically.
                                     </td>
                                 </tr>
@@ -269,55 +270,104 @@
         </div>
     </main>
 
-    <!-- Edit Application Modal -->
-    <div class="modal" id="app-edit-modal" style="display: none;">
-        <div class="modal-content">
+    <!-- App Detail Modal -->
+    <div class="modal" id="app-detail-modal" style="display: none;">
+        <div class="modal-content app-detail-modal-large">
             <div class="modal-header">
-                <div>
-                    <h2 id="app-edit-title">Edit Application</h2>
-                    <span class="status-badge" id="app-edit-context"></span>
+                <div class="app-header-info">
+                    <h2 id="app-detail-name">Application</h2>
+                    <span class="status-badge" id="app-detail-vendor"></span>
+                    <div class="app-stats" style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                        <span class="stat-badge">
+                            <span class="stat-icon">👥</span>
+                            <span id="app-detail-users-count">0</span> users
+                        </span>
+                        <span class="stat-badge">
+                            <span class="stat-icon">🎫</span>
+                            <span id="app-detail-licenses-count">0</span> licenses
+                        </span>
+                        <span class="stat-badge" id="app-detail-license-status"></span>
+                    </div>
                 </div>
-                <button class="modal-close" onclick="closeAppEditModal()">×</button>
+                <button class="modal-close" onclick="closeAppDetailModal()">×</button>
             </div>
-            <form id="edit-app-form">
-                <input type="hidden" id="edit-app-id">
-                <input type="hidden" id="edit-app-source">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="edit-app-name">Application Name <span class="required">*</span></label>
-                        <input type="text" id="edit-app-name" class="form-input" required>
+            <div class="modal-body" style="padding: 0;">
+                <!-- Tab Buttons -->
+                <div class="tab-buttons" style="display: flex; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary);">
+                    <button class="tab-btn active" data-tab="users" onclick="switchAppDetailTab('users')">
+                        👥 Users (<span id="users-tab-count">0</span>)
+                    </button>
+                    <button class="tab-btn" data-tab="settings" onclick="switchAppDetailTab('settings')">
+                        ⚙️ Settings
+                    </button>
+                </div>
+
+                <!-- Users Tab -->
+                <div id="app-detail-users-tab" class="tab-content active" style="padding: 1.5rem;">
+                    <div class="users-table-container app-detail-users-table">
+                        <table class="users-table" style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Email</th>
+                                    <th>Last Detected</th>
+                                    <th>Device</th>
+                                    <th>Licenses</th>
+                                    <th>Source</th>
+                                </tr>
+                            </thead>
+                            <tbody id="app-detail-users-table-body">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                        <div class="loading">Loading user data...</div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="form-group">
-                        <label for="edit-app-vendor">Vendor <span class="required">*</span></label>
-                        <input type="text" id="edit-app-vendor" class="form-input" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-app-licenses">Total Licenses</label>
-                        <input type="number" id="edit-app-licenses" class="form-input" min="0" step="1">
-                    </div>
-                    <div id="edit-app-detected-wrapper" style="margin-top: 1rem; background: var(--bg-secondary); padding: 1rem; border-radius: 10px; display: flex; gap: 0.5rem; align-items: center;">
-                        <strong>Detected users:</strong> <span id="edit-app-detected">0</span>
-                    </div>
-                    <p id="edit-app-helper" style="margin-top: 0.75rem; color: var(--text-secondary); font-size: 0.9rem;"></p>
-                    <div id="edit-app-components-wrapper" style="margin-top: 1rem; background: var(--bg-secondary); padding: 1rem; border-radius: 10px; display: none; flex-direction: column; gap: 0.75rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <strong>Linked sources</strong>
-                            <span class="status-badge status-info" id="edit-app-components-count"></span>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="app-detail-settings-tab" class="tab-content" style="padding: 1.5rem; display: none;">
+                    <form id="app-detail-edit-form">
+                        <input type="hidden" id="app-detail-id">
+                        <input type="hidden" id="app-detail-source">
+                        <div class="form-group">
+                            <label for="app-detail-name-input">Application Name <span class="required">*</span></label>
+                            <input type="text" id="app-detail-name-input" class="form-input" required>
                         </div>
-                        <div id="edit-app-components-list" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
-                    </div>
+                        <div class="form-group">
+                            <label for="app-detail-vendor-input">Vendor <span class="required">*</span></label>
+                            <input type="text" id="app-detail-vendor-input" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="app-detail-licenses-input">Total Licenses</label>
+                            <input type="number" id="app-detail-licenses-input" class="form-input" min="0" step="1">
+                        </div>
+                        <div id="app-detail-detected-wrapper" style="margin-top: 1rem; background: var(--bg-secondary); padding: 1rem; border-radius: 10px; display: flex; gap: 0.5rem; align-items: center;">
+                            <strong>Detected users:</strong> <span id="app-detail-detected">0</span>
+                        </div>
+                        <p id="app-detail-helper" style="margin-top: 0.75rem; color: var(--text-secondary); font-size: 0.9rem;"></p>
+                        <div id="app-detail-components-wrapper" style="margin-top: 1rem; background: var(--bg-secondary); padding: 1rem; border-radius: 10px; display: none; flex-direction: column; gap: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <strong>Linked sources</strong>
+                                <span class="status-badge status-info" id="app-detail-components-count"></span>
+                            </div>
+                            <div id="app-detail-components-list" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                        </div>
+                        <div class="modal-footer" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                            <div class="modal-footer-left" id="app-detail-secondary-actions">
+                                <button type="button" class="btn btn-secondary" id="app-detail-hide-button">Hide from list</button>
+                                <button type="button" class="btn btn-danger" id="app-detail-delete-button">Delete application</button>
+                            </div>
+                            <div class="modal-footer-right">
+                                <button type="button" class="btn btn-secondary" onclick="closeAppDetailModal()">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
-                <div class="modal-footer">
-                    <div class="modal-footer-left" id="app-edit-secondary-actions">
-                        <button type="button" class="btn btn-secondary" id="hide-app-button">Hide from list</button>
-                        <button type="button" class="btn btn-danger" id="delete-app-button">Delete application</button>
-                    </div>
-                    <div class="modal-footer-right">
-                        <button type="button" class="btn btn-secondary" onclick="closeAppEditModal()">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
-                    </div>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 

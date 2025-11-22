@@ -2441,6 +2441,28 @@ function setupAppsRoutes(app) {
         }
     });
 
+    // Get detailed app information with user usage data
+    app.get('/api/apps/detail', auth.requireAuth, async (req, res) => {
+        try {
+            const { id, sourceKey } = req.query;
+            
+            if (!id && !sourceKey) {
+                return res.status(400).json({ error: 'Either id or sourceKey is required' });
+            }
+
+            const appDetail = await db.getAppDetail(req.session.accountId, id, sourceKey);
+            
+            if (!appDetail) {
+                return res.status(404).json({ error: 'Application not found' });
+            }
+
+            res.json(appDetail);
+        } catch (error) {
+            console.error('Get app detail error:', error);
+            res.status(500).json({ error: 'Failed to get app details' });
+        }
+    });
+
     app.post('/api/apps/sync', auth.requireAuth, async (req, res) => {
         // Apps sync now just aggregates from the database
         // Use Activity page sync to populate the database first

@@ -48,6 +48,8 @@ let editForm;
 let editAppIdInput;
 let editAppSourceInput;
 let editAppNameInput;
+let detailModal;
+let currentDetailApp = null;
 let editAppVendorInput;
 let editAppLicensesInput;
 let editAppDetected;
@@ -90,23 +92,21 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function cacheEditModalRefs() {
-    editModal = document.getElementById('app-edit-modal');
-    editForm = document.getElementById('edit-app-form');
-    editAppIdInput = document.getElementById('edit-app-id');
-    editAppSourceInput = document.getElementById('edit-app-source');
-    editAppNameInput = document.getElementById('edit-app-name');
-    editAppVendorInput = document.getElementById('edit-app-vendor');
-    editAppLicensesInput = document.getElementById('edit-app-licenses');
-    editAppDetected = document.getElementById('edit-app-detected');
-    editAppDetectedWrapper = document.getElementById('edit-app-detected-wrapper');
-    editAppContextBadge = document.getElementById('app-edit-context');
-    editAppHelper = document.getElementById('edit-app-helper');
-    editAppTitle = document.getElementById('app-edit-title');
-    hideAppButton = document.getElementById('hide-app-button');
-    deleteAppButton = document.getElementById('delete-app-button');
-    editAppComponentsWrapper = document.getElementById('edit-app-components-wrapper');
-    editAppComponentsList = document.getElementById('edit-app-components-list');
-    editAppComponentsCount = document.getElementById('edit-app-components-count');
+    detailModal = document.getElementById('app-detail-modal');
+    editForm = document.getElementById('app-detail-edit-form');
+    editAppIdInput = document.getElementById('app-detail-id');
+    editAppSourceInput = document.getElementById('app-detail-source');
+    editAppNameInput = document.getElementById('app-detail-name-input');
+    editAppVendorInput = document.getElementById('app-detail-vendor-input');
+    editAppLicensesInput = document.getElementById('app-detail-licenses-input');
+    editAppDetected = document.getElementById('app-detail-detected');
+    editAppDetectedWrapper = document.getElementById('app-detail-detected-wrapper');
+    editAppHelper = document.getElementById('app-detail-helper');
+    hideAppButton = document.getElementById('app-detail-hide-button');
+    deleteAppButton = document.getElementById('app-detail-delete-button');
+    editAppComponentsWrapper = document.getElementById('app-detail-components-wrapper');
+    editAppComponentsList = document.getElementById('app-detail-components-list');
+    editAppComponentsCount = document.getElementById('app-detail-components-count');
 
     if (deleteAppButton) {
         deleteAppButton.style.display = 'none';
@@ -116,17 +116,17 @@ function cacheEditModalRefs() {
         editForm.addEventListener('submit', handleEditSubmit);
     }
 
-    if (editModal) {
-        editModal.addEventListener('click', event => {
-            if (event.target === editModal) {
-                closeAppEditModal();
+    if (detailModal) {
+        detailModal.addEventListener('click', event => {
+            if (event.target === detailModal) {
+                closeAppDetailModal();
             }
         });
     }
 
     window.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && editModal && editModal.style.display === 'flex') {
-            closeAppEditModal();
+        if (event.key === 'Escape' && detailModal && detailModal.style.display === 'flex') {
+            closeAppDetailModal();
         }
     });
 
@@ -140,7 +140,7 @@ function cacheEditModalRefs() {
 }
 
 function openAddAppModal() {
-    if (!editModal) {
+    if (!detailModal) {
         return;
     }
 
@@ -151,12 +151,24 @@ function openAddAppModal() {
         mode: 'create'
     };
 
+    // Set modal header
+    document.getElementById('app-detail-name').textContent = 'Add Application';
+    document.getElementById('app-detail-vendor').textContent = 'Manual entry';
+    document.getElementById('app-detail-vendor').className = 'status-badge status-warning';
+    document.getElementById('app-detail-users-count').textContent = '0';
+    document.getElementById('app-detail-licenses-count').textContent = '0';
+    document.getElementById('app-detail-license-status').innerHTML = '';
+    document.getElementById('users-tab-count').textContent = '0';
+
+    // Clear form fields
     editAppIdInput.value = '';
     editAppSourceInput.value = '';
     editAppNameInput.value = '';
     editAppVendorInput.value = '';
     editAppLicensesInput.value = '';
-    editAppDetected.textContent = '0';
+    if (editAppDetected) {
+        editAppDetected.textContent = '0';
+    }
 
     if (editAppDetectedWrapper) {
         editAppDetectedWrapper.style.display = 'none';
@@ -172,10 +184,9 @@ function openAddAppModal() {
         editAppComponentsCount.textContent = '';
     }
 
-    editAppContextBadge.textContent = 'Manual entry';
-    editAppContextBadge.className = 'status-badge status-warning';
-    editAppHelper.textContent = 'Create a manual application entry to track licenses or placeholders that are not auto-detected.';
-    editAppTitle.textContent = 'Add Application';
+    if (editAppHelper) {
+        editAppHelper.textContent = 'Create a manual application entry to track licenses or placeholders that are not auto-detected.';
+    }
 
     if (hideAppButton) {
         hideAppButton.style.display = 'none';
@@ -184,7 +195,15 @@ function openAddAppModal() {
         deleteAppButton.style.display = 'none';
     }
 
-    editModal.style.display = 'flex';
+    // Switch to settings tab and show modal
+    switchAppDetailTab('settings');
+    detailModal.style.display = 'flex';
+
+    // Clear users table
+    const usersTableBody = document.getElementById('app-detail-users-table-body');
+    if (usersTableBody) {
+        usersTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No users detected for this application.</td></tr>';
+    }
 
     if (editAppNameInput) {
         setTimeout(() => {
@@ -301,7 +320,14 @@ function renderAppsTable(apps) {
                     data-app-licenses="${app.licensesOwned ?? 0}"
                     ${isChecked}>
             </td>
-            <td>${escapeHtml(app.name)}</td>
+            <td>
+                <a href="#" onclick="openAppDetailModal('${escapeHtml(app.id || '')}', '${escapeHtml(app.sourceKey || '')}', event)" 
+                   class="app-name-link" 
+                   style="color: var(--text-primary); text-decoration: none; font-weight: 500; cursor: pointer;"
+                   title="Click to view details">
+                    ${escapeHtml(app.name)}
+                </a>
+            </td>
             <td>${escapeHtml(app.vendor)}</td>
             <td>${app.detectedUsers ?? 0}</td>
             <td>${app.licensesOwned ?? 0}</td>
@@ -310,11 +336,6 @@ function renderAppsTable(apps) {
                     <span>${unusedMeta.icon}</span>
                     <span>${unusedMeta.label}</span>
                 </span>
-            </td>
-            <td>
-                <button class="btn btn-icon" onclick="openAppEditModal('${escapeHtml(app.id || '')}', '${escapeHtml(app.sourceKey || '')}')" title="Edit application">
-                    ✏️
-                </button>
             </td>
         </tr>
         `;
@@ -474,7 +495,7 @@ async function handleEditSubmit(event) {
     event.preventDefault();
 
     if (!currentAppContext) {
-        closeAppEditModal();
+        closeAppDetailModal();
         return;
     }
 
@@ -528,7 +549,7 @@ async function handleEditSubmit(event) {
         }
 
         showToast(isCreate ? 'Application added successfully.' : 'Application updated successfully.', 'success');
-        closeAppEditModal();
+        closeAppDetailModal();
         await loadApps();
     } catch (error) {
         console.error('Error saving application:', error);
@@ -552,53 +573,192 @@ function findApp(appId, sourceKey) {
     });
 }
 
+// ✅ Backwards compatibility: Redirect to detail modal on settings tab
 function openAppEditModal(appId, sourceKey) {
-    if (!editModal) {
+    // Open detail modal and switch to settings tab
+    openAppDetailModal(appId, sourceKey).then(() => {
+        switchAppDetailTab('settings');
+    }).catch(error => {
+        console.error('Error opening app detail:', error);
+        showToast('Unable to open application details.', 'error');
+    });
+}
+
+function closeAppEditModal() {
+    // Redirect to detail modal close
+    closeAppDetailModal();
+}
+
+// ✅ NEW: App Detail Modal Functions
+async function openAppDetailModal(appId, sourceKey, event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    if (!detailModal) {
+        console.error('Detail modal not found');
+        return Promise.reject(new Error('Detail modal not found'));
+    }
+
+    // Show loading state
+    detailModal.style.display = 'flex';
+    const usersTableBody = document.getElementById('app-detail-users-table-body');
+    if (usersTableBody) {
+        usersTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem;"><div class="loading">Loading application details...</div></td></tr>';
+    }
+
+    // Switch to Users tab
+    switchAppDetailTab('users');
+
+    try {
+        // Fetch app details from API
+        const params = new URLSearchParams();
+        if (appId) params.append('id', appId);
+        if (sourceKey) params.append('sourceKey', sourceKey);
+
+        const response = await fetch(`/api/apps/detail?${params.toString()}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: Failed to load app details`);
+        }
+
+        const appDetail = await response.json();
+        currentDetailApp = appDetail;
+
+        // Populate header
+        document.getElementById('app-detail-name').textContent = appDetail.name || 'Unknown Application';
+        document.getElementById('app-detail-vendor').textContent = appDetail.vendor || 'Uncategorized';
+        document.getElementById('app-detail-users-count').textContent = appDetail.totalUsers || appDetail.detectedUsers || 0;
+        document.getElementById('app-detail-licenses-count').textContent = appDetail.licensesOwned || 0;
+        document.getElementById('users-tab-count').textContent = appDetail.totalUsers || appDetail.detectedUsers || 0;
+
+        // Calculate license status
+        const unusedLicenses = (appDetail.licensesOwned || 0) - (appDetail.totalUsers || appDetail.detectedUsers || 0);
+        const licenseStatusBadge = document.getElementById('app-detail-license-status');
+        if (licenseStatusBadge) {
+            if (unusedLicenses > 0) {
+                licenseStatusBadge.className = 'stat-badge status-success';
+                licenseStatusBadge.innerHTML = `<span class="stat-icon">🪑</span>${unusedLicenses} unused`;
+            } else if (unusedLicenses < 0) {
+                licenseStatusBadge.className = 'stat-badge status-danger';
+                licenseStatusBadge.innerHTML = `<span class="stat-icon">⚠️</span>${Math.abs(unusedLicenses)} short`;
+            } else {
+                licenseStatusBadge.className = 'stat-badge status-neutral';
+                licenseStatusBadge.innerHTML = '<span class="stat-icon">✅</span>Balanced';
+            }
+        }
+
+        // Populate users table
+        renderAppDetailUsers(appDetail.userDetails || []);
+
+        // Populate settings tab with edit form data
+        populateAppDetailSettings(appDetail);
+
+        return appDetail;
+    } catch (error) {
+        console.error('Error loading app details:', error);
+        if (usersTableBody) {
+            usersTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-danger);">Failed to load application details: ${error.message}</td></tr>`;
+        }
+        showToast('Failed to load application details', 'error');
+        throw error;
+    }
+}
+
+function renderAppDetailUsers(userDetails) {
+    const usersTableBody = document.getElementById('app-detail-users-table-body');
+    if (!usersTableBody) return;
+
+    if (!userDetails || userDetails.length === 0) {
+        usersTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No users detected for this application.</td></tr>';
         return;
     }
 
-    const app = findApp(appId, sourceKey);
-    if (!app) {
-        showToast('Unable to find application details.', 'error');
-        return;
+    usersTableBody.innerHTML = userDetails.map(user => {
+        const sourceBadge = user.source === 'entra' ? 'status-success' : user.source === 'adobe' ? 'status-info' : 'status-neutral';
+        
+        // Format licenses - show first 2, then "+X more" if there are more
+        const licenses = Array.isArray(user.licenses) ? user.licenses : [];
+        let licensesDisplay = '';
+        if (licenses.length === 0) {
+            licensesDisplay = '<span style="color: var(--text-secondary);">—</span>';
+        } else if (licenses.length <= 2) {
+            licensesDisplay = licenses.map(l => `<span class="license-badge">${escapeHtml(l)}</span>`).join(' ');
+        } else {
+            const firstTwo = licenses.slice(0, 2);
+            const remaining = licenses.length - 2;
+            licensesDisplay = firstTwo.map(l => `<span class="license-badge">${escapeHtml(l)}</span>`).join(' ') +
+                ` <span style="color: var(--text-secondary); font-size: 0.85rem;">+${remaining} more</span>`;
+        }
+        
+        return `
+            <tr>
+                <td title="${escapeHtml(user.displayName || 'Unknown User')}">${escapeHtml(user.displayName || 'Unknown User')}</td>
+                <td title="${user.email ? escapeHtml(user.email) : ''}">${user.email ? escapeHtml(user.email) : '<span style="color: var(--text-secondary);">—</span>'}</td>
+                <td>${user.lastSeenFormatted || formatRelativeTime(user.lastSeen)}</td>
+                <td title="${escapeHtml(user.device || 'Unknown Device')}">${escapeHtml(user.device || 'Unknown Device')}</td>
+                <td title="${licenses.map(l => escapeHtml(l)).join(', ')}">${licensesDisplay}</td>
+                <td><span class="status-badge ${sourceBadge}">${user.source || 'unknown'}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function formatRelativeTime(isoDate) {
+    const date = new Date(isoDate);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+}
+
+function populateAppDetailSettings(appDetail) {
+    if (!appDetail) return;
+
+    editAppIdInput.value = appDetail.id || '';
+    editAppSourceInput.value = appDetail.sourceKey || '';
+    editAppNameInput.value = appDetail.name || '';
+    editAppVendorInput.value = appDetail.vendor || '';
+    editAppLicensesInput.value = appDetail.licensesOwned || 0;
+    if (editAppDetected) {
+        editAppDetected.textContent = appDetail.detectedUsers || 0;
     }
-
-    currentAppContext = {
-        id: app.id || null,
-        sourceKey: app.sourceKey || null,
-        isManual: !!app.isManual,
-        vendor: app.vendor,
-        name: app.name,
-        licensesOwned: app.licensesOwned ?? 0
-    };
-
-    editAppIdInput.value = app.id || '';
-    editAppSourceInput.value = app.sourceKey || '';
-    editAppNameInput.value = app.name || '';
-    editAppVendorInput.value = app.vendor || '';
-    editAppLicensesInput.value = app.licensesOwned ?? 0;
-    editAppDetected.textContent = app.detectedUsers ?? 0;
-
     if (editAppDetectedWrapper) {
         editAppDetectedWrapper.style.display = 'flex';
     }
 
-    const unusedMeta = getUnusedMeta(app);
-    renderAppComponents(app);
+    // Store context for edit operations
+    currentAppContext = {
+        id: appDetail.id || null,
+        sourceKey: appDetail.sourceKey || null,
+        isManual: !!appDetail.isManual,
+        vendor: appDetail.vendor,
+        name: appDetail.name,
+        licensesOwned: appDetail.licensesOwned ?? 0
+    };
 
-    if (app.isManual) {
-        editAppContextBadge.textContent = 'Manual entry';
-        editAppContextBadge.className = 'status-badge status-warning';
-        editAppHelper.textContent = `This application was added manually. Update the name, vendor, or license count as needed. Currently ${formatUnusedSummary(unusedMeta)}.`;
-        editAppTitle.textContent = 'Edit Application';
+    const unusedMeta = getUnusedMeta(appDetail);
+    renderAppComponents(appDetail);
+
+    if (appDetail.isManual) {
+        if (editAppHelper) {
+            editAppHelper.textContent = `This application was added manually. Update the name, vendor, or license count as needed. Currently ${formatUnusedSummary(unusedMeta)}.`;
+        }
         if (deleteAppButton) {
             deleteAppButton.style.display = 'inline-flex';
         }
     } else {
-        editAppContextBadge.textContent = 'Auto-detected';
-        editAppContextBadge.className = 'status-badge status-success';
-        editAppHelper.textContent = `This application was detected from recent activity. Changes here update how it appears in reports and dashboards. Currently ${formatUnusedSummary(unusedMeta)}.`;
-        editAppTitle.textContent = 'Edit Detected Application';
+        if (editAppHelper) {
+            editAppHelper.textContent = `This application was detected from recent activity. Changes here update how it appears in reports and dashboards. Currently ${formatUnusedSummary(unusedMeta)}.`;
+        }
         if (deleteAppButton) {
             deleteAppButton.style.display = 'none';
         }
@@ -607,14 +767,40 @@ function openAppEditModal(appId, sourceKey) {
     if (hideAppButton) {
         hideAppButton.style.display = 'inline-flex';
     }
-
-    editModal.style.display = 'flex';
 }
 
-function closeAppEditModal() {
-    if (editModal) {
-        editModal.style.display = 'none';
+function switchAppDetailTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        if (tab.id.startsWith('app-detail-')) {
+            tab.style.display = 'none';
+            tab.classList.remove('active');
+        }
+    });
+
+    // Remove active class from all buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // Show selected tab
+    const selectedTab = document.getElementById(`app-detail-${tabName}-tab`);
+    const selectedButton = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+        selectedTab.classList.add('active');
     }
+    if (selectedButton) {
+        selectedButton.classList.add('active');
+    }
+}
+
+function closeAppDetailModal() {
+    if (detailModal) {
+        detailModal.style.display = 'none';
+    }
+    currentDetailApp = null;
     currentAppContext = null;
     if (editAppComponentsWrapper) {
         editAppComponentsWrapper.style.display = 'none';
@@ -624,6 +810,9 @@ function closeAppEditModal() {
     }
 }
 
+window.openAppDetailModal = openAppDetailModal;
+window.closeAppDetailModal = closeAppDetailModal;
+window.switchAppDetailTab = switchAppDetailTab;
 window.openAppEditModal = openAppEditModal;
 window.closeAppEditModal = closeAppEditModal;
 window.openAddAppModal = openAddAppModal;
@@ -670,7 +859,7 @@ async function handleHideApp() {
         }
 
         showToast('Application hidden from list.', 'success');
-        closeAppEditModal();
+        closeAppDetailModal();
         await loadApps();
     } catch (error) {
         console.error('Hide app error:', error);
@@ -698,7 +887,7 @@ async function handleDeleteApp() {
         }
 
         showToast('Application deleted.', 'success');
-        closeAppEditModal();
+        closeAppDetailModal();
         await loadApps();
     } catch (error) {
         console.error('Delete app error:', error);

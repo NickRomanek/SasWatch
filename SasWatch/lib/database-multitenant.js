@@ -1104,6 +1104,313 @@ async function getAppsData(accountId) {
     }
 }
 
+// ✅ NEW: Map licenses to apps - filter licenses based on app relevance
+function getRelevantLicensesForApp(allLicenses, appName, appVendor) {
+    if (!Array.isArray(allLicenses) || allLicenses.length === 0) {
+        return [];
+    }
+
+    const appNameLower = (appName || '').toLowerCase();
+    const appVendorLower = (appVendor || '').toLowerCase();
+    const relevantLicensesSet = new Set(); // ✅ Use Set to prevent duplicates
+
+    // Microsoft Office apps - show E5, E3, Business Premium, etc.
+    if (appVendorLower.includes('microsoft')) {
+        const microsoftOfficeApps = [
+            'outlook', 'word', 'excel', 'powerpoint', 'sharepoint', 
+            'teams', 'forms', 'onedrive', 'office 365', 'microsoft 365'
+        ];
+        
+        const isOfficeApp = microsoftOfficeApps.some(officeApp => 
+            appNameLower.includes(officeApp)
+        );
+
+        if (isOfficeApp) {
+            // Filter for Microsoft 365 licenses (E5, E3, Business Premium, etc.)
+            allLicenses.forEach(license => {
+                const licenseStr = String(license).trim();
+                if (!licenseStr) return;
+                
+                const licenseLower = licenseStr.toLowerCase();
+                if (
+                    licenseLower.includes('e5') ||
+                    licenseLower.includes('e3') ||
+                    licenseLower.includes('business premium') ||
+                    licenseLower.includes('microsoft 365') ||
+                    licenseLower.includes('office 365')
+                ) {
+                    relevantLicensesSet.add(licenseStr); // ✅ Add to Set to prevent duplicates
+                }
+            });
+        }
+        // ✅ FIXED: Non-Office Microsoft apps (like SubMan) should NOT show licenses
+        // Only specific Office apps get licenses assigned
+    }
+
+    // Adobe apps
+    if (appVendorLower.includes('adobe')) {
+        // Acrobat apps - show Creative Cloud AND Acrobat Pro licenses
+        if (appNameLower.includes('acrobat')) {
+            allLicenses.forEach(license => {
+                const licenseStr = String(license).trim();
+                if (!licenseStr) return;
+                
+                const licenseLower = licenseStr.toLowerCase();
+                if (
+                    licenseLower.includes('creative cloud') ||
+                    licenseLower.includes('acrobat pro') ||
+                    licenseLower.includes('acrobat')
+                ) {
+                    relevantLicensesSet.add(licenseStr); // ✅ Add to Set to prevent duplicates
+                }
+            });
+        } else {
+            // Other Adobe apps - show Creative Cloud license
+            allLicenses.forEach(license => {
+                const licenseStr = String(license).trim();
+                if (!licenseStr) return;
+                
+                const licenseLower = licenseStr.toLowerCase();
+                if (licenseLower.includes('creative cloud')) {
+                    relevantLicensesSet.add(licenseStr); // ✅ Add to Set to prevent duplicates
+                }
+            });
+        }
+    }
+
+    // ✅ Convert Set to array (automatically deduplicated)
+    return Array.from(relevantLicensesSet);
+}
+
+// Get detailed app information with user usage data
+async function getAppDetail(accountId, appId, sourceKey) {
+    try {
+        // First, get the app basic info from getAppsData
+        const appsData = await getAppsData(accountId);
+        const app = appsData.apps.find(a => 
+            (appId && a.id === appId) || (sourceKey && a.sourceKey === sourceKey)
+        );
+
+        if (!app) {
+            return null;
+        }
+
+        // ✅ IMPROVED: Match by app name more precisely
+        // For Entra apps, match by appDisplayName or resourceDisplayName that matches the canonical name
+        const signInUsers = await prisma.entraSignIn.findMany({
+            where: {
+                accountId,
+                OR: [
+                    { appDisplayName: { equals: app.name, mode: 'insensitive' } },
+                    { resourceDisplayName: { equals: app.name, mode: 'insensitive' } },
+                    { appDisplayName: { contains: app.name, mode: 'insensitive' } },
+                    { resourceDisplayName: { contains: app.name, mode: 'insensitive' } }
+                ]
+            },
+            select: {
+                userPrincipalName: true,
+                userDisplayName: true,
+                deviceDisplayName: true,
+                createdDateTime: true,
+                appDisplayName: true,
+                resourceDisplayName: true
+            },
+            orderBy: { createdDateTime: 'desc' }
+        });
+
+        // Get user details from usage events
+        const usageUsers = await prisma.usageEvent.findMany({
+            where: {
+                accountId,
+                OR: [
+                    { url: { contains: app.name, mode: 'insensitive' } },
+                    { event: { contains: app.name, mode: 'insensitive' } }
+                ]
+            },
+            select: {
+                windowsUser: true,
+                clientId: true,
+                computerName: true,
+                when: true,
+                url: true,
+                event: true,
+                source: true
+            },
+            orderBy: { when: 'desc' }
+        });
+
+        // Combine and deduplicate users
+        const userMap = new Map();
+
+        // Process Entra sign-ins
+        signInUsers.forEach(signIn => {
+            const email = signIn.userPrincipalName || '';
+            const displayName = signIn.userDisplayName || email || 'Unknown User';
+            const userKey = email.toLowerCase() || displayName.toLowerCase();
+            
+            if (!userKey || userKey === 'unknown user') return;
+
+            if (!userMap.has(userKey)) {
+                userMap.set(userKey, {
+                    email: email || null,
+                    displayName: displayName,
+                    lastSeen: signIn.createdDateTime,
+                    device: signIn.deviceDisplayName || 'Unknown Device',
+                    source: 'entra',
+                    usageCount: 0
+                });
+            }
+
+            const user = userMap.get(userKey);
+            user.usageCount++;
+            if (signIn.createdDateTime > user.lastSeen) {
+                user.lastSeen = signIn.createdDateTime;
+                user.device = signIn.deviceDisplayName || user.device;
+            }
+        });
+
+        // Process usage events
+        usageUsers.forEach(event => {
+            const identifier = event.windowsUser || event.clientId || event.computerName || '';
+            if (!identifier) return;
+
+            const userKey = identifier.toLowerCase();
+            const displayName = event.windowsUser || event.clientId || 'Unknown User';
+
+            if (!userMap.has(userKey)) {
+                userMap.set(userKey, {
+                    email: null,
+                    displayName: displayName,
+                    lastSeen: event.when,
+                    device: event.computerName || 'Unknown Device',
+                    source: event.source || 'unknown',
+                    usageCount: 0
+                });
+            }
+
+            const user = userMap.get(userKey);
+            user.usageCount++;
+            if (event.when > user.lastSeen) {
+                user.lastSeen = event.when;
+                user.device = event.computerName || user.device;
+            }
+        });
+
+        // ✅ NEW: Fetch User records to get license information
+        const userEmails = Array.from(userMap.keys())
+            .filter(key => key.includes('@')) // Only email-based keys
+            .map(email => email.toLowerCase());
+
+        // Get Windows usernames for matching
+        const windowsUsernames = Array.from(userMap.keys())
+            .filter(key => !key.includes('@'))
+            .map(username => username.toLowerCase());
+
+        // Fetch User records by email
+        const usersByEmail = userEmails.length > 0 ? await prisma.user.findMany({
+            where: {
+                accountId,
+                email: { in: userEmails }
+            },
+            select: {
+                email: true,
+                licenses: true,
+                entraLicenses: true
+            }
+        }) : [];
+
+        // Fetch Windows username mappings
+        const windowsUsernameMappings = windowsUsernames.length > 0 ? await prisma.windowsUsername.findMany({
+            where: {
+                username: { in: windowsUsernames }
+            },
+            include: {
+                user: {
+                    select: {
+                        email: true,
+                        licenses: true,
+                        entraLicenses: true
+                    }
+                }
+            }
+        }) : [];
+
+        // Create a license lookup map
+        const licenseMap = new Map();
+        
+        // Map by email
+        usersByEmail.forEach(user => {
+            const allLicenses = [
+                ...(Array.isArray(user.licenses) ? user.licenses : []),
+                ...(Array.isArray(user.entraLicenses) ? user.entraLicenses : [])
+            ];
+            // ✅ Deduplicate licenses by converting to Set and back to array
+            const uniqueLicenses = Array.from(new Set(allLicenses.map(l => String(l).trim()).filter(Boolean)));
+            if (uniqueLicenses.length > 0) {
+                licenseMap.set(user.email.toLowerCase(), uniqueLicenses);
+            }
+        });
+
+        // Map by Windows username
+        windowsUsernameMappings.forEach(mapping => {
+            const allLicenses = [
+                ...(Array.isArray(mapping.user.licenses) ? mapping.user.licenses : []),
+                ...(Array.isArray(mapping.user.entraLicenses) ? mapping.user.entraLicenses : [])
+            ];
+            // ✅ Deduplicate licenses by converting to Set and back to array
+            const uniqueLicenses = Array.from(new Set(allLicenses.map(l => String(l).trim()).filter(Boolean)));
+            if (uniqueLicenses.length > 0) {
+                licenseMap.set(mapping.username.toLowerCase(), uniqueLicenses);
+            }
+        });
+
+        // ✅ IMPROVED: Attach licenses to userMap entries - FILTERED by app relevance
+        userMap.forEach((userData, userKey) => {
+            const allLicenses = licenseMap.get(userKey) || [];
+            // Filter licenses to show only relevant ones for this app
+            userData.licenses = getRelevantLicensesForApp(allLicenses, app.name, app.vendor);
+        });
+
+        // Convert to array and sort by last seen
+        const userDetails = Array.from(userMap.values())
+            .map(user => ({
+                email: user.email,
+                displayName: user.displayName,
+                lastSeen: user.lastSeen.toISOString(),
+                lastSeenFormatted: formatRelativeTime(user.lastSeen),
+                device: user.device,
+                source: user.source,
+                usageCount: user.usageCount,
+                licenses: user.licenses || [] // ✅ NEW: Include licenses
+            }))
+            .sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen));
+
+        return {
+            ...app,
+            userDetails,
+            totalUsers: userDetails.length
+        };
+    } catch (error) {
+        console.error('Error getting app detail:', error);
+        throw error;
+    }
+}
+
+// Helper function to format relative time
+function formatRelativeTime(date) {
+    const now = new Date();
+    const diffMs = now.getTime() - new Date(date).getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return new Date(date).toLocaleDateString();
+}
+
 async function createApp(accountId, appData) {
     const payload = normalizeAppInput(appData);
 
@@ -1735,6 +2042,7 @@ module.exports = {
 
     // Application operations (all account-scoped)
     getAppsData,
+    getAppDetail,
     createApp,
     updateApp,
     upsertAppOverride,
