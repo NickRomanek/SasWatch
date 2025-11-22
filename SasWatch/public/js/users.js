@@ -98,10 +98,11 @@ async function handleFileUpload(file) {
 
             Toast.success(`Imported ${result.imported} new users, updated ${result.updated} existing users`);
 
-            // Reload page after 2 seconds
-            setTimeout(() => {
-                window.location.reload();
-            }, 2000);
+            // ✅ IMPROVED: Wait longer for database commit, then refresh data instead of full page reload
+            setTimeout(async () => {
+                await refreshUsersData();
+                Toast.success('User data refreshed');
+            }, 3000);
         } else {
             throw new Error(result.error || 'Upload failed');
         }
@@ -283,11 +284,21 @@ function getDisplayLicenses(user) {
     // ✅ Merge both Adobe licenses (user.licenses) and Microsoft licenses (user.entraLicenses)
     const adobeLicenses = Array.isArray(user.licenses) ? user.licenses : [];
     const entraLicenses = Array.isArray(user.entraLicenses) ? user.entraLicenses : [];
-    
+
     // Combine and deduplicate
     const allLicenses = [...adobeLicenses, ...entraLicenses];
     const uniqueLicenses = [...new Set(allLicenses.map(l => String(l).trim()))].filter(l => l.length > 0);
-    
+
+    // Debug logging for production (remove after confirming fix works)
+    if (adobeLicenses.length > 0 || entraLicenses.length > 0) {
+        console.log(`[Licenses] User ${user.email}:`, {
+            adobe: adobeLicenses.length,
+            entra: entraLicenses.length,
+            merged: uniqueLicenses.length,
+            licenses: uniqueLicenses
+        });
+    }
+
     return uniqueLicenses;
 }
 
@@ -704,7 +715,7 @@ function closeEditModal() {
                 modal.remove();
             }, 300);
         } else {
-            modal.remove();
+        modal.remove();
         }
     }
 }
@@ -1064,6 +1075,22 @@ async function deleteSelectedUsers() {
         } else {
             alert('✗ Error: ' + error.message);
         }
+    }
+}
+
+// ✅ NEW: Function to refresh users data from API (used after CSV import)
+async function refreshUsersData() {
+    try {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+        if (data.users) {
+            usersData.length = 0;
+            usersData.push(...data.users);
+            applyFilters();
+            console.log('[Refresh] Updated usersData with', data.users.length, 'users');
+        }
+    } catch (error) {
+        console.error('[Refresh] Error refreshing users data:', error);
     }
 }
 

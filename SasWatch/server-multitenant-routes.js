@@ -14,7 +14,7 @@ const {
     loginLimiter, 
     signupLimiter, 
     signupValidation, 
-    loginValidation,
+    loginValidation, 
     forgotPasswordValidation,
     resetPasswordValidation, 
     handleValidationErrors,
@@ -1934,6 +1934,10 @@ function setupDataRoutes(app) {
                                 // ✅ Use existing user's email (canonical from database) instead of CSV email to ensure case consistency
                                 await db.updateUser(req.session.accountId, existingUser.email, updateData);
                                 updated++;
+
+                                // ✅ IMPROVED: Add small delay to ensure database transaction completes before responding
+                                // This prevents race conditions where page reload happens before DB commit
+                                await new Promise(resolve => setTimeout(resolve, 500));
                             } else {
                                 // Create new user
                                 const licensesStr = userData.team_products || userData.licenses || '';

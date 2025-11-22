@@ -2076,7 +2076,7 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
         if (cursorAge < 2 * 60 * 60 * 1000) { // 2 hours
             sinceDate = new Date(cursorDate.getTime() - 5 * 60 * 1000); // 5 min buffer
             console.log(`[Sync] Using cursor from ${cursorDate.toISOString()} (age: ${(cursorAge / (60 * 1000)).toFixed(1)} min)`);
-        } else {
+    } else {
             // Cursor is stale, start from 1 hour ago
             sinceDate = new Date(now.getTime() - 60 * 60 * 1000);
             console.log(`[Sync] Cursor stale (${(cursorAge / (60 * 60 * 1000)).toFixed(1)} hours old), starting fresh from 1 hour ago`);
@@ -2130,11 +2130,11 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
     // ✅ IMPROVED: Atomic database operations with proper error handling
     try {
         // Insert records (skipDuplicates handles Graph API pagination duplicates)
-        if (records.length > 0) {
+    if (records.length > 0) {
             const result = await prisma.entraSignIn.createMany({
-                data: records,
-                skipDuplicates: true
-            });
+            data: records,
+            skipDuplicates: true
+        });
             insertedCount = result.count;
 
             // Find the actual latest timestamp from successfully inserted records
@@ -2178,16 +2178,16 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
         // This prevents cursor drift if operations partially fail
         if (records.length > 0 || insertedCount > 0) {
             // Update both timestamp (for sync tracking) and cursor (for backwards compatibility)
-            await prisma.account.update({
-                where: { id: accountId },
-                data: {
-                    entraSignInLastSyncAt: now,
+    await prisma.account.update({
+        where: { id: accountId },
+        data: {
+            entraSignInLastSyncAt: now,
                     // Store the actual latest timestamp we've synced (minus buffer for safety)
                     entraSignInCursor: actualLatestTimestamp
                         ? new Date(actualLatestTimestamp.getTime() - 5 * 60 * 1000).toISOString()
                         : account.entraSignInCursor
-                }
-            });
+        }
+    });
 
             console.log(`[Sync] Updated sync timestamp to ${now.toISOString()}`);
         } else {
@@ -2202,12 +2202,12 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
             console.log(`[Sync] No new events, updated sync timestamp to prevent repeated queries`);
         }
 
-        return {
-            synced: insertedCount > 0,
-            count: insertedCount,
-            lastSync: now,
+    return {
+        synced: insertedCount > 0,
+        count: insertedCount,
+        lastSync: now,
             latestTimestamp: actualLatestTimestamp
-        };
+    };
     } catch (error) {
         console.error(`[Sync Error] Failed to sync sign-ins for account ${accountId}:`, error);
         // ✅ Critical: Don't update sync timestamp on error - allows retry

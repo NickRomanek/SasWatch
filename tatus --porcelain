@@ -1,0 +1,25 @@
+warning: in the working copy of 'SasWatch/server-multitenant-routes.js', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/SasWatch/server-multitenant-routes.js b/SasWatch/server-multitenant-routes.js[m
+[1mindex 2a1d444..348d05d 100644[m
+[1m--- a/SasWatch/server-multitenant-routes.js[m
+[1m+++ b/SasWatch/server-multitenant-routes.js[m
+[36m@@ -14,7 +14,7 @@[m [mconst {[m
+     loginLimiter, [m
+     signupLimiter, [m
+     signupValidation, [m
+[31m-    loginValidation,[m
+[32m+[m[32m    loginValidation,[m[41m [m
+     forgotPasswordValidation,[m
+     resetPasswordValidation, [m
+     handleValidationErrors,[m
+[36m@@ -1934,6 +1934,10 @@[m [mfunction setupDataRoutes(app) {[m
+                                 // ✅ Use existing user's email (canonical from database) instead of CSV email to ensure case consistency[m
+                                 await db.updateUser(req.session.accountId, existingUser.email, updateData);[m
+                                 updated++;[m
+[32m+[m
+[32m+[m[32m                                // ✅ IMPROVED: Add small delay to ensure database transaction completes before responding[m
+[32m+[m[32m                                // This prevents race conditions where page reload happens before DB commit[m
+[32m+[m[32m                                await new Promise(resolve => setTimeout(resolve, 500));[m
+                             } else {[m
+                                 // Create new user[m
+                                 const licensesStr = userData.team_products || userData.licenses || '';[m
