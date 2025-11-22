@@ -802,16 +802,28 @@ function switchAppDetailTab(tabName) {
 
 function closeAppDetailModal() {
     if (detailModal) {
-        // ✅ PHASE 1: Add slide-out animation before hiding
+        // ✅ Remove backdrop/blur instantly (no transition) while panel slides out
+        const backdrop = detailModal.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.style.opacity = '0';
+            backdrop.style.transition = 'none'; // Instant removal
+        }
+        
+        // ✅ Slide-out animation for panel (happens simultaneously with unblur)
         const modalContent = detailModal.querySelector('.app-detail-modal-large');
         if (modalContent) {
-            modalContent.style.animation = 'slideOutRight 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
+            modalContent.style.animation = 'slideOutRight 0.3s ease-out';
             setTimeout(() => {
                 detailModal.style.display = 'none';
+                // Reset for next open
+                if (backdrop) {
+                    backdrop.style.opacity = '';
+                    backdrop.style.transition = '';
+                }
                 if (modalContent) {
                     modalContent.style.animation = 'slideInRightPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
                 }
-            }, 1000);
+            }, 300);
         } else {
             detailModal.style.display = 'none';
         }

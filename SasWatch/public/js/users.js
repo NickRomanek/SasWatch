@@ -671,13 +671,20 @@ function editUser(user) {
 function closeEditModal() {
     const modal = document.getElementById('edit-user-modal');
     if (modal) {
-        // ✅ Add slide-out animation before removing
+        // ✅ Remove backdrop/blur instantly (no transition) while panel slides out
+        const backdrop = modal.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.style.opacity = '0';
+            backdrop.style.transition = 'none'; // Instant removal
+        }
+        
+        // ✅ Slide-out animation for panel (happens simultaneously with unblur)
         const modalContent = modal.querySelector('.user-edit-slide-over');
         if (modalContent) {
-            modalContent.style.animation = 'slideOutRight 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
+            modalContent.style.animation = 'slideOutRight 0.3s ease-out';
             setTimeout(() => {
                 modal.remove();
-            }, 1000);
+            }, 300);
         } else {
             modal.remove();
         }
