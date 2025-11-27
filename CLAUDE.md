@@ -209,7 +209,7 @@ Outside `SasWatch/`:
 - `extension/` - Chrome extension for web Adobe.com tracking
 - `scripts/` - Reference PowerShell templates
 - `intune-scripts/` - Installer, uninstaller, detection, troubleshooting scripts bundled into Intune packages
-- `README.md`, `DEPLOYMENT-GUIDE.md` - Documentation
+- `README.md`, `START-HERE.md`, `CONTRIBUTING.md` - Documentation
 
 ## Environment Variables
 
@@ -271,7 +271,7 @@ The app is designed for Railway deployment with PostgreSQL:
 4. Run `railway run npm run db:push` to initialize schema
 5. Railway auto-detects Node.js and deploys
 
-See `README.md` and `DEPLOYMENT-GUIDE.md` for complete instructions.
+See `README.md` and `START-HERE.md` for complete instructions.
 
 ## Usage Tracking Flow
 

@@ -250,5 +250,5 @@ Private/Proprietary - Part of SasWatch platform
 
 ---
 
-**Questions?** See SasWatch documentation in `DEPLOYMENT-GUIDE.md`
+**Questions?** See SasWatch documentation in `README.md` or `START-HERE.md`
 

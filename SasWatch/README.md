@@ -1,40 +1,40 @@
-# SasWatch - Microsoft Graph API License Tracking
+# SasWatch - Adobe License Management Application
 
-A web application that integrates with Microsoft Graph API to track user login logs and manage SaaS product licenses.
+The core application for SasWatch, a multi-tenant platform for tracking Adobe Creative Cloud license usage across organizations.
 
 ## Features
 
-- **User Management**: List all active users from Azure AD
-- **Microsoft 365 License Reading**: View actual M365 licenses assigned to users via Graph API
-- **License Assignment**: Assign custom SaaS products to users
-- **Login Tracking**: Monitor user login activity via sign-in logs
-- **Advanced Filtering**: Filter users by inactivity periods (30, 60, 90 days) and license types
-- **License Analytics**: Track license usage and identify unused licenses
-- **Web Interface**: Modern, responsive dashboard for comprehensive license management
+- **Adobe Usage Tracking**: Monitor Adobe Creative Cloud application usage via PowerShell scripts and Chrome extension
+- **Multi-Tenant Platform**: Serve multiple organizations with complete data isolation
+- **User Import**: Import users from Microsoft Entra (Azure AD) or Adobe CSV reports
+- **Usage Analytics**: Track who's using Adobe applications and how often
+- **License Optimization**: Identify inactive users and optimize license allocation
+- **PowerShell Script Generation**: Auto-generate monitoring scripts with embedded API keys
+- **Intune Integration**: Deploy monitoring via Microsoft Intune
+- **Chrome Extension**: Track Adobe web application usage
 
 ## Setup
+
+See the main [README.md](../README.md) and [START-HERE.md](../START-HERE.md) for complete setup instructions.
+
+### Quick Setup
 
 1. **Install Dependencies**
    ```bash
    npm install
    ```
 
-2. **Azure AD App Registration**
-   - Go to Azure Portal > Azure Active Directory > App registrations
-   - Create a new registration
-   - Add the following API permissions:
-     - `User.Read.All` (Application)
-     - `AuditLog.Read.All` (Application)
-     - `Directory.Read.All` (Application)
-     - `Organization.Read.All` (Application) - for reading M365 licenses
-   - Generate a client secret
-   - Copy the client ID, client secret, and tenant ID
-
-3. **Environment Configuration**
+2. **Environment Configuration**
    ```bash
    cp env.example .env
    ```
-   Update the `.env` file with your Azure AD credentials.
+   Update the `.env` file with your configuration (see `env.example` for all options).
+
+3. **Database Setup**
+   ```bash
+   npm run db:generate
+   npm run db:push
+   ```
 
 4. **Run the Application**
    ```bash
@@ -44,23 +44,42 @@ A web application that integrates with Microsoft Graph API to track user login l
 5. **Access the Application**
    Open http://localhost:3000 in your browser.
 
-## API Permissions Required
+## Microsoft Entra (Azure AD) Integration (Optional)
 
-- `User.Read.All`: Read user profiles and license assignments
-- `AuditLog.Read.All`: Read sign-in logs and audit data
-- `Directory.Read.All`: Read directory data
-- `Organization.Read.All`: Read organization info and M365 license subscriptions
+To enable user import from Microsoft Entra:
 
-## Usage
+1. **Azure AD App Registration**
+   - Go to Azure Portal > Azure Active Directory > App registrations
+   - Create a new registration
+   - Add the following API permissions (Application permissions):
+     - `User.Read.All` - Read user profiles
+     - `Directory.Read.All` - Read directory data
+     - `Group.ReadWrite.All` - For Azure security group sync (optional)
+   - Generate a client secret
+   - Copy the client ID, client secret, and tenant ID
 
-1. **Authentication**: The app will redirect you to Microsoft for authentication
-2. **User List**: View all users in your organization
-3. **License Assignment**: Assign SaaS products to users
-4. **Activity Tracking**: View user login activity and filter by inactivity periods
+2. **Configure Environment Variables**
+   ```env
+   CLIENT_ID=your_azure_ad_client_id
+   CLIENT_SECRET=your_azure_ad_client_secret
+   TENANT_ID=your_azure_ad_tenant_id
+   ```
+
+3. **Use in Application**
+   - Import users from Entra via the Users page
+   - Sync user data from your Azure AD directory
+
+## Adobe Report Import
+
+You can also import users from Adobe Admin Console:
+
+1. Export users from Adobe Admin Console as CSV
+2. Use the CSV import feature in the Users page
+3. Users are imported with their license information
 
 ---
 
-## 🔐 Azure Security Group Sync (NEW)
+## 🔐 Azure Security Group Sync
 
 SasWatch now includes automated Azure security group management based on Adobe license activity. This feature enables intelligent license optimization by automatically moving inactive users to different security groups for targeted Intune deployment.
 

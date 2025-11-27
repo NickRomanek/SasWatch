@@ -22,6 +22,7 @@ SasWatch is a **multi-tenant SaaS platform** that helps organizations track Adob
 SasWatch provides:
 - **Automated Usage Tracking** - PowerShell scripts monitor Adobe application usage
 - **Multi-Tenant Platform** - Serve multiple organizations from one deployment
+- **User Import** - Import users from Microsoft Entra (Azure AD) or Adobe reports
 - **Usage Analytics** - See who's using Adobe and how often
 - **License Optimization** - Identify inactive users and reassign licenses
 - **Cost Savings** - Reduce Adobe spend by 20-40%
@@ -31,7 +32,7 @@ SasWatch provides:
 ### For Organizations (Your Customers)
 - 🔐 **Self-Service Signup** - Create account in seconds
 - 📊 **Usage Dashboard** - View Adobe usage across all users
-- 📥 **CSV Import** - Import Adobe users easily
+- 📥 **Multiple Import Options** - Import users from Microsoft Entra (Azure AD) or Adobe CSV reports
 - 🔑 **Unique API Key** - Secure API access per organization
 - 📝 **Custom Scripts** - Download PowerShell monitoring scripts
 - 🚀 **Easy Deployment** - Deploy via Intune or Group Policy
@@ -81,41 +82,31 @@ npm start
 # 7. Visit http://localhost:3000/signup
 ```
 
-**For complete setup instructions, see `DEPLOYMENT-GUIDE.md`**
+**For complete setup instructions, see `START-HERE.md`**
 
 ## 📁 Project Structure
 
 ```
-abowdyV4/
+SasWatch/
 ├── SasWatch/              # Main application
 │   ├── lib/                 # Core libraries
 │   │   ├── auth.js         # Authentication & authorization
 │   │   ├── database-multitenant.js  # Account-scoped database
 │   │   ├── script-generator.js      # PowerShell generator
+│   │   ├── entra-sync.js   # Microsoft Entra (Azure AD) integration
 │   │   └── prisma.js       # Prisma client
 │   ├── views/               # EJS templates
-│   │   ├── signup.ejs      # Registration page
-│   │   ├── login.ejs       # Login page
-│   │   ├── account.ejs     # Account settings & downloads
-│   │   ├── users.ejs       # Users page (default landing)
-│   │   └── index.ejs       # Activity dashboard
 │   ├── prisma/
 │   │   └── schema.prisma   # Multi-tenant database schema
 │   ├── public/              # Static assets
-│   │   ├── css/            # Stylesheets
-│   │   └── js/             # Client-side JavaScript
 │   ├── server-multitenant-routes.js  # All multi-tenant routes
 │   └── server.js            # Main server
 ├── extension/               # Chrome extension (multi-tenant)
-│   ├── background.js        # Extension logic
-│   ├── options.html         # Configuration UI
-│   ├── options.js           # Configuration logic
-│   ├── manifest.json        # Extension manifest
 │   └── README.md            # Extension docs
 ├── scripts/                 # PowerShell reference templates
-├── DEPLOYMENT-GUIDE.md      # 📖 Complete deployment guide
+│   └── README-GIT-RELEASE.md  # Git release script docs
 ├── START-HERE.md            # 🚀 Quick start guide
-├── FOLDER-GUIDE.md          # 📁 Detailed folder guide
+├── CONTRIBUTING.md          # 🤝 Contributing guidelines
 └── README.md                # 📄 This file
 ```
 
@@ -193,39 +184,73 @@ abowdyV4/
 
 ### Railway (Recommended)
 
-```bash
-# 1. Push to GitHub
-git push
+1. **Push to GitHub** - Ensure your repository is pushed to GitHub
 
-# 2. Connect Railway
-# Visit railway.app → New Project → Deploy from GitHub
+2. **Connect Railway** - Visit [railway.app](https://railway.app) → New Project → Deploy from GitHub
 
-# 3. Add PostgreSQL
-# In Railway: Add PostgreSQL database
+3. **Add PostgreSQL** - In Railway dashboard, add a PostgreSQL database service
 
-# 4. Set environment variables
-SESSION_SECRET=<random-string>
-API_URL=https://your-app.railway.app
-NODE_ENV=production
+4. **Set Environment Variables** - Configure the following in Railway:
+   ```env
+   DATABASE_URL=<automatically-set-by-railway>
+   SESSION_SECRET=<generate-strong-secret>
+   API_URL=https://your-app.railway.app
+   NODE_ENV=production
+   PORT=3000
+   
+   # Optional: Microsoft Entra integration
+   CLIENT_ID=<azure-ad-client-id>
+   CLIENT_SECRET=<azure-ad-client-secret>
+   TENANT_ID=<azure-ad-tenant-id>
+   ```
 
-# 5. Push database schema
-railway run npm run db:push
+5. **Initialize Database** - Run in Railway CLI or via one-time command:
+   ```bash
+   railway run npm run db:push
+   ```
 
-# 6. You're live!
-```
+6. **Deploy** - Railway will automatically deploy on every push to your main branch
 
-**See `DEPLOYMENT-GUIDE.md` for complete Railway deployment instructions**
+### Environment Variables
+
+Required:
+- `DATABASE_URL` - PostgreSQL connection string
+- `SESSION_SECRET` - Strong random secret for session encryption (32+ characters)
+- `API_URL` - Your application URL (e.g., https://your-app.railway.app)
+- `NODE_ENV` - Set to `production` for production deployments
+
+Optional (for Microsoft Entra integration):
+- `CLIENT_ID` - Azure AD Application (client) ID
+- `CLIENT_SECRET` - Azure AD client secret
+- `TENANT_ID` - Azure AD Directory (tenant) ID
+
+See `SasWatch/env.example` for a complete list of available environment variables.
+
+**For detailed deployment instructions, see the Deployment section below and `START-HERE.md`**
 
 ## 📈 Usage Tracking
 
 ### How It Works
 
 1. **Organization signs up** → Gets unique API key
-2. **Downloads monitoring script** → PowerShell with API key embedded
-3. **Deploys via Intune/GPO** → Script runs on employees' computers
-4. **Script monitors Adobe apps** → Acrobat, Photoshop, Illustrator, etc.
-5. **Sends data to API** → Using organization's API key
-6. **View in dashboard** → See who's using Adobe and how often
+2. **Import users** → From Microsoft Entra (Azure AD) or Adobe CSV reports
+3. **Downloads monitoring script** → PowerShell with API key embedded
+4. **Deploys via Intune/GPO** → Script runs on employees' computers
+5. **Script monitors Adobe apps** → Acrobat, Photoshop, Illustrator, etc.
+6. **Sends data to API** → Using organization's API key
+7. **View in dashboard** → See who's using Adobe and how often
+
+### User Import Options
+
+**Microsoft Entra (Azure AD) Integration:**
+- Sync users from your Entra directory
+- Automatic user updates
+- Requires Azure AD app registration with Graph API permissions
+
+**Adobe Report Import:**
+- Upload CSV exports from Adobe Admin Console
+- Bulk import of licensed users
+- Manual or scheduled imports
 
 ### Monitored Applications
 
@@ -272,7 +297,7 @@ account.subscriptionTier
 - **Pro**: $49/month - Up to 500 users
 - **Enterprise**: $199/month - Unlimited users
 
-**Add Stripe integration** - See DEPLOYMENT-GUIDE.md for details
+**Add Stripe integration** - Implement billing by integrating Stripe API with the subscription tier field
 
 ## 🧪 Testing
 
@@ -294,10 +319,11 @@ account.subscriptionTier
 ## 📚 Documentation
 
 1. **`START-HERE.md`** - Quick start guide (5 minutes)
-2. **`DEPLOYMENT-GUIDE.md`** - Complete deployment & Railway guide
-3. **`FOLDER-GUIDE.md`** - Detailed folder structure & architecture
-4. **`extension/README.md`** - Chrome extension setup guide
-5. **`README.md`** - This file (project overview)
+2. **`SasWatch/SECURITY-SETUP.md`** - Security configuration and best practices
+3. **`extension/README.md`** - Chrome extension setup guide
+4. **`scripts/README-GIT-RELEASE.md`** - Git release script documentation
+5. **`CONTRIBUTING.md`** - Contributing guidelines for developers
+6. **`README.md`** - This file (project overview)
 
 ## 🛠️ Tech Stack
 
@@ -307,6 +333,7 @@ account.subscriptionTier
 - **Frontend**: EJS templates, vanilla JavaScript
 - **Hosting**: Railway (or any Node.js host)
 - **Monitoring**: PowerShell scripts
+- **Integrations**: Microsoft Graph API (Entra/Azure AD), Adobe Admin Console
 
 ## 📦 NPM Scripts
 
@@ -322,16 +349,27 @@ npm run db:test        # Test database connection
 
 ## 🤝 Contributing
 
-This is a custom application. For modifications:
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
 
-1. Update Prisma schema if changing database
-2. Run `npm run db:generate` after schema changes
-3. Test with multiple accounts to verify isolation
-4. Update documentation if adding features
+- Development setup
+- Code style guidelines
+- Testing procedures
+- Submitting pull requests
+
+### Quick Contributing Guidelines
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Test thoroughly, especially multi-tenant isolation
+5. Update documentation if adding features
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
 
 ## 📄 License
 
-Private/Proprietary - Not for public distribution
+This project is open source and available under the [MIT License](LICENSE).
 
 ## 🙏 Acknowledgments
 
@@ -343,8 +381,13 @@ Private/Proprietary - Not for public distribution
 
 For setup and deployment questions, see:
 - **Quick Start**: `START-HERE.md`
-- **Full Guide**: `DEPLOYMENT-GUIDE.md`
-- **Troubleshooting**: Check DEPLOYMENT-GUIDE.md troubleshooting section
+- **Full Guide**: This README
+- **Security Setup**: `SasWatch/SECURITY-SETUP.md`
+- **Contributing**: `CONTRIBUTING.md`
+
+For issues and questions:
+- Open an issue on GitHub
+- Check existing issues before creating new ones
 
 ## 🎯 Roadmap
 
@@ -369,7 +412,7 @@ For setup and deployment questions, see:
 
 ---
 
-**Ready to deploy?** See `START-HERE.md` for quick start or `DEPLOYMENT-GUIDE.md` for complete guide.
+**Ready to deploy?** See `START-HERE.md` for quick start or the Deployment section above for details.
 
 **Questions?** All documentation is comprehensive with troubleshooting.
 

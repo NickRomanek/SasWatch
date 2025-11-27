@@ -22,13 +22,21 @@ cd SasWatch
 npm install
 ```
 
-Create `.env` file:
+Create `.env` file by copying `env.example`:
+```bash
+cp env.example .env
+```
+
+Then edit `.env` with your values:
 ```env
 DATABASE_URL=postgresql://localhost:5432/subtracker?schema=public
 SESSION_SECRET=your-random-secret-here
 API_URL=http://localhost:3000
 PORT=3000
+NODE_ENV=development
 ```
+
+**Note:** The server will auto-generate `SESSION_SECRET` if not provided, but you should set it manually for production.
 
 ### 2. Start PostgreSQL
 
@@ -54,9 +62,9 @@ Visit `http://localhost:3000/signup` to create your account!
 ## 📖 Full Documentation
 
 **For complete setup and deployment:**
-→ See **`DEPLOYMENT-GUIDE.md`**
+→ See **`README.md`** for comprehensive documentation
 
-This guide covers:
+The main README covers:
 - ✅ Complete local setup
 - ✅ Database architecture
 - ✅ Authentication & security
@@ -64,7 +72,6 @@ This guide covers:
 - ✅ Railway deployment
 - ✅ Multi-tenant testing
 - ✅ Troubleshooting
-- ✅ Monetization options
 
 ## 🏗️ Architecture
 
@@ -90,11 +97,15 @@ Optimize license allocation
 
 ## 🔐 Security
 
-- **Passwords**: Bcrypt hashed (10 rounds)
+- **Passwords**: Bcrypt hashed (10 rounds), minimum 12 characters
 - **Sessions**: PostgreSQL-backed, HTTP-only cookies
 - **API Keys**: UUID v4, HTTPS only
 - **Data Isolation**: All queries scoped by accountId
 - **No Cross-Account Access**: Database-level enforcement
+- **Rate Limiting**: Protects against brute force attacks
+- **Security Headers**: Helmet.js configured for production
+
+For detailed security setup, see `SasWatch/SECURITY-SETUP.md`
 
 ## 📊 Tech Stack
 
@@ -107,14 +118,14 @@ Optimize license allocation
 
 ## 🚀 Deploy to Production
 
-See **`DEPLOYMENT-GUIDE.md`** → "Railway Deployment" section
+See **`README.md`** → "Deployment" section for detailed Railway deployment instructions.
 
 **Quick steps:**
 1. Push to GitHub
 2. Connect Railway
 3. Add PostgreSQL database
 4. Set environment variables
-5. Push database schema
+5. Push database schema: `railway run npm run db:push`
 6. You're live!
 
 ## 📂 Project Structure
@@ -172,18 +183,18 @@ Account A can't see Account B's data ✓
 
 ## 📞 Need Help?
 
-- **Complete Guide**: `DEPLOYMENT-GUIDE.md`
-- **Project Overview**: `README.md`
-- **Issues**: Check troubleshooting section in DEPLOYMENT-GUIDE.md
+- **Complete Guide**: `README.md`
+- **Security Setup**: `SasWatch/SECURITY-SETUP.md`
+- **Extension Docs**: `extension/README.md`
 
 ## ✅ What's Next?
 
 After local testing:
 
-1. ✅ Deploy to Railway (see DEPLOYMENT-GUIDE.md)
+1. ✅ Deploy to Railway (see `README.md` deployment section)
 2. ✅ Share signup link with customers
 3. ✅ Monitor usage
-4. ✅ (Optional) Add Stripe billing
+4. ✅ (Optional) Add billing integration
 
 ## 🎉 You're Ready!
 
@@ -192,10 +203,10 @@ SasWatch is a complete multi-tenant SaaS platform ready for production.
 **Start here:**
 1. Read this file (done! ✓)
 2. Follow Quick Start above
-3. See DEPLOYMENT-GUIDE.md for full details
+3. See `README.md` for full details
 4. Deploy to Railway
 5. Launch your SaaS!
 
 ---
 
-**Questions?** Everything is covered in `DEPLOYMENT-GUIDE.md` 📖
+**Questions?** See `README.md` for comprehensive documentation 📖

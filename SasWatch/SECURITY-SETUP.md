@@ -1,10 +1,10 @@
 # Security Setup Guide
 
-This guide covers the Phase 1 security hardening implemented in SasWatch.
+This guide covers the security hardening implemented in SasWatch.
 
 ## Overview
 
-SasWatch now includes enterprise-grade security features:
+SasWatch includes enterprise-grade security features:
 - ✅ HTTP security headers (Helmet.js)
 - ✅ Rate limiting on authentication endpoints
 - ✅ Input validation and sanitization
@@ -12,11 +12,60 @@ SasWatch now includes enterprise-grade security features:
 - ✅ HTTPS enforcement in production
 - ✅ Strong session secret requirements
 
-## Quick Setup (5 Minutes)
+## Quick Start (10 Seconds)
 
-### 1. Generate Session Secret
+### Automatic Setup
 
-The most critical security requirement is a strong `SESSION_SECRET`. Generate one using:
+Just start the server - it handles everything automatically!
+
+```bash
+npm start
+```
+
+The startup script will:
+- ✅ Check if SESSION_SECRET exists
+- ✅ Generate it automatically if missing
+- ✅ Validate it's strong enough (32+ chars)
+- ✅ Never regenerate (keeps users logged in)
+
+That's it! 🎉
+
+### Verify Security is Working
+
+**Check 1: Server Starts Successfully**
+```
+✅ Server should display: "Security headers configured via Helmet.js"
+❌ If it fails with SESSION_SECRET error → Run npm run generate-secret
+```
+
+**Check 2: Security Headers Present**
+```bash
+curl -I http://localhost:3000
+```
+Look for:
+- `X-Frame-Options: DENY`
+- `Strict-Transport-Security`
+- `Content-Security-Policy`
+
+**Check 3: Rate Limiting Works**
+Try logging in with wrong password 6 times:
+```
+✅ Should see: "Too many login attempts. Please try again in 15 minutes."
+```
+
+**Check 4: Logs Being Written**
+```bash
+ls -la logs/
+```
+You should see:
+- `security.log` - Security events
+- `error.log` - Errors only
+
+## Manual Setup (5 Minutes)
+
+### Manual Session Secret Generation (Optional)
+
+If you prefer to generate the secret yourself instead of using automatic generation:
 
 **On Linux/Mac:**
 ```bash
@@ -129,6 +178,19 @@ The signup form provides real-time password strength feedback.
 
 ## Monitoring Security Logs
 
+### Daily Monitoring (2 Minutes)
+
+```bash
+# View today's security events
+tail -100 logs/security.log
+
+# Count failed login attempts today
+grep "LOGIN_FAILED" logs/security.log | grep "$(date +%Y-%m-%d)" | wc -l
+
+# Find any rate limit violations
+grep "RATE_LIMIT_EXCEEDED" logs/security.log | tail -20
+```
+
 ### View Recent Security Events
 ```bash
 tail -f logs/security.log
@@ -149,6 +211,36 @@ Security logs are in JSON format for easy parsing:
 ```bash
 cat logs/security.log | jq '.'
 ```
+
+### Common Commands
+
+```bash
+# Generate new SESSION_SECRET
+npm run generate-secret
+
+# Start server
+npm start
+
+# Monitor logs live
+tail -f logs/security.log
+
+# Search for specific account activity
+grep "accountId123" logs/security.log
+
+# Count login attempts by IP
+grep "LOGIN_FAILED" logs/security.log | grep -oP 'ip":"[^"]+' | sort | uniq -c
+```
+
+## Security Event Types
+
+| Event | Meaning | Action Required |
+|-------|---------|-----------------|
+| `LOGIN_SUCCESS` | User logged in | ✅ Normal |
+| `LOGIN_FAILED` | Wrong password | ⚠️ Monitor for patterns |
+| `SIGNUP_SUCCESS` | New account created | ✅ Normal |
+| `RATE_LIMIT_EXCEEDED` | Too many requests | ⚠️ Could be attack |
+| `API_KEY_REGENERATED` | API key changed | ℹ️ Expected if user requested |
+| `SESSION_ERROR` | Session problem | ⚠️ Check logs |
 
 ## Production Deployment Checklist
 
@@ -228,6 +320,34 @@ app.set('trust proxy', 1);
 7. **Enable 2FA** when available (Phase 2)
 8. **Backup logs** regularly
 
+## Emergency Procedures
+
+### Suspicious Activity Detected
+
+```bash
+# 1. Get account ID from logs
+grep "LOGIN_FAILED" logs/security.log | tail -20
+
+# 2. Check all activity for that account
+grep "accountId:abc123" logs/security.log
+
+# 3. If confirmed attack, rotate API key via UI
+# Go to Account page → Regenerate API Key
+```
+
+### Rotate SESSION_SECRET (Quarterly)
+
+```bash
+# 1. Generate new secret
+npm run generate-secret
+
+# 2. Update .env with new secret
+# (Old sessions will be invalidated - users will need to re-login)
+
+# 3. Restart server
+npm start
+```
+
 ## Security Incident Response
 
 If you detect suspicious activity:
@@ -262,11 +382,9 @@ Future security enhancements planned:
 
 ## Support
 
-For security issues or questions:
-- Email: security@yourcompany.com
-- Report vulnerabilities: security@yourcompany.com
+For security issues or questions, please use the repository's security policy for reporting vulnerabilities.
 
-**Do NOT report security issues via GitHub Issues!**
+**Do NOT report security issues via public GitHub Issues!**
 
 ## Compliance
 
