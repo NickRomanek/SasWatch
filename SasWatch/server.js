@@ -67,7 +67,8 @@ const {
     setupDownloadRoutes,
     setupAppsRoutes,
     setupDevRoutes,
-    setupAdminRoutes
+    setupAdminRoutes,
+    setupDataRoutes
 } = require('./server-multitenant-routes');
 
 // Initialize session management (must be before routes)
@@ -80,6 +81,7 @@ setupUserManagementRoutes(app);
 setupAccountRoutes(app);
 setupApiRoutes(app);
 setupDownloadRoutes(app);
+setupDataRoutes(app);
 setupAppsRoutes(app);
 setupDevRoutes(app);
 setupAdminRoutes(app);

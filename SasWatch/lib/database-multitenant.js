@@ -2333,9 +2333,176 @@ async function syncEntraUsersIfNeeded(accountId, options = {}) {
     }
 }
 
+// Extract vendor from license name
+function extractVendor(licenseName) {
+    const name = String(licenseName).toLowerCase();
+    if (name.includes('adobe')) return 'Adobe';
+    if (name.includes('microsoft') || name.includes('office 365') || name.includes('m365') || name.includes('office365')) return 'Microsoft';
+    return 'Other';
+}
+
+// Get aggregated license data for an account
+async function getLicensesData(accountId) {
+    try {
+        // Get account to retrieve hidden licenses
+        const account = await prisma.account.findUnique({
+            where: { id: accountId },
+            select: { hiddenLicenses: true }
+        });
+        const hiddenLicenses = account?.hiddenLicenses || [];
+
+        // Get all users for this account
+        const users = await prisma.user.findMany({
+            where: { accountId },
+            select: {
+                licenses: true,
+                entraLicenses: true,
+                lastActivity: true,
+                email: true
+            }
+        });
+
+        // Get applications to check for totalOwned
+        const applications = await prisma.application.findMany({
+            where: { accountId },
+            select: {
+                vendor: true,
+                name: true,
+                licensesOwned: true
+            }
+        });
+
+        // Create a map of application licenses for quick lookup
+        const appLicenseMap = new Map();
+        applications.forEach(app => {
+            const key = `${app.vendor}:${app.name}`;
+            appLicenseMap.set(key, app.licensesOwned || 0);
+        });
+
+        // Collect all unique licenses and track users
+        const licenseMap = new Map();
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+        users.forEach(user => {
+            // Process licenses array
+            if (user.licenses && Array.isArray(user.licenses)) {
+                user.licenses.forEach(license => {
+                    if (hiddenLicenses.includes(license)) return; // Skip hidden licenses
+                    
+                    if (!licenseMap.has(license)) {
+                        const vendor = extractVendor(license);
+                        const appKey = `${vendor}:${license}`;
+                        const totalOwned = appLicenseMap.get(appKey) || 0;
+                        
+                        licenseMap.set(license, {
+                            name: license,
+                            vendor: vendor,
+                            totalOwned: totalOwned,
+                            assigned: 0,
+                            active: 0,
+                            users: [],
+                            lastActivity: null
+                        });
+                    }
+                    
+                    const licenseData = licenseMap.get(license);
+                    licenseData.assigned++;
+                    licenseData.users.push(user.email);
+                    
+                    // Check if user is active (has activity in last 30 days)
+                    if (user.lastActivity && new Date(user.lastActivity) >= thirtyDaysAgo) {
+                        licenseData.active++;
+                    }
+                    
+                    // Update last activity if this user's activity is more recent
+                    if (user.lastActivity && (!licenseData.lastActivity || new Date(user.lastActivity) > new Date(licenseData.lastActivity))) {
+                        licenseData.lastActivity = user.lastActivity;
+                    }
+                });
+            }
+
+            // Process entraLicenses array
+            if (user.entraLicenses && Array.isArray(user.entraLicenses)) {
+                user.entraLicenses.forEach(license => {
+                    if (hiddenLicenses.includes(license)) return; // Skip hidden licenses
+                    
+                    if (!licenseMap.has(license)) {
+                        const vendor = extractVendor(license);
+                        const appKey = `${vendor}:${license}`;
+                        const totalOwned = appLicenseMap.get(appKey) || 0;
+                        
+                        licenseMap.set(license, {
+                            name: license,
+                            vendor: vendor,
+                            totalOwned: totalOwned,
+                            assigned: 0,
+                            active: 0,
+                            users: [],
+                            lastActivity: null
+                        });
+                    }
+                    
+                    const licenseData = licenseMap.get(license);
+                    // Only count if not already counted from licenses array
+                    if (!licenseData.users.includes(user.email)) {
+                        licenseData.assigned++;
+                        licenseData.users.push(user.email);
+                        
+                        // Check if user is active
+                        if (user.lastActivity && new Date(user.lastActivity) >= thirtyDaysAgo) {
+                            licenseData.active++;
+                        }
+                        
+                        // Update last activity
+                        if (user.lastActivity && (!licenseData.lastActivity || new Date(user.lastActivity) > new Date(licenseData.lastActivity))) {
+                            licenseData.lastActivity = user.lastActivity;
+                        }
+                    }
+                });
+            }
+        });
+
+        // Convert map to array and calculate metrics
+        const licenses = Array.from(licenseMap.values()).map(license => {
+            const utilization = license.totalOwned > 0 
+                ? Math.round((license.assigned / license.totalOwned) * 100) 
+                : 0;
+            const waste = license.assigned - license.active;
+            const available = Math.max(0, license.totalOwned - license.assigned);
+
+            return {
+                vendor: license.vendor,
+                name: license.name,
+                totalOwned: license.totalOwned,
+                assigned: license.assigned,
+                active: license.active,
+                utilization: utilization,
+                waste: waste,
+                available: available,
+                lastActivity: license.lastActivity,
+                users: license.users
+            };
+        });
+
+        // Sort by vendor, then by name
+        licenses.sort((a, b) => {
+            if (a.vendor !== b.vendor) {
+                return a.vendor.localeCompare(b.vendor);
+            }
+            return a.name.localeCompare(b.name);
+        });
+
+        return licenses;
+    } catch (error) {
+        console.error('Error getting licenses data:', error);
+        return [];
+    }
+}
+
 module.exports = {
     // User operations (all account-scoped)
     getUsersData,
+    getLicensesData,
     createUser,
     updateUser,
     deleteUser,

@@ -2260,38 +2260,35 @@ function setupDataRoutes(app) {
         }
     });
 
-    // Get all detected licenses (account-scoped)
+    // Licenses page
+    app.get('/licenses', auth.requireAuth, auth.attachAccount, async (req, res) => {
+        try {
+            res.render('licenses', {
+                title: 'SubTracker - Licenses',
+                account: req.account
+            });
+        } catch (error) {
+            console.error('Licenses page error:', error);
+            res.status(500).send('Error loading licenses page');
+        }
+    });
+
+    // Get all detected licenses with aggregation (account-scoped)
     app.get('/api/licenses', auth.requireAuth, async (req, res) => {
         try {
-            const prisma = require('./lib/prisma');
-            const account = await prisma.account.findUnique({
-                where: { id: req.session.accountId },
-                select: { hiddenLicenses: true }
-            });
+            const licenses = await db.getLicensesData(req.session.accountId);
+            
+            // Calculate stats
+            const stats = {
+                totalLicenses: licenses.length,
+                totalAssigned: licenses.reduce((sum, l) => sum + l.assigned, 0),
+                totalActive: licenses.reduce((sum, l) => sum + l.active, 0),
+                avgUtilization: licenses.length > 0 
+                    ? Math.round(licenses.reduce((sum, l) => sum + l.utilization, 0) / licenses.length)
+                    : 0
+            };
 
-            // Get all unique licenses from users
-            const users = await prisma.user.findMany({
-                where: { accountId: req.session.accountId },
-                select: { licenses: true, entraLicenses: true }
-            });
-
-            const allLicenses = new Set();
-            users.forEach(user => {
-                if (user.licenses && Array.isArray(user.licenses)) {
-                    user.licenses.forEach(license => allLicenses.add(license));
-                }
-                if (user.entraLicenses && Array.isArray(user.entraLicenses)) {
-                    user.entraLicenses.forEach(license => allLicenses.add(license));
-                }
-            });
-
-            const hiddenLicenses = account?.hiddenLicenses || [];
-            const licensesList = Array.from(allLicenses).sort().map(license => ({
-                name: license,
-                hidden: hiddenLicenses.includes(license)
-            }));
-
-            res.json({ success: true, licenses: licensesList, hiddenLicenses });
+            res.json({ success: true, licenses, stats });
         } catch (error) {
             console.error('Get licenses error:', error);
             res.status(500).json({ error: 'Failed to get licenses' });
