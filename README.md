@@ -59,8 +59,8 @@ SasWatch provides:
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/yourusername/subtracker.git
-cd subtracker/SasWatch
+git clone https://github.com/yourusername/saswatch.git
+cd saswatch/SasWatch
 
 # 2. Install dependencies
 npm install

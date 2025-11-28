@@ -15,6 +15,7 @@ generated/
 # Logs
 *.log
 npm-debug.log*
+logs/
 
 # OS
 .DS_Store
@@ -30,3 +31,7 @@ receiver/
 # Build artifacts
 dist/
 build/
+
+# Test packages and archives
+*.zip
+test-package/
