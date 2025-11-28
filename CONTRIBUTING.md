@@ -2,6 +2,16 @@
 
 Thank you for your interest in contributing to SasWatch! This document provides guidelines and instructions for contributing to the project.
 
+## License
+
+SasWatch is licensed under the [GNU Affero General Public License v3.0 (AGPL v3)](LICENSE). By contributing to this project, you agree that your contributions will be licensed under the same AGPL v3 license. This means:
+
+- Your contributions will be open source and available to all users
+- Users who modify and run the software as a network service must share their source code
+- All derivative works must also be licensed under AGPL v3
+
+If you have questions about the license or need a different licensing arrangement, please contact the maintainers before contributing.
+
 ## Development Setup
 
 ### Prerequisites
