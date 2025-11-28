@@ -35,3 +35,7 @@ build/
 # Test packages and archives
 *.zip
 test-package/
+
+# Accidentally created files from git commands
+tatus*
+*--porcelain
