@@ -399,16 +399,19 @@ For issues and questions:
 - Dashboard analytics
 - Script generation
 - Railway deployment
-
-**Future Enhancements** (Optional):
 - Email verification
 - Password reset
-- Stripe billing integration
-- Email notifications
-- 2FA authentication
 - Admin dashboard
 - API rate limiting
-- Advanced analytics
+- Microsoft Entra (Azure AD) integration
+- License management & tracking
+
+**Future Enhancements** (Optional):
+- Stripe billing integration
+- General email notifications (beyond verification/reset)
+- 2FA/MFA authentication (schema ready, UI pending)
+- Advanced analytics & reporting
+- Export functionality
 
 ---
 
