@@ -12,7 +12,7 @@ SasWatch lives where finance and IT can’t see: in the shadows of your licenses
 
 ## What is this?
 
-SasWatch helps you track Adobe license usage and Microsoft 365 subscriptions (soon to be many more) across your organization. Think of it as monitoring from the shadows, most of the time you won't notice it, but when you need to find waste, it's there.
+SasWatch currently track Adobe and Microsoft 365 licenses across your org (more coming soon). It stays in the shadows, quietly watching for waste to surface.
 
 Ever wonder why you're paying for Creative Cloud licenses when half your team hasn't opened Photoshop in six months? SasWatch tracks actual usage and shows you where the money's going.
 
