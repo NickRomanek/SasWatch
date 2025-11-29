@@ -1,426 +1,255 @@
-# SasWatch - Multi-Tenant Adobe License Management
+# SasWatch
 
-> Track Adobe Creative Cloud usage across your organization and optimize license allocation
+SasWatch lives where finance and IT can’t see: in the shadows of your licenses, hunting down waste before it hunts you.
 
-🌐 **Live Application**: [https://app.saswatch.com](https://app.saswatch.com)
+🌐 **Live at**: [https://app.saswatch.com](https://app.saswatch.com)
 
 [![Node.js](https://img.shields.io/badge/Node.js-16+-green.svg)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue.svg)](https://www.postgresql.org/)
-[![Railway](https://img.shields.io/badge/Deploy-Railway-blueviolet.svg)](https://railway.app/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
-## 📖 Overview
+---
 
-SasWatch is a **multi-tenant SaaS platform** that helps organizations track Adobe Creative Cloud license usage and identify optimization opportunities. Multiple companies can sign up, each with completely isolated data and unique API keys.
+## What is this?
 
-### The Problem
+SasWatch helps you track Adobe license usage and Microsoft 365 subscriptions (soon to be many more) across your organization. Think of it as monitoring from the shadows, most of the time you won't notice it, but when you need to find waste, it's there.
 
-- Adobe Creative Cloud licenses are expensive ($50-80/user/month)
-- Many licensed users rarely use Adobe applications
-- No easy way to track actual usage across your organization
-- Wasted spend on unused licenses
+Ever wonder why you're paying for Creative Cloud licenses when half your team hasn't opened Photoshop in six months? SasWatch tracks actual usage and shows you where the money's going.
 
-### The Solution
+### The problem we're solving
 
-SasWatch provides:
-- **Automated Usage Tracking** - PowerShell scripts monitor Adobe application usage
-- **Multi-Tenant Platform** - Serve multiple organizations from one deployment
-- **User Import** - Import users from Microsoft Entra (Azure AD) or Adobe reports
-- **Usage Analytics** - See who's using Adobe and how often
-- **License Optimization** - Identify inactive users and reassign licenses
-- **Cost Savings** - Reduce Adobe spend by 20-40%
+Adobe licenses aren't cheap. Microsoft 365 subscriptions add up. Organizations often pay for way more than they use, but there hasn't been an easy way to see who's actually using what. Until now.
 
-## ✨ Features
+---
 
-### For Organizations (Your Customers)
-- 🔐 **Self-Service Signup** - Create account in seconds
-- 📊 **Usage Dashboard** - View Adobe usage across all users
-- 📥 **Multiple Import Options** - Import users from Microsoft Entra (Azure AD) or Adobe CSV reports
-- 🔑 **Unique API Key** - Secure API access per organization
-- 📝 **Custom Scripts** - Download PowerShell monitoring scripts
-- 🚀 **Easy Deployment** - Deploy via Intune or Group Policy
-- 📈 **Activity Tracking** - See last activity per user
-- 💡 **Optimization Insights** - Identify inactive users
+## Features
 
-### For You (Platform Owner)
-- 🏢 **Multi-Tenant** - Unlimited organizations
-- 🔒 **Data Isolation** - Complete separation between accounts
-- 💰 **Monetization Ready** - Built-in subscription tier field
-- 📦 **Easy Deployment** - One-click Railway deployment
-- ⚡ **Scalable** - Handles millions of usage events
-- 🔐 **Secure** - Bcrypt passwords, API key auth, HTTPS
-- 📊 **PostgreSQL** - Reliable, scalable database
+**Multi-tenant from day one** — Built for organizations who need to manage multiple organizations with complete data isolation. Each organization gets their own account, API key, and isolated data silo.
 
-## 🚀 Quick Start
+**Automated usage tracking** — PowerShell scripts run silently in the background, tracking which Adobe applications are actually being used. No manual reporting, no guessing.
+
+**Microsoft Entra integration** — Sync your users directly from Azure AD. Or import Adobe CSV exports if that's your thing.
+
+**License optimization dashboard** — See at a glance who's using what, when they last used it, and which licenses you can safely reassign or cancel.
+
+**Self-host or use our cloud** — It's open source (AGPL v3), so you can run it yourself. Or just use the hosted version at app.saswatch.com if you prefer things simple.
+
+---
+
+## Quick Start
 
 ### Prerequisites
-- Node.js 16+
-- PostgreSQL (Docker or local)
+
+You'll need:
+- Node.js 16 or higher
+- PostgreSQL (Docker works great)
 - Git
 
-### Local Development
+### Get it running locally
 
 ```bash
-# 1. Clone repository
+# Clone it
 git clone https://github.com/yourusername/saswatch.git
 cd saswatch/SasWatch
 
-# 2. Install dependencies
+# Install dependencies
 npm install
 
-# 3. Setup environment
+# Copy the example env file and fill in your values
 cp env.example .env
-# Edit .env with your values
 
-# 4. Start PostgreSQL
+# Fire up PostgreSQL (if you have Docker)
 docker-compose up -d
 
-# 5. Initialize database
+# Initialize the database
 npm run db:generate
 npm run db:push
 
-# 6. Start server
+# Start the server
 npm start
-
-# 7. Visit http://localhost:3000/signup
 ```
 
-**For complete setup instructions, see `START-HERE.md`**
+Then visit `http://localhost:3000/signup` and create your first account.
 
-## 📁 Project Structure
+**More detailed instructions?** Check out `START-HERE.md` — it's got everything you need.
 
-```
-SasWatch/
-├── SasWatch/              # Main application
-│   ├── lib/                 # Core libraries
-│   │   ├── auth.js         # Authentication & authorization
-│   │   ├── database-multitenant.js  # Account-scoped database
-│   │   ├── script-generator.js      # PowerShell generator
-│   │   ├── entra-sync.js   # Microsoft Entra (Azure AD) integration
-│   │   └── prisma.js       # Prisma client
-│   ├── views/               # EJS templates
-│   ├── prisma/
-│   │   └── schema.prisma   # Multi-tenant database schema
-│   ├── public/              # Static assets
-│   ├── server-multitenant-routes.js  # All multi-tenant routes
-│   └── server.js            # Main server
-├── extension/               # Chrome extension (multi-tenant)
-│   └── README.md            # Extension docs
-├── scripts/                 # PowerShell reference templates
-│   └── README-GIT-RELEASE.md  # Git release script docs
-├── START-HERE.md            # 🚀 Quick start guide
-├── CONTRIBUTING.md          # 🤝 Contributing guidelines
-└── README.md                # 📄 This file
-```
+---
 
-## 🗄️ Database Architecture
+## How it works
 
-### Multi-Tenant Schema
+1. An organization signs up and gets their unique API key
+2. They import users from Microsoft Entra and Adobe CSV exports. Contact me if you'd like us to manage this for you as we expand to include other vendors.
+3. Download a PowerShell monitoring script (pre-configured with their API key) - this feature is in beta.
+4. Deploy the script via Intune, Group Policy, or however you deploy things
+5. The script quietly monitors Adobe app usage and reports back
+6. The dashboard shows who's using what, how often, and when they last used it
+7. Profit. Well, save money at least by optimizing license allocation
 
-**accounts** - Organizations/tenants
-- Each organization gets isolated account
-- Unique API key auto-generated
-- Subscription tier field for billing
+The scripts track:
+- Desktop apps: Photoshop, Illustrator, InDesign, Premiere, After Effects, Acrobat, etc.
+- Web usage: Chrome extension (optional) tracks Adobe web apps
+- No file names, no content, no personal data beyond what's needed
 
-**users** - Adobe users (account-scoped)
-- Links to account via `accountId`
-- Email unique per account
-- Tracks licenses, activity, Windows usernames
+---
 
-**usage_events** - Adobe usage tracking (account-scoped)
-- All events linked to account
-- Tracks which Adobe apps are used
-- Computer and user information
+## Architecture
 
-**Complete data isolation** - All queries automatically filtered by `accountId`
+Multi-tenant by design. Every query is scoped to an `accountId`. Every organization's data is completely isolated. This isn't an afterthought—it's baked into every database query, every API endpoint, every view.
 
-## 🔐 Security
+**Core components:**
+- `lib/auth.js` — Authentication (sessions for web, API keys for scripts)
+- `lib/database-multitenant.js` — Database layer that enforces account scoping
+- `lib/entra-sync.js` — Microsoft Graph API integration
+- `lib/script-generator.js` — Generates PowerShell scripts with embedded API keys
 
-### Authentication
-- **Password Hashing**: Bcrypt with 10 rounds
-- **Session Management**: PostgreSQL-backed sessions
-- **Secure Cookies**: HTTP-only, HTTPS in production
-- **Session Expiry**: 7 days
+**Database schema:**
+- `accounts` — Organizations/tenants
+- `users` — Adobe users (scoped to account)
+- `usage_events` — Tracking events (scoped to account)
+- `entra_sign_ins` — Microsoft sign-in logs (scoped to account)
+- `applications` — Tracked applications
 
-### Authorization
-- **API Keys**: UUID v4, unique per account
-- **Account Scoping**: All queries filtered by accountId
-- **Data Isolation**: No cross-account access possible
-- **API Key Rotation**: Can regenerate anytime
+All models include `accountId` and all queries filter by it. No exceptions.
 
-## 📊 Routes & API Endpoints
+---
 
-### Public Routes
-- `GET /signup` - Account registration
-- `GET /login` - User login
-- `POST /signup` - Create account
-- `POST /login` - Authenticate
+## Security
 
-### Authenticated Routes (Session)
-- `GET /` - Users page (default landing)
-- `GET /dashboard` - Activity dashboard
-- `GET /account` - Account settings & downloads
-- `GET /logout` - End session
+Passwords are hashed with bcrypt (10 rounds). Sessions use HTTP-only cookies (JavaScript can't access them) and are transmitted over HTTPS only in production. API keys are UUID v4 and unique per account. All queries are scoped to prevent cross-account access.
 
-### Download Endpoints (Session Auth)
-- `GET /download/monitor-script` - PowerShell script (.ps1)
-- `GET /download/extension` - Chrome extension (.zip)
-- `GET /download/instructions` - Deployment guide
+Want the full security details? See `SasWatch/SECURITY-SETUP.md`.
 
-### Account Management API (Session Auth)
-- `GET /api/account` - Get account info
-- `POST /api/account/regenerate-key` - New API key
+---
 
-### Data Operations API (Session Auth)
-- `GET /api/users` - Get users (account-scoped)
-- `POST /api/users` - Add user
-- `POST /api/upload-csv` - Import users from CSV
-- `PUT /api/users/update` - Update user
-- `DELETE /api/users/:email` - Delete user
-- `GET /api/activity` - Get activity data
-- `GET /api/stats` - Get statistics
+## Deployment
 
-### Usage Tracking API (API Key Auth)
-- `POST /api/track` - Track usage event (PowerShell & Extension)
+### Railway (easiest)
 
-## 🚀 Deployment
+1. Push your repo to GitHub
+2. Connect it to Railway
+3. Add a PostgreSQL service in Railway (they'll give you the `DATABASE_URL`)
+4. Set your environment variables:
+   - `DATABASE_URL` (auto-set by Railway)
+   - `SESSION_SECRET` (generate a strong random string)
+   - `API_URL` (your Railway app URL)
+   - `NODE_ENV=production`
+5. Initialize the database: `railway run npm run db:push`
+6. Deploy. Railway auto-deploys on every push to main.
 
-### Railway (Recommended)
+That's it. See `START-HERE.md` for more deployment options.
 
-1. **Push to GitHub** - Ensure your repository is pushed to GitHub
+---
 
-2. **Connect Railway** - Visit [railway.app](https://railway.app) → New Project → Deploy from GitHub
+## API Endpoints
 
-3. **Add PostgreSQL** - In Railway dashboard, add a PostgreSQL database service
+**Public routes:**
+- `GET/POST /signup` — Account registration
+- `GET/POST /login` — Authentication
 
-4. **Set Environment Variables** - Configure the following in Railway:
-   ```env
-   DATABASE_URL=<automatically-set-by-railway>
-   SESSION_SECRET=<generate-strong-secret>
-   API_URL=https://your-app.railway.app
-   NODE_ENV=production
-   PORT=3000
-   
-   # Optional: Microsoft Entra integration
-   CLIENT_ID=<azure-ad-client-id>
-   CLIENT_SECRET=<azure-ad-client-secret>
-   TENANT_ID=<azure-ad-tenant-id>
-   ```
+**Authenticated (session):**
+- `GET /` — Users dashboard
+- `GET /account` — Account settings
+- `GET /licenses` — License inventory (beta)
+- `GET /api/users` — User data
+- `GET /api/activity` — Usage activity
+- `GET /api/stats` — Statistics
 
-5. **Initialize Database** - Run in Railway CLI or via one-time command:
-   ```bash
-   railway run npm run db:push
-   ```
+**API key authenticated:**
+- `POST /api/track` — Usage tracking endpoint (for PowerShell scripts and extensions)
 
-6. **Deploy** - Railway will automatically deploy on every push to your main branch
+Full API docs are in the code. Start with `server-multitenant-routes.js` if you want to see everything.
 
-### Environment Variables
+---
 
-Required:
-- `DATABASE_URL` - PostgreSQL connection string
-- `SESSION_SECRET` - Strong random secret for session encryption (32+ characters)
-- `API_URL` - Your application URL (e.g., https://your-app.railway.app)
-- `NODE_ENV` - Set to `production` for production deployments
+## Tech Stack
 
-Optional (for Microsoft Entra integration):
-- `CLIENT_ID` - Azure AD Application (client) ID
-- `CLIENT_SECRET` - Azure AD client secret
-- `TENANT_ID` - Azure AD Directory (tenant) ID
-
-See `SasWatch/env.example` for a complete list of available environment variables.
-
-**For detailed deployment instructions, see the Deployment section below and `START-HERE.md`**
-
-## 📈 Usage Tracking
-
-### How It Works
-
-1. **Organization signs up** → Gets unique API key
-2. **Import users** → From Microsoft Entra (Azure AD) or Adobe CSV reports
-3. **Downloads monitoring script** → PowerShell with API key embedded
-4. **Deploys via Intune/GPO** → Script runs on employees' computers
-5. **Script monitors Adobe apps** → Acrobat, Photoshop, Illustrator, etc.
-6. **Sends data to API** → Using organization's API key
-7. **View in dashboard** → See who's using Adobe and how often
-
-### User Import Options
-
-**Microsoft Entra (Azure AD) Integration:**
-- Sync users from your Entra directory
-- Automatic user updates
-- Requires Azure AD app registration with Graph API permissions
-
-**Adobe Report Import:**
-- Upload CSV exports from Adobe Admin Console
-- Bulk import of licensed users
-- Manual or scheduled imports
-
-### Monitored Applications
-
-**Desktop (PowerShell):**
-- Adobe Acrobat (Reader & Pro)
-- Adobe Photoshop
-- Adobe Illustrator
-- Adobe InDesign
-- Adobe Premiere Pro
-- Adobe After Effects
-- Creative Cloud Desktop App
-
-**Web (Chrome Extension - Optional):**
-- Adobe.com websites
-- Acrobat Web
-- Adobe Express
-- Admin Console
-- All *.adobe.com sites
-
-### Data Collected
-
-- Application name / URL
-- Windows username (desktop only)
-- Computer name (desktop only)
-- Browser tab ID (web only)
-- Timestamp
-- Frequency
-
-**No personal data, file names, or content is collected**
-
-## 💰 Monetization
-
-SasWatch is monetization-ready with built-in subscription tier support.
-
-### Example Pricing Model
-
-```javascript
-account.subscriptionTier
-// 'free' | 'pro' | 'enterprise'
-```
-
-**Suggested Pricing:**
-- **Free**: Up to 50 users
-- **Pro**: $49/month - Up to 500 users
-- **Enterprise**: $199/month - Unlimited users
-
-**Add Stripe integration** - Implement billing by integrating Stripe API with the subscription tier field
-
-## 🧪 Testing
-
-```bash
-# Test multi-tenant isolation
-1. Create Account A
-2. Import 10 users
-3. Create Account B
-4. Import 5 users
-5. Verify Account A still has 10 (not 15) ✓
-
-# Test API keys
-1. Get Account A's API key
-2. Send test data
-3. Verify appears in Account A only ✓
-4. Verify NOT in Account B ✓
-```
-
-## 📚 Documentation
-
-1. **`START-HERE.md`** - Quick start guide (5 minutes)
-2. **`SasWatch/SECURITY-SETUP.md`** - Security configuration and best practices
-3. **`extension/README.md`** - Chrome extension setup guide
-4. **`scripts/README-GIT-RELEASE.md`** - Git release script documentation
-5. **`CONTRIBUTING.md`** - Contributing guidelines for developers
-6. **`README.md`** - This file (project overview)
-
-## 🛠️ Tech Stack
-
-- **Backend**: Node.js, Express.js
+- **Backend**: Node.js + Express.js
 - **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: Bcrypt, express-session
-- **Frontend**: EJS templates, vanilla JavaScript
-- **Hosting**: Railway (or any Node.js host)
-- **Monitoring**: PowerShell scripts
-- **Integrations**: Microsoft Graph API (Entra/Azure AD), Adobe Admin Console
+- **Auth**: Bcrypt + express-session
+- **Frontend**: EJS templates (simple, effective)
+- **Hosting**: Railway (but runs anywhere Node.js runs)
+- **Integrations**: Microsoft Graph API, Adobe Admin Console
 
-## 📦 NPM Scripts
+---
 
-```bash
-npm start              # Start server
-npm run dev            # Development mode with nodemon
-npm run db:generate    # Generate Prisma Client
-npm run db:push        # Push schema to database
-npm run db:migrate     # Create migration
-npm run db:studio      # Open Prisma Studio
-npm run db:test        # Test database connection
-```
+## Contributing
 
-## 🤝 Contributing
+Pull requests welcome. Issues welcome. Questions welcome.
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on:
-
+See `CONTRIBUTING.md` for the details on:
 - Development setup
-- Code style guidelines
-- Testing procedures
-- Submitting pull requests
+- Multi-tenant testing procedures
+- Code style (spoiler: account-scoping is critical)
+- How to submit changes
 
-### Quick Contributing Guidelines
+---
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Test thoroughly, especially multi-tenant isolation
-5. Update documentation if adding features
-6. Commit your changes (`git commit -m 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+## A Note on AI-Generated Code
 
-## 📄 License
+Full transparency: Most of this codebase was generated with the help of AI assistants. Security audits were also done using AI tools. 
 
-This project is open source and available under the [GNU Affero General Public License v3.0](LICENSE).
+Is that a bad thing? We don't think so. The code works, it's been tested, and it's open source so you can see exactly what it does. Plus, let's be honest—if an AI wrote code so good that you can't tell, does it really matter? The important thing is that it works, it's secure, and it solves a real problem.
 
-## 🙏 Acknowledgments
+Consider this your friendly reminder that in the age of AI-assisted development, what matters isn't who (or what) wrote the code—it's whether it works, whether it's maintainable, and whether you can trust it. We've done our best on all three fronts, but don't just take our word for it. The code's right here.
 
-- Built with [Prisma](https://www.prisma.io/) ORM
-- Deployed on [Railway](https://railway.app/)
-- Powered by PostgreSQL
+*Fun fact: Even this README went through multiple AI iterations. Meta, right?*
 
-## 📞 Support
+---
 
-For setup and deployment questions, see:
-- **Quick Start**: `START-HERE.md`
-- **Full Guide**: This README
+## License
+
+This project is open source under the [GNU Affero General Public License v3.0](LICENSE). 
+
+AGPL v3 means you can use it, modify it, and distribute it freely. If you run a modified version as a network service, you need to share your changes. That's the deal. Want to use it commercially without sharing changes? We can talk about a commercial license—just open an issue.
+
+---
+
+## Support & Documentation
+
+- **Quick Start**: `START-HERE.md` (5-minute setup)
 - **Security Setup**: `SasWatch/SECURITY-SETUP.md`
 - **Contributing**: `CONTRIBUTING.md`
+- **Extension Docs**: `extension/README.md`
 
-For issues and questions:
-- Open an issue on GitHub
-- Check existing issues before creating new ones
+Questions? Open an issue. Found a bug? Open an issue. Want to contribute? Open a PR.
 
-## 🎯 Roadmap
+---
 
-**Current Features** (✅ Complete):
+## Roadmap
+
+**What's done:**
 - Multi-tenant architecture
-- User authentication
+- User authentication & authorization
 - API key system
-- Usage tracking
-- Dashboard analytics
-- Script generation
-- Railway deployment
-- Email verification
-- Password reset
-- Admin dashboard
-- API rate limiting
-- Microsoft Entra (Azure AD) integration
-- License management & tracking
+- Usage tracking (PowerShell + Chrome extension) - Beta
+- Microsoft Entra integration
+- License management dashboard - Beta
+- Email verification & password reset
+- Rate limiting
 
-**Future Enhancements** (Optional):
+**What's coming:**
 - Stripe billing integration
-- General email notifications (beyond verification/reset)
-- 2FA/MFA authentication (schema ready, UI pending)
 - Advanced analytics & reporting
+- MFA/2FA (schema is ready, UI coming)
 - Export functionality
+- More integrations (Google Workspace, Slack, Zoom, etc.)
 
 ---
 
-**Ready to deploy?** See `START-HERE.md` for quick start or the Deployment section above for details.
+## Acknowledgments
 
-**Questions?** All documentation is comprehensive with troubleshooting.
+Thanks to:
+- [Prisma](https://www.prisma.io/) for making database work less painful
+- [Railway](https://railway.app/) for dead-simple deployment
+- PostgreSQL for being PostgreSQL
+- The open source community for existing
 
 ---
 
+**Ready to start tracking those licenses?** Head to `START-HERE.md` and let's go.
 
+*SasWatch: Because some things are better when they're watching from the shadows.*
+
+---
+
+Copyright (C) 2025 RomaTek LLC
