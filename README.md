@@ -18,7 +18,9 @@ Ever wonder why you're paying for Creative Cloud licenses when half your team ha
 
 ### The problem we're solving
 
-Adobe licenses aren't cheap. Microsoft 365 subscriptions add up. Organizations often pay for way more than they use, but there hasn't been an easy way to see who's actually using what. Until now.
+For most businesses using Adobe Teams, there’s no simple way to monitor usage for a product you pay a lot for. And Microsoft 365 subscriptions add up fast.
+
+Organizations often pay for far more than they actually use, but there hasn’t been an easy, affordable way to see who’s using what in one place. Until now.
 
 ---
 
@@ -77,8 +79,11 @@ Then visit `http://localhost:3000/signup` and create your first account.
 
 ## How it works
 
-1. An organization signs up and gets their unique API key
-2. They import users from Microsoft Entra and Adobe CSV exports. Contact me if you'd like us to manage this for you as we expand to include other vendors.
+1. Sign up.
+2. Sync users from Entra and Adobe CSV exports.
+   -Go to the Account section in SasWatch and connect your Microsoft account, the app uses read-only permissions.
+   -For Adobe, go to adminconsole.adobe.com > Users > Export User List to CSV. Use the dropdown on the User page in SasWatch to import.
+   -Contact me if you'd like us to manage this for you as we expand to include other vendors.
 3. Download a PowerShell monitoring script (pre-configured with their API key) - this feature is in beta.
 4. Deploy the script via Intune, Group Policy, or however you deploy things
 5. The script quietly monitors Adobe app usage and reports back
