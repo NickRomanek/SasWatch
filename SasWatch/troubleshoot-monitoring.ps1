@@ -6,6 +6,70 @@ Write-Host "  Adobe Usage Monitor Troubleshooting" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
+# ============================================
+# Secure API Key and URL Detection
+# ============================================
+# Priority: 1. Environment variable, 2. Monitoring script, 3. Error
+$API_KEY = $null
+$API_URL = $null
+
+# Try environment variable first (most secure)
+if ($env:SASWATCH_API_KEY) {
+    $API_KEY = $env:SASWATCH_API_KEY
+    Write-Host "[CONFIG] Using API key from environment variable" -ForegroundColor Green
+} elseif ($env:API_KEY) {
+    $API_KEY = $env:API_KEY
+    Write-Host "[CONFIG] Using API key from API_KEY environment variable" -ForegroundColor Green
+}
+
+# Try environment variable for API URL
+if ($env:SASWATCH_API_URL) {
+    $API_URL = $env:SASWATCH_API_URL
+} elseif ($env:API_URL) {
+    $API_URL = $env:API_URL
+}
+
+# Fallback: Try to read from installed monitoring script
+$scriptPath = "C:\ProgramData\AdobeMonitor\Monitor-AdobeUsage.ps1"
+if (-not $API_KEY -and (Test-Path $scriptPath)) {
+    try {
+        $scriptContent = Get-Content $scriptPath -Raw -ErrorAction SilentlyContinue
+        if ($scriptContent -match '\$API_KEY\s*=\s*"([^"]+)"') {
+            $API_KEY = $matches[1]
+            Write-Host "[CONFIG] Using API key from monitoring script" -ForegroundColor Yellow
+        }
+        if (-not $API_URL -and $scriptContent -match '\$API_URL\s*=\s*"([^"]+)"') {
+            $apiUrlMatch = $matches[1]
+            # Extract base URL (remove /api/track if present)
+            $API_URL = $apiUrlMatch -replace '/api/track.*$', ''
+        }
+    } catch {
+        # Silently continue if we can't read the script
+    }
+}
+
+# Default API URL if not found
+if (-not $API_URL) {
+    $API_URL = "http://localhost:3000"
+}
+
+# Validate API key is present
+if (-not $API_KEY) {
+    Write-Host "[ERROR] API key not found!" -ForegroundColor Red
+    Write-Host "  Please set one of the following:" -ForegroundColor Yellow
+    Write-Host "    1. Environment variable: `$env:SASWATCH_API_KEY" -ForegroundColor White
+    Write-Host "    2. Environment variable: `$env:API_KEY" -ForegroundColor White
+    Write-Host "    3. Install monitoring script at: $scriptPath" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  Example:" -ForegroundColor Cyan
+    Write-Host "    `$env:SASWATCH_API_KEY = 'your-api-key-here'" -ForegroundColor Gray
+    Write-Host "    `$env:SASWATCH_API_URL = 'https://your-api-url.com'  # Optional" -ForegroundColor Gray
+    exit 1
+}
+
+Write-Host "[CONFIG] API URL: $API_URL" -ForegroundColor Cyan
+Write-Host ""
+
 # 1. Check if monitoring task exists and is running
 Write-Host "[1/8] Checking scheduled task..." -ForegroundColor Yellow
 $task = Get-ScheduledTask -TaskName "Adobe Usage Monitor - SubTracker" -ErrorAction SilentlyContinue
@@ -26,7 +90,6 @@ if ($task) {
 
 # 2. Check if monitoring script file exists
 Write-Host "`n[2/8] Checking monitoring script..." -ForegroundColor Yellow
-$scriptPath = "C:\ProgramData\AdobeMonitor\Monitor-AdobeUsage.ps1"
 if (Test-Path $scriptPath) {
     Write-Host "  [OK] Script exists at: $scriptPath" -ForegroundColor Green
 } else {
@@ -105,7 +168,8 @@ try {
 # 6. Test API connectivity
 Write-Host "`n[6/8] Testing API connection..." -ForegroundColor Yellow
 try {
-    $healthCheck = Invoke-RestMethod -Uri "http://localhost:3000/api/health" -Method GET -TimeoutSec 5
+    $healthCheckUrl = "$API_URL/api/health"
+    $healthCheck = Invoke-RestMethod -Uri $healthCheckUrl -Method GET -TimeoutSec 5
     Write-Host "  [OK] SubTracker API is responding" -ForegroundColor Green
     Write-Host "    Status: $($healthCheck.status)" -ForegroundColor Cyan
 } catch {
@@ -117,7 +181,7 @@ try {
 Write-Host "`n[7/8] Sending test event to API..." -ForegroundColor Yellow
 try {
     $headers = @{
-        "X-API-Key" = "dca3ea2d-0953-4aa6-b39a-0b3facfff360"
+        "X-API-Key" = $API_KEY
         "Content-Type" = "application/json"
     }
 
@@ -131,7 +195,8 @@ try {
         when = (Get-Date).ToUniversalTime().ToString("o")
     } | ConvertTo-Json
 
-    $response = Invoke-RestMethod -Uri "http://localhost:3000/api/track" `
+    $trackUrl = "$API_URL/api/track"
+    $response = Invoke-RestMethod -Uri $trackUrl `
         -Method POST `
         -Headers $headers `
         -Body $testData `
@@ -139,7 +204,7 @@ try {
 
     Write-Host "  [OK] Test event sent successfully!" -ForegroundColor Green
     Write-Host "    Response: $($response | ConvertTo-Json)" -ForegroundColor Cyan
-    Write-Host "    Check your dashboard at: http://localhost:3000/dashboard" -ForegroundColor Yellow
+    Write-Host "    Check your dashboard at: $API_URL/dashboard" -ForegroundColor Yellow
 } catch {
     Write-Host "  [ERROR] Failed to send test event" -ForegroundColor Red
     Write-Host "    Error: $_" -ForegroundColor Red
@@ -148,7 +213,8 @@ try {
 # 8. Check recent events in database
 Write-Host "`n[8/8] Checking recent events in database..." -ForegroundColor Yellow
 try {
-    $recentEvents = Invoke-RestMethod -Uri "http://localhost:3000/api/usage/recent?limit=5" -Method GET
+    $recentEventsUrl = "$API_URL/api/usage/recent?limit=5"
+    $recentEvents = Invoke-RestMethod -Uri $recentEventsUrl -Method GET
 
     $totalEvents = 0
     if ($recentEvents.adobe) { $totalEvents += $recentEvents.adobe.Count }
@@ -193,6 +259,6 @@ if (-not $foundAdobe) {
 Write-Host "`n[OK] Next steps:" -ForegroundColor Green
 Write-Host "   1. Make sure an Adobe app is running AND is the active window" -ForegroundColor White
 Write-Host "   2. Wait 5-10 seconds" -ForegroundColor White
-Write-Host "   3. Check dashboard: http://localhost:3000/dashboard" -ForegroundColor White
+Write-Host "   3. Check dashboard: $API_URL/dashboard" -ForegroundColor White
 Write-Host "   4. Look for the test event sent by this script" -ForegroundColor White
 Write-Host ""

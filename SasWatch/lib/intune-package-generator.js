@@ -135,11 +135,28 @@ function generateTroubleshootScript(apiKey, apiUrl) {
     // Remove trailing slash from API URL if present
     const cleanApiUrl = apiUrl.replace(/\/$/, '');
 
-    // Replace hardcoded localhost URLs with customer's actual API URL
-    script = script.replace(/http:\/\/localhost:3000/g, cleanApiUrl);
+    // Inject environment variables at the top (after the header comment)
+    // This ensures the script uses the customer's API key and URL
+    const envVarInjection = `
+# ============================================
+# Customer Configuration (Injected by Intune Package Generator)
+# ============================================
+` + `$env:SASWATCH_API_KEY = "${apiKey}"
+` + `$env:SASWATCH_API_URL = "${cleanApiUrl}"
+`;
 
-    // Replace hardcoded API key with customer's actual API key
-    script = script.replace(/"dca3ea2d-0953-4aa6-b39a-0b3facfff360"/g, `"${apiKey}"`);
+    // Find the position after the header comment and inject environment variables
+    const headerEnd = script.indexOf('Write-Host "========================================"');
+    if (headerEnd > 0) {
+        // Find the end of the header section (after the empty line)
+        const headerSectionEnd = script.indexOf('\n\n', headerEnd);
+        if (headerSectionEnd > 0) {
+            script = script.slice(0, headerSectionEnd + 2) + envVarInjection + script.slice(headerSectionEnd + 2);
+        }
+    }
+
+    // Also replace any remaining localhost URLs with customer's API URL
+    script = script.replace(/http:\/\/localhost:3000/g, cleanApiUrl);
 
     return script;
 }
