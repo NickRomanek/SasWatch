@@ -27,9 +27,21 @@ function getMsalClient(tenantId) {
 }
 
 async function acquireToken(tenantId) {
-    const client = getMsalClient(tenantId);
-    const result = await client.acquireTokenByClientCredential({ scopes: GRAPH_SCOPES });
-    return result.accessToken;
+    try {
+        console.log('[Graph API] Acquiring token for tenant:', tenantId);
+        const client = getMsalClient(tenantId);
+        const result = await client.acquireTokenByClientCredential({ scopes: GRAPH_SCOPES });
+        
+        if (!result || !result.accessToken) {
+            throw new Error('Failed to acquire access token - no token in response');
+        }
+        
+        console.log('[Graph API] Token acquired successfully');
+        return result.accessToken;
+    } catch (error) {
+        console.error('[Graph API] Token acquisition failed:', error);
+        throw error;
+    }
 }
 
 async function getGraphClient(tenantId) {
@@ -168,15 +180,30 @@ async function fetchEntraDirectory(tenantId, options = {}) {
 }
 
 async function fetchEntraSignIns(tenantId, options = {}) {
+    const onProgress = options.onProgress || (() => {}); // Progress callback
+    
+    // Send initial progress update
+    onProgress({
+        page: 0,
+        eventsFetched: 0,
+        elapsedMs: 0,
+        message: 'Connecting to Microsoft Graph API...'
+    });
+    
+    console.log('[Graph API] Acquiring access token...');
     const client = await getGraphClient(tenantId);
+    console.log('[Graph API] Access token acquired, building request...');
+    
     const events = [];
     const maxPages = Number.isFinite(options.maxPages) ? options.maxPages : 10;
     const pageSize = Number.isFinite(options.top) ? Math.max(1, Math.min(1000, options.top)) : 100;
     const since = options.since ? new Date(options.since) : null;
-    const onProgress = options.onProgress || (() => {}); // Progress callback
 
-    // Set a reasonable timeout for individual Graph API calls (2 minutes per page)
-    const REQUEST_TIMEOUT_MS = 120000;
+    // Set a reasonable timeout for individual Graph API calls
+    // First page can take longer (up to 5 minutes) due to large date ranges
+    // Subsequent pages are faster (2 minutes)
+    const FIRST_PAGE_TIMEOUT_MS = 300000; // 5 minutes for first page
+    const SUBSEQUENT_PAGE_TIMEOUT_MS = 120000; // 2 minutes for subsequent pages
 
     let request = client
         .api('/auditLogs/signIns')
@@ -219,24 +246,121 @@ async function fetchEntraSignIns(tenantId, options = {}) {
     let shouldContinue = true;
     const startTime = Date.now();
 
+    console.log('[Graph API] Starting to fetch sign-ins...');
+    onProgress({
+        page: 0,
+        eventsFetched: 0,
+        elapsedMs: 0,
+        message: 'Sending request to Microsoft Graph API...'
+    });
+
     try {
         while (shouldContinue && request) {
             page += 1;
+            
+            console.log(`[Graph API] Fetching page ${page}...`);
+            onProgress({
+                page: page - 1, // Show current page being fetched
+                eventsFetched: events.length,
+                elapsedMs: Date.now() - startTime,
+                message: `Fetching page ${page} from Microsoft Graph API...`
+            });
 
+            // Use longer timeout for first page (large date ranges can be slow)
+            const timeoutMs = page === 1 ? FIRST_PAGE_TIMEOUT_MS : SUBSEQUENT_PAGE_TIMEOUT_MS;
+            
             // Create a timeout promise for this request
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error(`Microsoft Graph API request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. This may happen with large datasets or slow connections.`)), REQUEST_TIMEOUT_MS);
+                setTimeout(() => {
+                    console.error(`[Graph API] Request timeout after ${timeoutMs / 1000}s for page ${page}`);
+                    reject(new Error(`Microsoft Graph API request timed out after ${timeoutMs / 1000}s. This may happen with large datasets or slow connections. Try reducing the date range.`));
+                }, timeoutMs);
             });
 
             // Race the Graph API request against the timeout
-            response = await Promise.race([request.get(), timeoutPromise]);
+            const requestStartTime = Date.now();
+            const timeoutSeconds = Math.floor(timeoutMs / 1000);
+            console.log(`[Graph API] Sending GET request for page ${page} (timeout: ${timeoutSeconds}s)...`);
+            
+            // Send progress update that we're waiting
+            if (page === 1) {
+                onProgress({
+                    page: 0,
+                    eventsFetched: 0,
+                    elapsedMs: Date.now() - startTime,
+                    message: `Waiting for Microsoft Graph API response (this can take up to ${timeoutSeconds}s for large date ranges)...`
+                });
+            }
+            
+            // Set up periodic progress updates while waiting (every 15 seconds)
+            let progressUpdateInterval = null;
+            let requestPending = true; // Flag to prevent interval callbacks after completion
+            
+            if (page === 1) {
+                progressUpdateInterval = setInterval(() => {
+                    // Only send update if request is still pending
+                    if (!requestPending) {
+                        clearInterval(progressUpdateInterval);
+                        return;
+                    }
+                    
+                    const elapsed = Date.now() - requestStartTime;
+                    const elapsedSeconds = Math.floor(elapsed / 1000);
+                    onProgress({
+                        page: 0,
+                        eventsFetched: 0,
+                        elapsedMs: elapsed,
+                        message: `Still waiting for Microsoft Graph API... (${elapsedSeconds}s elapsed, timeout: ${timeoutSeconds}s)`
+                    });
+                }, 15000); // Update every 15 seconds
+            }
+            
+            try {
+                response = await Promise.race([request.get(), timeoutPromise]);
+                const requestDuration = Date.now() - requestStartTime;
+                console.log(`[Graph API] Page ${page} received in ${requestDuration}ms`);
+                
+                // Mark request as complete and clear interval immediately
+                requestPending = false;
+                if (progressUpdateInterval) {
+                    clearInterval(progressUpdateInterval);
+                    progressUpdateInterval = null;
+                }
+            } catch (requestError) {
+                // Mark request as complete and clear interval on error
+                requestPending = false;
+                if (progressUpdateInterval) {
+                    clearInterval(progressUpdateInterval);
+                    progressUpdateInterval = null;
+                }
+                
+                const elapsed = Date.now() - requestStartTime;
+                console.error(`[Graph API] Error fetching page ${page}:`, {
+                    message: requestError.message,
+                    code: requestError.code,
+                    statusCode: requestError.statusCode,
+                    elapsed: elapsed,
+                    timeout: timeoutMs
+                });
+                
+                // If it's a timeout and we're on the first page, suggest reducing date range
+                if (requestError.message?.includes('timeout') && page === 1) {
+                    const enhancedError = new Error(`First page request timed out after ${timeoutSeconds}s. The date range (${options.backfillHours || 'default'} hours) may be too large. Try reducing backfillHours to 24 hours or less, or sync more frequently.`);
+                    enhancedError.originalError = requestError;
+                    throw enhancedError;
+                }
+                
+                throw requestError;
+            }
 
+            // Progress update after successful fetch
             onProgress({
                 page,
                 eventsFetched: events.length,
                 elapsedMs: Date.now() - startTime,
                 message: `Fetched page ${page} (${events.length} events so far)`
             });
+            console.log(`[Graph API] Page ${page} processed: ${response?.value?.length || 0} events, total: ${events.length}`);
 
             if (Array.isArray(response?.value)) {
                 response.value.forEach((event) => {

@@ -167,7 +167,7 @@
             log('Testing: Clear all data', 'info');
             setStatus('running', 'Clearing data...');
             try {
-                const response = await fetch('/api/usage?resetCursor=true&cursorHours=24', {
+                const response = await fetch('/api/usage?resetCursor=true&cursorHours=6', {
                     method: 'DELETE'
                 });
                 

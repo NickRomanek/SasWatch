@@ -22,6 +22,35 @@ const {
     generateSecureToken 
 } = require('./lib/security');
 const { sendSurveyEmail, sendVerificationEmail, sendPasswordResetEmail, SURVEY_EMAIL_REGEX } = require('./lib/email-sender');
+const multer = require('multer');
+const path = require('path');
+const { extractFromDocument, processMultipleAttachments, isSupportedFileType, getMimeTypeFromFilename } = require('./lib/document-extractor');
+
+// Configure multer for file uploads
+const uploadStorage = multer.memoryStorage();
+const upload = multer({
+    storage: uploadStorage,
+    limits: {
+        fileSize: 30 * 1024 * 1024, // 30MB max file size
+        files: 10 // Max 10 files per upload
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = [
+            'application/pdf',
+            'image/png',
+            'image/jpeg',
+            'image/jpg',
+            'image/gif',
+            'image/webp',
+            'text/plain'
+        ];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error(`Unsupported file type: ${file.mimetype}`), false);
+        }
+    }
+});
 
 const REQUEST_TIMEOUT_MS = 180000; // 3 minutes to allow for Graph API calls that can take up to 2 minutes
 const surveySubmissionLimiter = rateLimit({
@@ -39,6 +68,10 @@ const surveySubmissionLimiter = rateLimit({
 
 // Global sync status tracking
 const activeSyncs = new Map();
+
+// Performance: Simple in-memory cache for stats (30 second TTL)
+const statsCache = new Map();
+const STATS_CACHE_TTL_MS = 30000; // 30 seconds
 
 // ============================================
 // Session Configuration (add to server.js)
@@ -87,6 +120,9 @@ function setupSession(app) {
     
     app.use(session(sessionConfig));
     app.use(auth.attachAccount); // Attach account to all requests if logged in
+    
+    // Export session store for Socket.IO authentication
+    return sessionConfig.store;
 }
 
 // ============================================
@@ -107,7 +143,35 @@ function setupAuthRoutes(app) {
             // Create account (now includes verification token)
             const account = await auth.createAccount(name, email, password);
             
-            // Send verification email
+            // In development, auto-verify email and auto-login
+            const isDevelopment = process.env.NODE_ENV !== 'production';
+            
+            if (isDevelopment) {
+                // Auto-verify email in development
+                await prisma.account.update({
+                    where: { id: account.id },
+                    data: {
+                        emailVerified: true,
+                        emailVerificationToken: null,
+                        emailVerificationExpires: null
+                    }
+                });
+                
+                // Auto-login in development
+                req.session.accountId = account.id;
+                req.session.accountEmail = account.email;
+                
+                auditLog('SIGNUP_SUCCESS', account.id, {
+                    email: email,
+                    name: name,
+                    autoVerified: true,
+                    autoLoggedIn: true
+                }, req);
+                
+                return res.redirect('/');
+            }
+            
+            // In production, send verification email
             try {
                 await sendVerificationEmail({
                     to: email,
@@ -180,8 +244,11 @@ function setupAuthRoutes(app) {
             
             console.log('Authentication successful for account:', account.id);
             
-            // Check if email is verified
-            if (!account.emailVerified) {
+            // In development, skip email verification and MFA - only require email and password
+            const isDevelopment = process.env.NODE_ENV !== 'production';
+            
+            // Check if email is verified (skip in development)
+            if (!isDevelopment && !account.emailVerified) {
                 auditLog('LOGIN_BLOCKED_UNVERIFIED', account.id, { email }, req);
                 
                 return res.render('login', {
@@ -192,9 +259,25 @@ function setupAuthRoutes(app) {
                 });
             }
             
+            // Check MFA requirement (skip in development)
+            if (!isDevelopment && account.mfaEnabled) {
+                // TODO: Implement MFA verification flow
+                // For now, MFA is disabled in development
+                auditLog('MFA_REQUIRED', account.id, { email }, req);
+                
+                return res.render('login', {
+                    error: 'Multi-factor authentication is required. Please complete MFA verification.',
+                    message: null,
+                    showResendLink: false,
+                    email: email
+                });
+            }
+            
             // Log successful login
             auditLog('LOGIN_SUCCESS', account.id, {
-                email: email
+                email: email,
+                emailVerificationSkipped: isDevelopment && !account.emailVerified,
+                mfaSkipped: isDevelopment && account.mfaEnabled
             }, req);
             
             // Create session
@@ -1244,16 +1327,22 @@ function setupTrackingAPI(app) {
         }
     });
 
-    // Usage tracking endpoint (PowerShell scripts use this)
+    // Usage tracking endpoint (PowerShell scripts and ActivityAgent use this)
     // Auth first (sets req.accountId), then rate limit by account, then process request
     app.post('/api/track', auth.requireApiKey, trackingLimiter, async (req, res) => {
         try {
             const data = req.body;
             
-            // Determine source
-            const source = data.why === 'adobe_reader_wrapper' || data.why === 'process_monitor' 
-                ? 'wrapper' 
-                : 'adobe';
+            // Determine source based on event origin and type
+            let source = 'adobe'; // default for web extension events
+            if (data.why === 'agent_monitor') {
+                // ActivityAgent events: classify by event type
+                source = data.event === 'web_browsing' ? 'browser' : 'desktop';
+            } else if (data.why === 'adobe_reader_wrapper' || data.why === 'process_monitor') {
+                source = 'wrapper';
+            }
+            
+            console.log(`[Track API] Event received: ${data.event} | source: ${source} | url: ${data.url} | why: ${data.why}`);
             
             // Save usage event with account association
             await db.addUsageEvent(req.accountId, data, source);
@@ -1278,6 +1367,30 @@ function setupTrackingAPI(app) {
             timestamp: new Date().toISOString(),
             service: 'SubTracker Multi-Tenant API'
         });
+    });
+
+    // Secure endpoint for Socket.IO authentication (dashboard namespace)
+    // Returns accountId only if user is authenticated
+    app.get('/api/socket/auth', auth.requireAuth, async (req, res) => {
+        try {
+            if (!req.accountId) {
+                return res.status(401).json({ 
+                    success: false, 
+                    error: 'Not authenticated' 
+                });
+            }
+
+            res.json({ 
+                success: true, 
+                accountId: req.accountId 
+            });
+        } catch (error) {
+            console.error('Socket auth endpoint error:', error);
+            res.status(500).json({ 
+                success: false, 
+                error: 'Internal server error' 
+            });
+        }
     });
 }
 
@@ -2033,56 +2146,94 @@ function setupDataRoutes(app) {
     app.get('/api/stats', auth.requireAuth, async (req, res) => {
         try {
             const accountId = req.session.accountId;
-            const stats = await db.getDatabaseStats(accountId);
-            const usageData = await db.getUsageData(accountId, 1000);
-            const account = await db.prisma.account.findUnique({
-                where: { id: accountId },
-                select: { entraSignInLastSyncAt: true }
-            });
+            const cacheKey = `stats:${accountId}`;
+            
+            // Check cache first
+            const cached = statsCache.get(cacheKey);
+            if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL_MS) {
+                return res.json(cached.data);
+            }
 
+            // Calculate date ranges
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const weekAgo = new Date();
             weekAgo.setDate(weekAgo.getDate() - 7);
 
-            const allAdobe = usageData.adobe || [];
-            const allWrapper = usageData.wrapper || [];
-            const allEntra = usageData.entra || [];
+            // Use database-level aggregation instead of loading all data
+            const [adobeStats, wrapperStats, entraStats, account] = await Promise.all([
+                // Adobe: total, today, this week, unique clients (sample-based for performance)
+                Promise.all([
+                    prisma.usageEvent.count({ where: { accountId, source: 'adobe' } }),
+                    prisma.usageEvent.count({ where: { accountId, source: 'adobe', receivedAt: { gte: today } } }),
+                    prisma.usageEvent.count({ where: { accountId, source: 'adobe', receivedAt: { gte: weekAgo } } }),
+                    // For unique clients, fetch a sample and deduplicate (much faster than loading all)
+                    prisma.usageEvent.findMany({
+                        where: { accountId, source: 'adobe' },
+                        select: { clientId: true, tabId: true },
+                        take: 1000, // Sample size for unique count estimation
+                        orderBy: { receivedAt: 'desc' }
+                    })
+                ]),
+                // Wrapper: total, today, this week, unique clients
+                Promise.all([
+                    prisma.usageEvent.count({ where: { accountId, source: 'wrapper' } }),
+                    prisma.usageEvent.count({ where: { accountId, source: 'wrapper', receivedAt: { gte: today } } }),
+                    prisma.usageEvent.count({ where: { accountId, source: 'wrapper', receivedAt: { gte: weekAgo } } }),
+                    prisma.usageEvent.findMany({
+                        where: { accountId, source: 'wrapper' },
+                        select: { computerName: true, windowsUser: true },
+                        take: 1000,
+                        orderBy: { receivedAt: 'desc' }
+                    })
+                ]),
+                // Entra: total, today, this week, unique clients
+                Promise.all([
+                    prisma.entraSignIn.count({ where: { accountId } }),
+                    prisma.entraSignIn.count({ where: { accountId, createdDateTime: { gte: today } } }),
+                    prisma.entraSignIn.count({ where: { accountId, createdDateTime: { gte: weekAgo } } }),
+                    prisma.entraSignIn.findMany({
+                        where: { accountId },
+                        select: { userPrincipalName: true, deviceDisplayName: true, ipAddress: true },
+                        take: 1000,
+                        orderBy: { createdDateTime: 'desc' }
+                    })
+                ]),
+                // Account info for lastSync
+                prisma.account.findUnique({
+                    where: { id: accountId },
+                    select: { entraSignInLastSyncAt: true }
+                })
+            ]);
 
-            const withinRange = (event, cutoff) => {
-                const value = new Date(event.when || event.receivedAt);
-                return !Number.isNaN(value.getTime()) && value >= cutoff;
-            };
+            // Calculate unique clients (using Set to deduplicate from sample)
+            const uniqueAdobeClients = new Set(
+                adobeStats[3].map(e => e.clientId || e.tabId).filter(Boolean)
+            ).size;
+            const uniqueWrapperClients = new Set(
+                wrapperStats[3].map(e => e.computerName || e.windowsUser).filter(Boolean)
+            ).size;
+            const uniqueEntraDevices = new Set(
+                entraStats[3].map(e => e.userPrincipalName || e.deviceDisplayName || e.ipAddress).filter(Boolean)
+            ).size;
 
-            const adobeToday = allAdobe.filter(e => withinRange(e, today)).length;
-            const wrapperToday = allWrapper.filter(e => withinRange(e, today)).length;
-            const entraToday = allEntra.filter(e => withinRange(e, today)).length;
-
-            const adobeWeek = allAdobe.filter(e => withinRange(e, weekAgo)).length;
-            const wrapperWeek = allWrapper.filter(e => withinRange(e, weekAgo)).length;
-            const entraWeek = allEntra.filter(e => withinRange(e, weekAgo)).length;
-
-            const uniqueAdobeClients = new Set(allAdobe.map(e => e.clientId || e.tabId)).size;
-            const uniqueWrapperClients = new Set(allWrapper.map(e => e.computerName || e.windowsUser)).size;
-            const uniqueEntraDevices = new Set(allEntra.map(e => e.computerName || e.windowsUser || e.userPrincipalName || e.ipAddress)).size;
-
-            res.json({
+            const data = {
                 adobe: {
-                    total: stats.adobeEvents || 0,
-                    today: adobeToday,
-                    thisWeek: adobeWeek,
+                    total: adobeStats[0],
+                    today: adobeStats[1],
+                    thisWeek: adobeStats[2],
                     uniqueClients: uniqueAdobeClients
                 },
                 wrapper: {
-                    total: stats.wrapperEvents || 0,
-                    today: wrapperToday,
-                    thisWeek: wrapperWeek,
+                    total: wrapperStats[0],
+                    today: wrapperStats[1],
+                    thisWeek: wrapperStats[2],
                     uniqueClients: uniqueWrapperClients
                 },
                 entra: {
-                    total: stats.signInEvents || 0,
-                    today: entraToday,
-                    thisWeek: entraWeek,
+                    total: entraStats[0],
+                    today: entraStats[1],
+                    thisWeek: entraStats[2],
                     uniqueClients: uniqueEntraDevices
                 },
                 meta: {
@@ -2092,7 +2243,12 @@ function setupDataRoutes(app) {
                         triggered: false
                     }
                 }
-            });
+            };
+
+            // Cache the result
+            statsCache.set(cacheKey, { data, timestamp: Date.now() });
+            
+            res.json(data);
         } catch (error) {
             console.error('Get stats error:', error);
             res.status(500).json({ error: 'Failed to get stats' });
@@ -2191,6 +2347,97 @@ function setupDataRoutes(app) {
         } catch (error) {
             console.error('Show license error:', error);
             res.status(500).json({ error: 'Failed to show license' });
+        }
+    });
+
+    // Update license cost and pricing info
+    app.post('/api/licenses/cost', auth.requireAuth, async (req, res) => {
+        try {
+            const { licenseName, costPerLicense, totalLicenses, totalCost } = req.body;
+            if (!licenseName) {
+                return res.status(400).json({ error: 'License name is required' });
+            }
+
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { licenseCosts: true }
+            });
+
+            const licenseCosts = account?.licenseCosts || {};
+            
+            // Parse and validate inputs
+            const numCostPerLicense = costPerLicense !== undefined && costPerLicense !== '' ? parseFloat(costPerLicense) : null;
+            const numTotalLicenses = totalLicenses !== undefined && totalLicenses !== '' ? parseFloat(totalLicenses) : null;
+            const numTotalCost = totalCost !== undefined && totalCost !== '' ? parseFloat(totalCost) : null;
+
+            // Validate non-negative numbers
+            if (numCostPerLicense !== null && (isNaN(numCostPerLicense) || numCostPerLicense < 0)) {
+                return res.status(400).json({ error: 'Cost per license must be a non-negative number' });
+            }
+            if (numTotalLicenses !== null && (isNaN(numTotalLicenses) || numTotalLicenses < 0)) {
+                return res.status(400).json({ error: 'Total licenses must be a non-negative number' });
+            }
+            if (numTotalCost !== null && (isNaN(numTotalCost) || numTotalCost < 0)) {
+                return res.status(400).json({ error: 'Total cost must be a non-negative number' });
+            }
+
+            // Calculate missing values based on what's provided
+            let finalCostPerLicense = numCostPerLicense;
+            let finalTotalLicenses = numTotalLicenses;
+            let finalTotalCost = numTotalCost;
+
+            // If total cost is provided and we have licenses, calculate cost per license
+            if (finalTotalCost !== null && finalTotalLicenses !== null && finalTotalLicenses > 0) {
+                finalCostPerLicense = finalTotalCost / finalTotalLicenses;
+            }
+            // If cost per license and licenses are provided, calculate total cost
+            else if (finalCostPerLicense !== null && finalTotalLicenses !== null) {
+                finalTotalCost = finalCostPerLicense * finalTotalLicenses;
+            }
+            // If total cost and cost per license are provided, calculate licenses
+            else if (finalTotalCost !== null && finalCostPerLicense !== null && finalCostPerLicense > 0) {
+                finalTotalLicenses = finalTotalCost / finalCostPerLicense;
+            }
+
+            // If all values are null/empty, remove the entry
+            if (finalCostPerLicense === null && finalTotalLicenses === null && finalTotalCost === null) {
+                delete licenseCosts[licenseName];
+            } else {
+                // Store the values (round to 2 decimals for currency)
+                licenseCosts[licenseName] = {
+                    costPerLicense: finalCostPerLicense !== null ? Math.round(finalCostPerLicense * 100) / 100 : null,
+                    totalLicenses: finalTotalLicenses !== null ? Math.round(finalTotalLicenses) : null,
+                    totalCost: finalTotalCost !== null ? Math.round(finalTotalCost * 100) / 100 : null
+                };
+            }
+
+            await prisma.account.update({
+                where: { id: req.session.accountId },
+                data: {
+                    licenseCosts: licenseCosts
+                }
+            });
+
+            const result = licenseCosts[licenseName] || null;
+            res.json({ 
+                success: true, 
+                data: result
+            });
+        } catch (error) {
+            console.error('Update license cost error:', error);
+            console.error('Error stack:', error.stack);
+            console.error('Request body:', req.body);
+            console.error('Account ID:', req.session.accountId);
+            
+            // Provide more specific error messages
+            let errorMessage = 'Failed to update license cost';
+            if (error.code === 'P2002') {
+                errorMessage = 'Database constraint violation';
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            res.status(500).json({ error: errorMessage });
         }
     });
 }
@@ -2725,6 +2972,808 @@ function setupAdminRoutes(app) {
             res.status(500).send('Error loading account details');
         }
     });
+
+    // Superadmin-only: Manually trigger Graph API sync to database
+    app.post('/api/admin/sync-graph', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        console.log('[Admin Sync] Superadmin triggered manual Graph API sync');
+        
+        // Get Socket.IO instance for progress updates
+        const io = req.app.get('io');
+        
+        try {
+            const accountId = req.session.accountId;
+            const body = req.body || {};
+
+            const clamp = (value, min, max, fallback) => {
+                if (!Number.isFinite(value)) {
+                    return fallback;
+                }
+                return Math.min(Math.max(value, min), max);
+            };
+
+            const lookbackHours = clamp(Number.parseInt(body.backfillHours, 10), 1, 168, 24);
+            const requestedLimit = clamp(Number.parseInt(body.limit, 10), 1, 1000, NaN);
+            const fallbackPageSize = Number.isFinite(requestedLimit) ? requestedLimit : 50;
+            const requestedPageSize = clamp(
+                Number.parseInt(body.pageSize, 10),
+                1,
+                999,
+                fallbackPageSize
+            );
+            const pageSize = requestedPageSize;
+            const inferredLimit = Number.isFinite(requestedLimit) ? requestedLimit : pageSize;
+            const derivedMaxPages = Math.max(1, Math.ceil(inferredLimit / pageSize));
+            const safeDerivedMaxPages = Math.min(Math.max(derivedMaxPages, 1), 20);
+            const requestedMaxPages = clamp(Number.parseInt(body.maxPages, 10), 1, 20, safeDerivedMaxPages);
+            const maxPages = requestedMaxPages;
+
+            // Verify account has Entra configured
+            const account = await prisma.account.findUnique({
+                where: { id: accountId },
+                select: { entraTenantId: true, email: true }
+            });
+
+            if (!account?.entraTenantId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Microsoft Entra not connected. Go to Account Settings to connect.'
+                });
+            }
+
+            console.log(`[Admin Sync] Starting sync for ${account.email} with lookbackHours=${lookbackHours}, pageSize=${pageSize}, maxPages=${maxPages}`);
+
+            // Send initial progress update immediately
+            if (io) {
+                io.of('/dashboard').to(`account:${accountId}`).emit('sync:progress', {
+                    message: `Starting Microsoft Graph sync (lookback ${lookbackHours}h, up to ~${pageSize * maxPages} events)...`,
+                    progress: 0,
+                    page: 0,
+                    eventsFetched: 0
+                });
+            }
+
+            // Also log to sync log immediately
+            console.log('[Admin Sync] Graph API sync initiated - progress updates will be sent via Socket.IO');
+
+            // Track progress for Socket.IO updates
+            let lastProgressUpdate = Date.now();
+            const PROGRESS_UPDATE_INTERVAL = 1000; // Update every second
+
+            // Add timeout wrapper for the entire sync operation (10 minutes max for large backfills)
+            // First page alone can take 5 minutes, so we need more time for multiple pages
+            const SYNC_TIMEOUT_MS = 10 * 60 * 1000;
+            const syncPromise = db.syncEntraSignInsIfNeeded(accountId, {
+                force: true,
+                top: pageSize,
+                maxPages,
+                backfillHours: lookbackHours,
+                onProgress: (progress) => {
+                    // Throttle progress updates to avoid flooding
+                    const now = Date.now();
+                    if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
+                        lastProgressUpdate = now;
+                        
+                        // Log progress to console
+                        console.log(`[Admin Sync] Progress: ${progress.message} - Page ${progress.page}, ${progress.eventsFetched} events`);
+                        
+                        if (io) {
+                            const progressPercent = Math.min(95, Math.floor((progress.page / maxPages) * 100));
+                            io.of('/dashboard').to(`account:${accountId}`).emit('sync:progress', {
+                                message: progress.message || `Fetching page ${progress.page}...`,
+                                progress: progressPercent,
+                                page: progress.page,
+                                eventsFetched: progress.eventsFetched,
+                                elapsedMs: progress.elapsedMs
+                            });
+                        }
+                    }
+                }
+            });
+
+            // Race sync against timeout
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => {
+                    reject(new Error(`Sync operation timed out after ${SYNC_TIMEOUT_MS / 1000} seconds. The Graph API may be slow or unresponsive.`));
+                }, SYNC_TIMEOUT_MS);
+            });
+
+            const signInResult = await Promise.race([syncPromise, timeoutPromise]);
+
+            console.log('[Admin Sync] Sync completed:', signInResult);
+
+            // Send completion update
+            if (io) {
+                io.of('/dashboard').to(`account:${accountId}`).emit('sync:complete', {
+                    message: `Synced ${signInResult.count || 0} sign-in events from Microsoft Graph`,
+                    count: signInResult.count || 0,
+                    success: true
+                });
+            }
+
+            res.json({
+                success: true,
+                signIns: signInResult,
+                message: `Synced ${signInResult.count || 0} sign-in events from Microsoft Graph`,
+                settings: {
+                    lookbackHours,
+                    pageSize,
+                    maxPages
+                }
+            });
+
+        } catch (error) {
+            console.error('[Admin Sync] Error:', error);
+            console.error('[Admin Sync] Error stack:', error.stack);
+            
+            // Determine user-friendly error message
+            let userMessage = error.message || 'Graph sync failed';
+            if (error.message?.includes('timeout')) {
+                userMessage = 'Sync timed out - Microsoft Graph API may be slow. Try again with fewer pages.';
+            } else if (error.message?.includes('ENOTFOUND') || error.message?.includes('ECONNREFUSED')) {
+                userMessage = 'Cannot connect to Microsoft Graph API. Check your internet connection.';
+            } else if (error.statusCode === 403) {
+                userMessage = 'Permission denied. Ensure AuditLog.Read.All has admin consent.';
+            } else if (error.statusCode === 429) {
+                userMessage = 'Rate limit exceeded. Please wait a few minutes and try again.';
+            }
+            
+            // Send error update via Socket.IO
+            if (io && req.session?.accountId) {
+                io.of('/dashboard').to(`account:${req.session.accountId}`).emit('sync:complete', {
+                    message: userMessage,
+                    count: 0,
+                    success: false,
+                    error: userMessage
+                });
+            }
+            
+            res.status(500).json({
+                success: false,
+                error: userMessage
+            });
+        }
+    });
+}
+
+// ============================================
+// Renewals/Subscriptions Routes
+// ============================================
+
+function setupRenewalsRoutes(app) {
+    // Rate limiters for renewals endpoints
+    const renewalsApiLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 100, // 100 requests per 15 minutes per IP
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: {
+            success: false,
+            error: 'Too many requests. Please try again later.'
+        }
+    });
+    
+    // Stricter rate limiter for test-alert (prevents email spamming)
+    const testAlertLimiter = rateLimit({
+        windowMs: 60 * 60 * 1000, // 1 hour
+        max: 5, // 5 test alerts per hour per IP
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: {
+            success: false,
+            error: 'Too many test alerts. Please try again in an hour.'
+        }
+    });
+    
+    // Rate limiter for file uploads (expensive OpenAI calls)
+    const uploadLimiter = rateLimit({
+        windowMs: 60 * 60 * 1000, // 1 hour
+        max: 20, // 20 uploads per hour per IP
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: {
+            success: false,
+            error: 'Too many uploads. Please try again later.'
+        }
+    });
+    
+    // Renewals page (calendar view)
+    app.get('/renewals', auth.requireAuth, async (req, res) => {
+        try {
+            res.render('renewals', {
+                title: 'SubTracker - Renewals & Subscriptions',
+                account: req.account
+            });
+        } catch (error) {
+            console.error('Renewals page error:', error);
+            res.status(500).send('Error loading renewals page');
+        }
+    });
+    
+    // GET /api/renewals - Get all subscriptions for account
+    app.get('/api/renewals', auth.requireAuth, async (req, res) => {
+        try {
+            const subscriptions = await prisma.subscription.findMany({
+                where: {
+                    accountId: req.session.accountId
+                },
+                orderBy: {
+                    renewalDate: 'asc'
+                }
+            });
+            
+            res.json({
+                success: true,
+                subscriptions: subscriptions.map(sub => ({
+                    ...sub,
+                    renewalDate: sub.renewalDate.toISOString(),
+                    cancelByDate: sub.cancelByDate ? sub.cancelByDate.toISOString() : null,
+                    createdAt: sub.createdAt.toISOString(),
+                    updatedAt: sub.updatedAt.toISOString(),
+                    lastAlertSent: sub.lastAlertSent ? sub.lastAlertSent.toISOString() : null,
+                    cost: sub.cost ? sub.cost.toString() : null
+                }))
+            });
+        } catch (error) {
+            console.error('Error fetching subscriptions:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch subscriptions'
+            });
+        }
+    });
+    
+    // POST /api/renewals - Create new subscription
+    app.post('/api/renewals', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
+        try {
+            const { name, vendor, renewalDate, cancelByDate, cost, billingCycle, accountNumber, seats, owner, notes, alertEmail, alertDays } = req.body;
+            
+            if (!name || !vendor || !renewalDate) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Name, vendor, and renewal date are required'
+                });
+            }
+            
+            const subscription = await prisma.subscription.create({
+                data: {
+                    accountId: req.session.accountId,
+                    name,
+                    vendor,
+                    renewalDate: new Date(renewalDate),
+                    cancelByDate: cancelByDate ? new Date(cancelByDate) : null,
+                    cost: cost ? parseFloat(cost) : null,
+                    billingCycle: billingCycle || 'annual',
+                    accountNumber: accountNumber || null,
+                    seats: seats ? parseInt(seats) : null,
+                    owner: owner || null,
+                    notes: notes || null,
+                    alertEmail: alertEmail || null,
+                    alertDays: alertDays || [60, 30, 7],
+                    isArchived: false
+                }
+            });
+            
+            res.json({
+                success: true,
+                subscription: {
+                    ...subscription,
+                    renewalDate: subscription.renewalDate.toISOString(),
+                    cancelByDate: subscription.cancelByDate ? subscription.cancelByDate.toISOString() : null,
+                    cost: subscription.cost ? subscription.cost.toString() : null
+                }
+            });
+        } catch (error) {
+            console.error('Error creating subscription:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to create subscription'
+            });
+        }
+    });
+    
+    // PUT /api/renewals/:id - Update subscription
+    app.put('/api/renewals/:id', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { name, vendor, renewalDate, cancelByDate, cost, billingCycle, accountNumber, seats, owner, notes, alertEmail, alertDays, isArchived } = req.body;
+            
+            // Verify subscription belongs to account
+            const existing = await prisma.subscription.findFirst({
+                where: {
+                    id,
+                    accountId: req.session.accountId
+                }
+            });
+            
+            if (!existing) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Subscription not found'
+                });
+            }
+            
+            const subscription = await prisma.subscription.update({
+                where: { id },
+                data: {
+                    name: name !== undefined ? name : existing.name,
+                    vendor: vendor !== undefined ? vendor : existing.vendor,
+                    renewalDate: renewalDate ? new Date(renewalDate) : existing.renewalDate,
+                    cancelByDate: cancelByDate !== undefined ? (cancelByDate ? new Date(cancelByDate) : null) : existing.cancelByDate,
+                    cost: cost !== undefined ? (cost ? parseFloat(cost) : null) : existing.cost,
+                    billingCycle: billingCycle || existing.billingCycle,
+                    accountNumber: accountNumber !== undefined ? accountNumber : existing.accountNumber,
+                    seats: seats !== undefined ? (seats ? parseInt(seats) : null) : existing.seats,
+                    owner: owner !== undefined ? owner : existing.owner,
+                    notes: notes !== undefined ? notes : existing.notes,
+                    alertEmail: alertEmail !== undefined ? alertEmail : existing.alertEmail,
+                    alertDays: alertDays || existing.alertDays,
+                    isArchived: isArchived !== undefined ? isArchived : existing.isArchived
+                }
+            });
+            
+            res.json({
+                success: true,
+                subscription: {
+                    ...subscription,
+                    renewalDate: subscription.renewalDate.toISOString(),
+                    cancelByDate: subscription.cancelByDate ? subscription.cancelByDate.toISOString() : null,
+                    cost: subscription.cost ? subscription.cost.toString() : null
+                }
+            });
+        } catch (error) {
+            console.error('Error updating subscription:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to update subscription'
+            });
+        }
+    });
+    
+    // DELETE /api/renewals/:id - Delete subscription
+    app.delete('/api/renewals/:id', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
+        try {
+            const { id } = req.params;
+            
+            // Verify subscription belongs to account
+            const existing = await prisma.subscription.findFirst({
+                where: {
+                    id,
+                    accountId: req.session.accountId
+                }
+            });
+            
+            if (!existing) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Subscription not found'
+                });
+            }
+            
+            await prisma.subscription.delete({
+                where: { id }
+            });
+            
+            res.json({
+                success: true
+            });
+        } catch (error) {
+            console.error('Error deleting subscription:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to delete subscription'
+            });
+        }
+    });
+    
+    // POST /api/renewals/:id/test-alert - Send a test alert email immediately (dev only)
+    app.post('/api/renewals/:id/test-alert', auth.requireAuth, testAlertLimiter, async (req, res) => {
+        // Block in production
+        if (process.env.NODE_ENV === 'production') {
+            return res.status(403).json({
+                success: false,
+                error: 'Test alerts are not available in production'
+            });
+        }
+        
+        try {
+            const { id } = req.params;
+            
+            // Verify subscription belongs to account
+            const subscription = await prisma.subscription.findFirst({
+                where: {
+                    id,
+                    accountId: req.session.accountId
+                },
+                include: {
+                    account: {
+                        select: {
+                            email: true,
+                            name: true
+                        }
+                    }
+                }
+            });
+            
+            if (!subscription) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Subscription not found'
+                });
+            }
+            
+            // Determine recipient email
+            const recipientEmail = subscription.alertEmail || subscription.account.email;
+            
+            if (!recipientEmail) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'No email address configured for this subscription'
+                });
+            }
+            
+            // Calculate days until renewal for the test email
+            const renewalDate = new Date(subscription.renewalDate);
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            renewalDate.setHours(0, 0, 0, 0);
+            const daysUntil = Math.floor((renewalDate - now) / (1000 * 60 * 60 * 24));
+            
+            // Send test alert email
+            const { sendRenewalReminderEmail } = require('./lib/email-sender');
+            await sendRenewalReminderEmail({
+                to: recipientEmail,
+                subscription,
+                daysUntil,
+                accountName: subscription.account.name
+            });
+            
+            // Update lastAlertSent timestamp
+            await prisma.subscription.update({
+                where: { id },
+                data: { lastAlertSent: new Date() }
+            });
+            
+            res.json({
+                success: true,
+                message: `Test alert sent to ${recipientEmail}`
+            });
+        } catch (error) {
+            console.error('Error sending test alert:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to send test alert'
+            });
+        }
+    });
+    
+    // POST /api/renewals/:id/renew - Mark subscription as renewed (advance renewal date)
+    app.post('/api/renewals/:id/renew', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
+        try {
+            const { id } = req.params;
+            
+            // Verify subscription belongs to account
+            const existing = await prisma.subscription.findFirst({
+                where: {
+                    id,
+                    accountId: req.session.accountId
+                }
+            });
+            
+            if (!existing) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Subscription not found'
+                });
+            }
+            
+            // Calculate new renewal date based on billing cycle
+            const currentDate = new Date(existing.renewalDate);
+            let newDate = new Date(currentDate);
+            
+            switch (existing.billingCycle) {
+                case 'monthly':
+                    newDate.setMonth(newDate.getMonth() + 1);
+                    break;
+                case 'annual':
+                    newDate.setFullYear(newDate.getFullYear() + 1);
+                    break;
+                case 'multi-year':
+                    newDate.setFullYear(newDate.getFullYear() + 3);
+                    break;
+                default:
+                    newDate.setFullYear(newDate.getFullYear() + 1);
+            }
+            
+            const subscription = await prisma.subscription.update({
+                where: { id },
+                data: {
+                    renewalDate: newDate,
+                    lastAlertSent: null // Reset alert so it can be sent again
+                }
+            });
+            
+            res.json({
+                success: true,
+                subscription: {
+                    ...subscription,
+                    renewalDate: subscription.renewalDate.toISOString(),
+                    cancelByDate: subscription.cancelByDate ? subscription.cancelByDate.toISOString() : null,
+                    cost: subscription.cost ? subscription.cost.toString() : null
+                }
+            });
+        } catch (error) {
+            console.error('Error renewing subscription:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to renew subscription'
+            });
+        }
+    });
+    
+    // ============================================
+    // Document Upload & Pending Subscriptions API
+    // ============================================
+    
+    // POST /api/renewals/upload - Upload documents for extraction
+    app.post('/api/renewals/upload', auth.requireAuth, uploadLimiter, upload.array('files', 10), async (req, res) => {
+        try {
+            if (!req.files || req.files.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'No files uploaded'
+                });
+            }
+            
+            console.log(`[Upload] Processing ${req.files.length} file(s) for account ${req.session.accountId}`);
+            
+            // Prepare attachments for processing
+            const attachments = req.files.map(file => ({
+                buffer: file.buffer,
+                mimeType: file.mimetype,
+                filename: file.originalname
+            }));
+            
+            // Extract subscription data from documents
+            const extractedData = await processMultipleAttachments(attachments);
+            
+            if (extractedData.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Could not extract subscription information from the uploaded files'
+                });
+            }
+            
+            // Save to pending_subscriptions table
+            const pendingItems = [];
+            
+            for (const data of extractedData) {
+                const pending = await prisma.pendingSubscription.create({
+                    data: {
+                        accountId: req.session.accountId,
+                        sourceType: 'upload',
+                        vendor: data.vendor,
+                        name: data.name,
+                        cost: data.cost,
+                        renewalDate: data.renewalDate,
+                        billingCycle: data.billingCycle,
+                        accountNumber: data.accountNumber,
+                        confidence: data.confidence,
+                        rawText: data.rawText,
+                        attachmentNames: data.attachmentNames || [],
+                        status: 'pending'
+                    }
+                });
+                
+                pendingItems.push({
+                    ...pending,
+                    renewalDate: pending.renewalDate ? pending.renewalDate.toISOString() : null,
+                    cost: pending.cost ? pending.cost.toString() : null,
+                    createdAt: pending.createdAt.toISOString(),
+                    updatedAt: pending.updatedAt.toISOString()
+                });
+            }
+            
+            res.json({
+                success: true,
+                message: `Extracted ${pendingItems.length} subscription(s) from ${req.files.length} file(s)`,
+                pendingSubscriptions: pendingItems
+            });
+            
+        } catch (error) {
+            console.error('Error processing upload:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to process uploaded files'
+            });
+        }
+    });
+    
+    // GET /api/renewals/pending - Get all pending subscriptions for account
+    app.get('/api/renewals/pending', auth.requireAuth, async (req, res) => {
+        try {
+            const pendingSubscriptions = await prisma.pendingSubscription.findMany({
+                where: {
+                    accountId: req.session.accountId,
+                    status: 'pending'
+                },
+                orderBy: {
+                    createdAt: 'desc'
+                }
+            });
+            
+            res.json({
+                success: true,
+                pendingSubscriptions: pendingSubscriptions.map(p => ({
+                    ...p,
+                    renewalDate: p.renewalDate ? p.renewalDate.toISOString() : null,
+                    cost: p.cost ? p.cost.toString() : null,
+                    createdAt: p.createdAt.toISOString(),
+                    updatedAt: p.updatedAt.toISOString()
+                }))
+            });
+        } catch (error) {
+            console.error('Error fetching pending subscriptions:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch pending subscriptions'
+            });
+        }
+    });
+    
+    // GET /api/renewals/pending/:id - Get single pending subscription
+    app.get('/api/renewals/pending/:id', auth.requireAuth, async (req, res) => {
+        try {
+            const { id } = req.params;
+            
+            const pending = await prisma.pendingSubscription.findFirst({
+                where: {
+                    id,
+                    accountId: req.session.accountId
+                }
+            });
+            
+            if (!pending) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Pending subscription not found'
+                });
+            }
+            
+            res.json({
+                success: true,
+                pendingSubscription: {
+                    ...pending,
+                    renewalDate: pending.renewalDate ? pending.renewalDate.toISOString() : null,
+                    cost: pending.cost ? pending.cost.toString() : null,
+                    createdAt: pending.createdAt.toISOString(),
+                    updatedAt: pending.updatedAt.toISOString()
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching pending subscription:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch pending subscription'
+            });
+        }
+    });
+    
+    // POST /api/renewals/pending/:id/approve - Convert pending to actual subscription
+    app.post('/api/renewals/pending/:id/approve', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { name, vendor, renewalDate, cancelByDate, cost, billingCycle, accountNumber, seats, owner, notes, alertEmail, alertDays } = req.body;
+            
+            // Verify pending subscription belongs to account
+            const pending = await prisma.pendingSubscription.findFirst({
+                where: {
+                    id,
+                    accountId: req.session.accountId
+                }
+            });
+            
+            if (!pending) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Pending subscription not found'
+                });
+            }
+            
+            // Validate required fields (use from body or pending data)
+            const finalName = name || pending.name;
+            const finalVendor = vendor || pending.vendor;
+            const finalRenewalDate = renewalDate || (pending.renewalDate ? pending.renewalDate.toISOString().split('T')[0] : null);
+            
+            if (!finalName || !finalVendor || !finalRenewalDate) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Name, vendor, and renewal date are required'
+                });
+            }
+            
+            // Create the actual subscription
+            const subscription = await prisma.subscription.create({
+                data: {
+                    accountId: req.session.accountId,
+                    name: finalName,
+                    vendor: finalVendor,
+                    renewalDate: new Date(finalRenewalDate),
+                    cancelByDate: cancelByDate ? new Date(cancelByDate) : null,
+                    cost: cost !== undefined ? parseFloat(cost) : (pending.cost || null),
+                    billingCycle: billingCycle || pending.billingCycle || 'annual',
+                    accountNumber: accountNumber !== undefined ? accountNumber : (pending.accountNumber || null),
+                    seats: seats ? parseInt(seats) : null,
+                    owner: owner || null,
+                    notes: notes || null,
+                    alertEmail: alertEmail || null,
+                    alertDays: alertDays || [60, 30, 7],
+                    isArchived: false
+                }
+            });
+            
+            // Mark pending as approved
+            await prisma.pendingSubscription.update({
+                where: { id },
+                data: { status: 'approved' }
+            });
+            
+            res.json({
+                success: true,
+                subscription: {
+                    ...subscription,
+                    renewalDate: subscription.renewalDate.toISOString(),
+                    cancelByDate: subscription.cancelByDate ? subscription.cancelByDate.toISOString() : null,
+                    cost: subscription.cost ? subscription.cost.toString() : null
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error approving pending subscription:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to approve pending subscription'
+            });
+        }
+    });
+    
+    // DELETE /api/renewals/pending/:id - Reject/delete pending subscription
+    app.delete('/api/renewals/pending/:id', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
+        try {
+            const { id } = req.params;
+            
+            // Verify pending subscription belongs to account
+            const pending = await prisma.pendingSubscription.findFirst({
+                where: {
+                    id,
+                    accountId: req.session.accountId
+                }
+            });
+            
+            if (!pending) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Pending subscription not found'
+                });
+            }
+            
+            // Delete the pending subscription
+            await prisma.pendingSubscription.delete({
+                where: { id }
+            });
+            
+            res.json({
+                success: true,
+                message: 'Pending subscription rejected and deleted'
+            });
+            
+        } catch (error) {
+            console.error('Error deleting pending subscription:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to delete pending subscription'
+            });
+        }
+    });
 }
 
 module.exports = {
@@ -2739,6 +3788,7 @@ module.exports = {
     setupDashboardRoutes,
     setupAppsRoutes,
     setupAdminRoutes,
+    setupRenewalsRoutes,
     // Original names for backward compatibility
     setupScriptRoutes,
     setupTrackingAPI,

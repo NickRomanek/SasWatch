@@ -29,6 +29,7 @@ model Account {
   entraSignInCursor     String?
   entraSignInLastSyncAt DateTime?
   hiddenLicenses        String[]  @default([]) // Licenses to hide from user display
+  licenseCosts          Json?     @default("{}") // License pricing: { "licenseName": { costPerLicense, totalLicenses, totalCost } }
 
   // Email Verification
   emailVerified            Boolean   @default(false)
@@ -46,12 +47,14 @@ model Account {
   mfaMethod      String? // 'totp', 'sms', 'email' (for future)
 
   // Relations
-  users             User[]
-  usageEvents       UsageEvent[]
-  unmappedUsernames UnmappedUsername[]
-  appOverrides      AppOverride[]
-  applications      Application[]
-  entraSignIns      EntraSignIn[]
+  users                User[]
+  usageEvents          UsageEvent[]
+  unmappedUsernames    UnmappedUsername[]
+  appOverrides         AppOverride[]
+  applications         Application[]
+  entraSignIns         EntraSignIn[]
+  subscriptions        Subscription[]
+  pendingSubscriptions PendingSubscription[]
 
   @@index([email])
   @@index([apiKey])
@@ -118,26 +121,28 @@ model UnmappedUsername {
   @@map("unmapped_usernames")
 }
 
-// Usage events - tracks all Adobe usage (web and desktop)
+// Usage events - tracks all activity (web, desktop, browser)
 model UsageEvent {
   id         String   @id @default(uuid())
   accountId  String // Links to account (multi-tenant)
   account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  event      String // Event type (adobe_web_login_detected, adobe_desktop_usage, etc.)
-  url        String // URL or application name
+  event      String // Event type (application_launch, web_browsing, etc.)
+  url        String // URL or application/process name
   tabId      Int? // Browser tab ID (null for desktop apps)
   clientId   String // Client/device identifier
-  why        String // Why the event was triggered
+  why        String // Why the event was triggered (agent_monitor, adobe_reader_wrapper, etc.)
   when       DateTime // When the event occurred
   receivedAt DateTime @default(now()) // When we received the event
 
-  // Desktop-specific fields (optional)
+  // Desktop/Agent-specific fields (optional)
   windowsUser  String?
   userDomain   String?
   computerName String?
+  windowTitle  String? // Window title for app launches
+  browser      String? // Browser name for web_browsing events
 
   // Source tracking
-  source String // 'adobe' or 'wrapper'
+  source String // 'adobe', 'wrapper', 'desktop', 'browser'
 
   createdAt DateTime @default(now())
 
@@ -148,6 +153,9 @@ model UsageEvent {
   @@index([receivedAt])
   @@index([source])
   @@index([event])
+  // Performance: Composite indexes for common query patterns
+  @@index([accountId, source, receivedAt])
+  @@index([accountId, receivedAt])
   @@map("usage_events")
 }
 
@@ -218,4 +226,76 @@ model EntraSignIn {
   @@index([accountId, createdDateTime])
   @@index([accountId, userPrincipalName])
   @@map("entra_signins")
+}
+
+// Subscription model - tracks software subscriptions and renewal dates
+model Subscription {
+  id            String    @id @default(uuid())
+  accountId     String
+  account       Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  // Core fields
+  name          String    // "Adobe Creative Cloud", "Microsoft 365 E3"
+  vendor        String    // "Adobe", "Microsoft", "Salesforce"
+  renewalDate   DateTime  // The key date for renewal
+  cancelByDate  DateTime? // Optional: last day to cancel without penalty
+
+  // Financial (USD only)
+  cost          Decimal?  @db.Decimal(12, 2)
+  billingCycle  String    @default("annual") // monthly, annual, multi-year
+
+  // Details
+  accountNumber String?   // Vendor account/contract number
+  seats         Int?      // License count (optional)
+  owner         String?   // Internal owner name
+  notes         String?   // Free-form comments
+
+  // Notifications
+  alertEmail    String?   // Where to send reminder (defaults to account email if null)
+  alertDays     Int[]     @default([60, 30, 7]) // Days before renewal to alert
+  lastAlertSent DateTime? // Track when last alert was sent
+  isArchived    Boolean   @default(false)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([accountId])
+  @@index([accountId, renewalDate])
+  @@index([renewalDate])
+  @@map("subscriptions")
+}
+
+// PendingSubscription model - stores extracted subscription data awaiting user review
+model PendingSubscription {
+  id              String    @id @default(uuid())
+  accountId       String
+  account         Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  // Source tracking
+  sourceType      String    // "email" or "upload"
+  sourceEmailId   String?   // Graph API message ID (for deduplication)
+  senderEmail     String?   // Original sender email
+
+  // Extracted data (nullable - may be incomplete)
+  vendor          String?
+  name            String?   // Subscription name
+  cost            Decimal?  @db.Decimal(12, 2)
+  renewalDate     DateTime?
+  billingCycle    String?   // monthly, annual, multi-year
+  accountNumber   String?   // Vendor account/contract number
+
+  // Metadata
+  confidence      Float     @default(0) // 0-1 extraction confidence score
+  rawText         String?   // Extracted text for debugging/reference
+  attachmentNames String[]  @default([]) // Original filenames
+  status          String    @default("pending") // pending, approved, rejected
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([accountId, sourceEmailId]) // Prevent duplicate email processing
+  @@index([accountId])
+  @@index([status])
+  @@index([accountId, status])
+  @@map("pending_subscriptions")
 }

@@ -299,10 +299,154 @@ async function sendPasswordResetEmail({ to, token, accountName }) {
     }
 }
 
+// Renewal Reminder Email
+function buildRenewalReminderEmailBody(subscription, daysUntil, accountName) {
+    const costSection = subscription.cost 
+        ? `<p style="font-size: 1.5rem; color: #0066cc; margin: 15px 0;"><strong>$${parseFloat(subscription.cost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> <span style="font-size: 0.9rem; color: #666;">(${subscription.billingCycle})</span></p>`
+        : '';
+    
+    const seatsSection = subscription.seats 
+        ? `<p style="margin: 5px 0;"><strong>Seats/Licenses:</strong> ${subscription.seats}</p>`
+        : '';
+    
+    const accountNumberSection = subscription.accountNumber 
+        ? `<p style="margin: 5px 0;"><strong>Account Number:</strong> ${subscription.accountNumber}</p>`
+        : '';
+    
+    const ownerSection = subscription.owner 
+        ? `<p style="margin: 5px 0;"><strong>Owner:</strong> ${subscription.owner}</p>`
+        : '';
+    
+    const notesSection = subscription.notes 
+        ? `<div style="background: #f0f0f0; padding: 12px; border-radius: 6px; margin-top: 15px;"><strong>Notes:</strong><br>${subscription.notes}</div>`
+        : '';
+    
+    const cancelBySection = subscription.cancelByDate 
+        ? `<div style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 6px; margin: 15px 0; color: #856404;"><strong>⚠️ Cancel By Date:</strong> ${new Date(subscription.cancelByDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>`
+        : '';
+
+    const urgencyColor = daysUntil <= 7 ? '#dc2626' : daysUntil <= 30 ? '#d97706' : '#059669';
+    const urgencyBg = daysUntil <= 7 ? '#fee2e2' : daysUntil <= 30 ? '#fef3c7' : '#d1fae5';
+
+    // Vendor-specific tips
+    let costTip = '';
+    const vendorLower = (subscription.vendor || '').toLowerCase();
+    if (vendorLower.includes('adobe')) {
+        costTip = 'Review user activity in SasWatch to identify unused Adobe licenses before renewal.';
+    } else if (vendorLower.includes('microsoft')) {
+        costTip = 'Check Entra sign-ins for inactive users who may be eligible for license downgrades.';
+    } else if (vendorLower.includes('salesforce')) {
+        costTip = 'Review user login activity and consider downgrading inactive users to lower-tier licenses.';
+    } else {
+        costTip = 'Consider negotiating multi-year discounts or consolidating vendors for better pricing.';
+    }
+
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: #0066cc; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+                .urgency-badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: bold; }
+                .details-box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+                .tip-box { background: #e8f4fd; border-left: 4px solid #0066cc; padding: 15px; margin: 20px 0; }
+                .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>⏰ Renewal Reminder</h1>
+                </div>
+                <div class="content">
+                    <p style="text-align: center;">
+                        <span class="urgency-badge" style="background: ${urgencyBg}; color: ${urgencyColor};">
+                            ${daysUntil === 0 ? '🔥 Renews Today!' : daysUntil < 0 ? `⚠️ ${Math.abs(daysUntil)} Days Overdue` : `${daysUntil} Days Until Renewal`}
+                        </span>
+                    </p>
+                    
+                    <div class="details-box">
+                        <h2 style="margin-top: 0; color: #333;">${subscription.name}</h2>
+                        <p style="margin: 5px 0; color: #666;"><strong>Vendor:</strong> ${subscription.vendor}</p>
+                        <p style="margin: 5px 0;"><strong>Renewal Date:</strong> ${new Date(subscription.renewalDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                        ${costSection}
+                        ${seatsSection}
+                        ${accountNumberSection}
+                        ${ownerSection}
+                        ${notesSection}
+                    </div>
+                    
+                    ${cancelBySection}
+                    
+                    <div class="tip-box">
+                        <strong>💡 Cost-Saving Tip:</strong><br>
+                        ${costTip}
+                    </div>
+                    
+                    <p style="text-align: center; margin-top: 25px;">
+                        <a href="${process.env.BASE_URL || 'https://app.saswatch.com'}/renewals" style="display: inline-block; background: #0066cc; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px;">View in SasWatch</a>
+                    </p>
+                </div>
+                <div class="footer">
+                    <p>You're receiving this because you have renewal alerts enabled for ${accountName}.</p>
+                    <p>© ${new Date().getFullYear()} SasWatch. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+}
+
+async function sendRenewalReminderEmail({ to, subscription, daysUntil, accountName }) {
+    if (!SURVEY_EMAIL_REGEX.test(to)) {
+        throw new Error('Invalid email address provided for renewal reminder');
+    }
+
+    const graphToken = await acquireGraphToken();
+    const fromEmail = getEnvValue('GRAPH_FROM_EMAIL');
+
+    const urgencyPrefix = daysUntil <= 7 ? '🔴' : daysUntil <= 30 ? '🟡' : '🟢';
+    const daysText = daysUntil === 0 ? 'Today' : daysUntil < 0 ? `${Math.abs(daysUntil)} days overdue` : `${daysUntil} days`;
+
+    const message = {
+        message: {
+            subject: `${urgencyPrefix} Renewal Reminder: ${subscription.name} (${daysText})`,
+            body: {
+                contentType: 'HTML',
+                content: buildRenewalReminderEmailBody(subscription, daysUntil, accountName)
+            },
+            toRecipients: [{ emailAddress: { address: to } }]
+        },
+        saveToSentItems: false
+    };
+
+    try {
+        await axios.post(
+            `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`,
+            message,
+            {
+                headers: {
+                    Authorization: `Bearer ${graphToken}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            }
+        );
+        console.log(`[Email] Sent renewal reminder for "${subscription.name}" to ${to}`);
+    } catch (error) {
+        const graphError = error.response?.data?.error?.message || error.message;
+        throw new Error(`Failed to send renewal reminder email via Microsoft Graph: ${graphError}`);
+    }
+}
+
 module.exports = {
     sendSurveyEmail,
     sendVerificationEmail,
     sendPasswordResetEmail,
+    sendRenewalReminderEmail,
     SURVEY_EMAIL_REGEX
 };
 

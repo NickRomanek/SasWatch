@@ -62,6 +62,17 @@ if (Test-Path $receiverPath) {
 # Start SasWatch in new window
 if (Test-Path $saswatchPath) {
     Write-Host "Starting SasWatch on port 3000..." -ForegroundColor Yellow
+    
+    # Check if node_modules exists, if not run npm install
+    $nodeModulesPath = Join-Path $saswatchPath "node_modules"
+    if (-not (Test-Path $nodeModulesPath)) {
+        Write-Host "  Installing dependencies..." -ForegroundColor Yellow
+        Push-Location $saswatchPath
+        npm install
+        Pop-Location
+        Write-Host "  Dependencies installed!" -ForegroundColor Green
+    }
+    
     Start-Process pwsh -ArgumentList "-NoExit", "-Command", "cd '$saswatchPath'; Write-Host '=== SUBTRACKER SERVER ===' -ForegroundColor Cyan; node server.js"
     Start-Sleep -Seconds 2
 } else {

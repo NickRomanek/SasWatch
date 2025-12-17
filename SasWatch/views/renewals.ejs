@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- FullCalendar CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+    <style>
+        /* Improve stat card visibility in light mode */
+        [data-theme]:not([data-theme="dark"]) .stat-card,
+        :not([data-theme]) .stat-card {
+            border: 1.5px solid rgba(29, 91, 79, 0.18);
+            box-shadow: 0 4px 12px rgba(11, 31, 23, 0.1), 0 2px 4px rgba(11, 31, 23, 0.06);
+            background: #FFFFFF;
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .stat-card:hover,
+        :not([data-theme]) .stat-card:hover {
+            border-color: rgba(29, 91, 79, 0.3);
+            box-shadow: 0 8px 20px rgba(11, 31, 23, 0.12), 0 4px 8px rgba(11, 31, 23, 0.08);
+        }
+        
+        /* Renewal-specific styles */
+        .renewals-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        @media (max-width: 1200px) {
+            .renewals-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .calendar-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+        
+        /* Improve visibility in light mode */
+        [data-theme]:not([data-theme="dark"]) .calendar-section,
+        :not([data-theme]) .calendar-section {
+            border: 1.5px solid rgba(29, 91, 79, 0.15);
+            box-shadow: 0 4px 12px rgba(11, 31, 23, 0.08), 0 2px 4px rgba(11, 31, 23, 0.04);
+        }
+        
+        .upcoming-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            max-height: 600px;
+            overflow-y: auto;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+        
+        /* Improve visibility in light mode */
+        [data-theme]:not([data-theme="dark"]) .upcoming-section,
+        :not([data-theme]) .upcoming-section {
+            border: 1.5px solid rgba(29, 91, 79, 0.15);
+            box-shadow: 0 4px 12px rgba(11, 31, 23, 0.08), 0 2px 4px rgba(11, 31, 23, 0.04);
+        }
+        
+        .upcoming-section h3 {
+            margin: 0 0 1rem 0;
+            font-size: 1.1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .renewal-item {
+            padding: 1rem;
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            margin-bottom: 0.75rem;
+            border-left: 4px solid var(--accent-color);
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Improve visibility in light mode */
+        [data-theme]:not([data-theme="dark"]) .renewal-item,
+        :not([data-theme]) .renewal-item {
+            border: 1px solid rgba(29, 91, 79, 0.12);
+            border-left: 4px solid var(--accent-color);
+            box-shadow: 0 2px 4px rgba(11, 31, 23, 0.06);
+            background: #FFFFFF;
+        }
+        
+        .renewal-item:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+        
+        /* Improve hover in light mode */
+        [data-theme]:not([data-theme="dark"]) .renewal-item:hover,
+        :not([data-theme]) .renewal-item:hover {
+            box-shadow: 0 4px 12px rgba(11, 31, 23, 0.12), 0 2px 6px rgba(11, 31, 23, 0.08);
+            border-color: rgba(29, 91, 79, 0.2);
+        }
+        
+        .renewal-item.urgent {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.08);
+        }
+        
+        .renewal-item.warning {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.08);
+        }
+        
+        .renewal-item.normal {
+            border-left-color: #10b981;
+        }
+        
+        .renewal-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+        
+        .renewal-item-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        
+        .renewal-item-vendor {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .renewal-item-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .renewal-item-date {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        
+        .renewal-item-cost {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .days-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .days-badge.urgent {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .days-badge.warning {
+            background: #fef3c7;
+            color: #d97706;
+        }
+        
+        .days-badge.normal {
+            background: #d1fae5;
+            color: #059669;
+        }
+        
+        /* FullCalendar theme overrides */
+        .fc {
+            --fc-border-color: var(--border-color);
+            --fc-button-bg-color: var(--accent-color);
+            --fc-button-border-color: var(--accent-color);
+            --fc-button-hover-bg-color: var(--accent-hover);
+            --fc-button-hover-border-color: var(--accent-hover);
+            --fc-button-active-bg-color: var(--accent-color);
+            --fc-today-bg-color: rgba(var(--accent-rgb), 0.1);
+            --fc-event-bg-color: var(--accent-color);
+            --fc-event-border-color: var(--accent-color);
+        }
+        
+        /* Improve calendar navigation buttons in light mode */
+        [data-theme]:not([data-theme="dark"]) .fc-button,
+        :not([data-theme]) .fc-button {
+            background-color: #FFFFFF !important;
+            border-color: rgba(29, 91, 79, 0.25) !important;
+            color: var(--text-primary) !important;
+            font-weight: 500;
+            box-shadow: 0 1px 3px rgba(11, 31, 23, 0.1);
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .fc-button:hover,
+        :not([data-theme]) .fc-button:hover {
+            background-color: rgba(29, 91, 79, 0.08) !important;
+            border-color: rgba(29, 91, 79, 0.35) !important;
+            box-shadow: 0 2px 6px rgba(11, 31, 23, 0.15);
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .fc-button:active,
+        :not([data-theme]) .fc-button:active {
+            background-color: rgba(29, 91, 79, 0.12) !important;
+        }
+        
+        /* Style the custom Add Subscription button */
+        [data-theme]:not([data-theme="dark"]) .fc-button-addSubscription,
+        :not([data-theme]) .fc-button-addSubscription {
+            background-color: var(--accent-primary) !important;
+            border-color: var(--accent-primary) !important;
+            color: #FFFFFF !important;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .fc-button-addSubscription:hover,
+        :not([data-theme]) .fc-button-addSubscription:hover {
+            background-color: var(--accent-hover) !important;
+            border-color: var(--accent-hover) !important;
+            box-shadow: 0 2px 8px rgba(29, 91, 79, 0.25);
+        }
+        
+        /* Improve calendar title (month/year) visibility in light mode */
+        [data-theme]:not([data-theme="dark"]) .fc-toolbar-title,
+        :not([data-theme]) .fc-toolbar-title {
+            color: var(--sw-ink) !important;
+            font-weight: 700;
+            font-size: 1.35rem;
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+        }
+        
+        /* Improve calendar button text/icons */
+        [data-theme]:not([data-theme="dark"]) .fc-button .fc-icon,
+        :not([data-theme]) .fc-button .fc-icon {
+            color: var(--sw-ink) !important;
+            font-weight: 600;
+        }
+        
+        /* Improve calendar toolbar text visibility */
+        [data-theme]:not([data-theme="dark"]) .fc-toolbar-chunk,
+        :not([data-theme]) .fc-toolbar-chunk {
+            color: var(--text-primary);
+        }
+        
+        /* Ensure calendar header buttons are visible */
+        [data-theme]:not([data-theme="dark"]) .fc-button-primary:not(:disabled),
+        :not([data-theme]) .fc-button-primary:not(:disabled) {
+            background-color: #FFFFFF !important;
+            border: 1.5px solid rgba(29, 91, 79, 0.25) !important;
+            color: var(--sw-ink) !important;
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .fc-button-primary:not(:disabled):hover,
+        :not([data-theme]) .fc-button-primary:not(:disabled):hover {
+            background-color: rgba(29, 91, 79, 0.1) !important;
+            border-color: rgba(29, 91, 79, 0.4) !important;
+        }
+        
+        /* Style the custom Add Subscription button */
+        [data-theme]:not([data-theme="dark"]) .fc-button-addSubscription,
+        :not([data-theme]) .fc-button-addSubscription {
+            background-color: var(--accent-primary) !important;
+            border-color: var(--accent-primary) !important;
+            color: #FFFFFF !important;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .fc-button-addSubscription:hover,
+        :not([data-theme]) .fc-button-addSubscription:hover {
+            background-color: var(--accent-hover) !important;
+            border-color: var(--accent-hover) !important;
+            box-shadow: 0 2px 8px rgba(29, 91, 79, 0.25);
+        }
+        
+        /* Dark mode styling for Add Subscription button */
+        [data-theme="dark"] .fc-button-addSubscription {
+            background-color: var(--accent-primary) !important;
+            border-color: var(--accent-primary) !important;
+            color: #FFFFFF !important;
+        }
+        
+        [data-theme="dark"] .fc-button-addSubscription:hover {
+            background-color: var(--accent-hover) !important;
+            border-color: var(--accent-hover) !important;
+        }
+        
+        
+        .fc-theme-standard td, .fc-theme-standard th {
+            border-color: var(--border-color);
+        }
+        
+        .fc-col-header-cell {
+            background: var(--bg-secondary);
+        }
+        
+        /* Improve calendar visibility in light mode */
+        [data-theme]:not([data-theme="dark"]) .fc-theme-standard td,
+        [data-theme]:not([data-theme="dark"]) .fc-theme-standard th,
+        :not([data-theme]) .fc-theme-standard td,
+        :not([data-theme]) .fc-theme-standard th {
+            border-color: rgba(29, 91, 79, 0.15);
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .fc-col-header-cell,
+        :not([data-theme]) .fc-col-header-cell {
+            background: #FFFFFF;
+            border-bottom: 2px solid rgba(29, 91, 79, 0.15);
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .fc-daygrid-day,
+        :not([data-theme]) .fc-daygrid-day {
+            background: #FFFFFF;
+        }
+        
+        .fc-daygrid-day-number {
+            color: var(--text-primary);
+        }
+        
+        /* Highlight today's date */
+        .fc-day-today {
+            background-color: rgba(79, 209, 197, 0.15) !important;
+        }
+        
+        .fc-day-today .fc-daygrid-day-number {
+            font-weight: 700;
+            color: var(--accent-primary);
+            background-color: var(--accent-primary);
+            color: #FFFFFF;
+            border-radius: 50%;
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0.25rem;
+        }
+        
+        /* Improve today highlight in light mode */
+        [data-theme]:not([data-theme="dark"]) .fc-day-today,
+        :not([data-theme]) .fc-day-today {
+            background-color: rgba(29, 91, 79, 0.12) !important;
+            border: 2px solid var(--accent-primary) !important;
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .fc-day-today .fc-daygrid-day-number,
+        :not([data-theme]) .fc-day-today .fc-daygrid-day-number {
+            background-color: var(--accent-primary) !important;
+            color: #FFFFFF !important;
+            font-weight: 700;
+        }
+        
+        /* Dark mode today highlight */
+        [data-theme="dark"] .fc-day-today {
+            background-color: rgba(79, 209, 197, 0.2) !important;
+            border: 2px solid var(--accent-primary) !important;
+        }
+        
+        [data-theme="dark"] .fc-day-today .fc-daygrid-day-number {
+            background-color: var(--accent-primary) !important;
+            color: #FFFFFF !important;
+            font-weight: 700;
+        }
+        
+        .fc-event {
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        
+        .fc-event.fc-event-urgent {
+            background-color: #ef4444 !important;
+            border-color: #ef4444 !important;
+        }
+        
+        .fc-event.fc-event-warning {
+            background-color: #f59e0b !important;
+            border-color: #f59e0b !important;
+        }
+        
+        .fc-event.fc-event-normal {
+            background-color: #10b981 !important;
+            border-color: #10b981 !important;
+        }
+        
+        /* Modal styles */
+        .renewal-modal .modal-content {
+            max-width: 800px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.4rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15);
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .form-hint {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.3rem;
+        }
+        
+        .alert-days-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .alert-day-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.4rem 0.7rem;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        
+        .alert-day-checkbox input {
+            width: auto;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* Pending Imports Section */
+        .pending-imports-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 2px dashed rgba(245, 158, 11, 0.4);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(239, 68, 68, 0.03) 100%);
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .pending-imports-section,
+        :not([data-theme]) .pending-imports-section {
+            border: 2px dashed rgba(245, 158, 11, 0.5);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
+        }
+        
+        .pending-imports-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .pending-imports-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .pending-badge {
+            background: #f59e0b;
+            color: white;
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .pending-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+        
+        .pending-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1rem;
+            position: relative;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .pending-card,
+        :not([data-theme]) .pending-card {
+            border: 1.5px solid rgba(29, 91, 79, 0.15);
+            box-shadow: 0 2px 8px rgba(11, 31, 23, 0.08);
+            background: #FFFFFF;
+        }
+        
+        .pending-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+        }
+        
+        .pending-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+        
+        .pending-vendor {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .pending-confidence {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        
+        .pending-confidence.high {
+            background: #d1fae5;
+            color: #059669;
+        }
+        
+        .pending-confidence.medium {
+            background: #fef3c7;
+            color: #d97706;
+        }
+        
+        .pending-confidence.low {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .pending-card-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .pending-card-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+        
+        .pending-card-detail {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .pending-source {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .pending-card-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .pending-btn {
+            flex: 1;
+            padding: 0.5rem 0.75rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        
+        .pending-btn-approve {
+            background: var(--accent-primary);
+            color: white;
+        }
+        
+        .pending-btn-approve:hover {
+            background: var(--accent-hover);
+        }
+        
+        .pending-btn-reject {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .pending-btn-reject:hover {
+            background: #fee2e2;
+            color: #dc2626;
+            border-color: #fecaca;
+        }
+        
+        /* Upload Zone */
+        .upload-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            background: var(--bg-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 1rem;
+        }
+        
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--accent-primary);
+            background: rgba(var(--accent-rgb), 0.05);
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .upload-zone,
+        :not([data-theme]) .upload-zone {
+            border: 2px dashed rgba(29, 91, 79, 0.25);
+            background: #FAFAFA;
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .upload-zone:hover,
+        [data-theme]:not([data-theme="dark"]) .upload-zone.dragover,
+        :not([data-theme]) .upload-zone:hover,
+        :not([data-theme]) .upload-zone.dragover {
+            border-color: var(--accent-primary);
+            background: rgba(29, 91, 79, 0.04);
+        }
+        
+        .upload-zone-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .upload-zone-text {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+        
+        .upload-zone-text strong {
+            color: var(--accent-primary);
+        }
+        
+        .upload-zone-hint {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            opacity: 0.8;
+        }
+        
+        .upload-zone input[type="file"] {
+            display: none;
+        }
+        
+        .upload-progress {
+            display: none;
+            margin-top: 1rem;
+        }
+        
+        .upload-progress.active {
+            display: block;
+        }
+        
+        .upload-progress-bar {
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .upload-progress-fill {
+            height: 100%;
+            background: var(--accent-primary);
+            width: 0%;
+            transition: width 0.3s ease;
+            animation: progress-indeterminate 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes progress-indeterminate {
+            0% { transform: translateX(-100%); width: 30%; }
+            50% { width: 50%; }
+            100% { transform: translateX(400%); width: 30%; }
+        }
+        
+        .upload-status {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+        
+        /* Table view toggle */
+        .view-toggle {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .view-toggle-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            transition: all 0.15s ease;
+            font-weight: 500;
+        }
+        
+        /* Improve visibility in light mode */
+        [data-theme]:not([data-theme="dark"]) .view-toggle-btn,
+        :not([data-theme]) .view-toggle-btn {
+            border: 1.5px solid rgba(29, 91, 79, 0.2);
+            background: #FFFFFF;
+            color: var(--text-primary);
+            box-shadow: 0 1px 3px rgba(11, 31, 23, 0.08);
+        }
+        
+        [data-theme]:not([data-theme="dark"]) .view-toggle-btn:hover,
+        :not([data-theme]) .view-toggle-btn:hover {
+            border-color: rgba(29, 91, 79, 0.3);
+            box-shadow: 0 2px 6px rgba(11, 31, 23, 0.12);
+            background: #FFFFFF;
+        }
+        
+        .view-toggle-btn.active {
+            background: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+            font-weight: 600;
+        }
+        
+        /* Ensure active button is visible in light mode */
+        [data-theme]:not([data-theme="dark"]) .view-toggle-btn.active,
+        :not([data-theme]) .view-toggle-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            box-shadow: 0 2px 8px rgba(29, 91, 79, 0.25);
+        }
+        
+        .table-view {
+            display: none;
+        }
+        
+        .table-view.active {
+            display: block;
+        }
+        
+        .calendar-view {
+            display: block;
+        }
+        
+        .calendar-view.hidden {
+            display: none;
+        }
+        
+        /* ============================================
+           DARK MODE STYLES FOR RENEWALS PAGE
+           ============================================ */
+        
+        /* Stat cards in dark mode */
+        [data-theme="dark"] .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        [data-theme="dark"] .stat-card:hover {
+            border-color: var(--border-hover);
+            box-shadow: var(--shadow-md);
+        }
+        
+        /* Calendar section in dark mode */
+        [data-theme="dark"] .calendar-section {
+            background: var(--bg-card);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        /* Upcoming section in dark mode */
+        [data-theme="dark"] .upcoming-section {
+            background: var(--bg-card);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        /* Renewal items in dark mode */
+        [data-theme="dark"] .renewal-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-primary);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        [data-theme="dark"] .renewal-item:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-hover);
+            box-shadow: var(--shadow-md);
+        }
+        
+        /* Calendar in dark mode */
+        [data-theme="dark"] .fc-theme-standard td,
+        [data-theme="dark"] .fc-theme-standard th {
+            border-color: var(--border-color);
+        }
+        
+        [data-theme="dark"] .fc-col-header-cell {
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--border-color);
+        }
+        
+        [data-theme="dark"] .fc-daygrid-day {
+            background: var(--bg-card);
+        }
+        
+        [data-theme="dark"] .fc-daygrid-day-number {
+            color: var(--text-primary);
+        }
+        
+        /* Calendar buttons in dark mode */
+        [data-theme="dark"] .fc-button,
+        [data-theme="dark"] .fc-button-primary,
+        [data-theme="dark"] .fc-button-group .fc-button {
+            background-color: var(--bg-secondary) !important;
+            border-color: var(--border-color) !important;
+            color: var(--text-primary) !important;
+            box-shadow: none !important;
+        }
+        
+        [data-theme="dark"] .fc-button:hover,
+        [data-theme="dark"] .fc-button-primary:hover,
+        [data-theme="dark"] .fc-button-group .fc-button:hover {
+            background-color: var(--bg-hover) !important;
+            border-color: var(--border-hover) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        [data-theme="dark"] .fc-button:active,
+        [data-theme="dark"] .fc-button-primary:active,
+        [data-theme="dark"] .fc-button-group .fc-button:active {
+            background-color: var(--bg-tertiary) !important;
+            border-color: var(--border-hover) !important;
+        }
+        
+        [data-theme="dark"] .fc-toolbar-title {
+            color: var(--text-primary) !important;
+        }
+        
+        [data-theme="dark"] .fc-button .fc-icon,
+        [data-theme="dark"] .fc-button-primary .fc-icon {
+            color: var(--text-primary) !important;
+        }
+        
+        [data-theme="dark"] .fc-toolbar-chunk {
+            color: var(--text-primary) !important;
+        }
+        
+        /* Pending imports section in dark mode */
+        [data-theme="dark"] .pending-imports-section {
+            background: var(--bg-card);
+            border: 2px dashed rgba(245, 158, 11, 0.3);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        /* Pending cards in dark mode */
+        [data-theme="dark"] .pending-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        [data-theme="dark"] .pending-card:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-hover);
+            box-shadow: var(--shadow-md);
+        }
+        
+        /* Pending confidence badges in dark mode */
+        [data-theme="dark"] .pending-confidence.high {
+            background: rgba(77, 212, 162, 0.2);
+            color: #4DD4A2;
+        }
+        
+        [data-theme="dark"] .pending-confidence.medium {
+            background: rgba(229, 168, 106, 0.2);
+            color: #E5A86A;
+        }
+        
+        [data-theme="dark"] .pending-confidence.low {
+            background: rgba(255, 141, 123, 0.2);
+            color: #FF8D7B;
+        }
+        
+        /* Upload zone in dark mode */
+        [data-theme="dark"] .upload-zone {
+            background: var(--bg-secondary);
+            border: 2px dashed var(--border-color);
+        }
+        
+        [data-theme="dark"] .upload-zone:hover,
+        [data-theme="dark"] .upload-zone.dragover {
+            background: var(--bg-hover);
+            border-color: var(--accent-primary);
+        }
+        
+        /* View toggle buttons in dark mode */
+        [data-theme="dark"] .view-toggle-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        
+        [data-theme="dark"] .view-toggle-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+        }
+        
+        [data-theme="dark"] .view-toggle-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: var(--btn-primary-text);
+            box-shadow: var(--shadow-sm);
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <img src="/images/logoTransp.png" alt="SasWatch" class="logo-image" width="32" height="32">
+                <span>SasWatch</span>
+            </div>
+            <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+                <span id="sidebar-toggle-icon">◀</span>
+            </button>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <div class="sidebar-nav-item">
+                <a href="/" class="sidebar-nav-link" data-tooltip="Users">
+                    <span class="nav-icon">👥</span>
+                    <span>Users</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/renewals" class="sidebar-nav-link active" data-tooltip="Renewals">
+                    <span class="nav-icon">📅</span>
+                    <span>Renewals</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/licenses" class="sidebar-nav-link" data-tooltip="Licenses">
+                    <span class="nav-icon">📜</span>
+                    <span>Licenses</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
+                    <span class="nav-icon">📦</span>
+                    <span>Apps</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
+                    <span class="nav-icon">📊</span>
+                    <span>Activity</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/account" class="sidebar-nav-link" data-tooltip="Account">
+                    <span class="nav-icon">⚙️</span>
+                    <span>Account</span>
+                </a>
+            </div>
+            <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
+            <div class="sidebar-nav-item">
+                <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
+                    <span class="nav-icon">🛠️</span>
+                    <span>Dev</span>
+                </a>
+            </div>
+            <% } %>
+            <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
+            <div class="sidebar-nav-item">
+                <a href="/admin" class="sidebar-nav-link" data-tooltip="Admin">
+                    <span class="nav-icon">👑</span>
+                    <span>Admin</span>
+                </a>
+            </div>
+            <% } %>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-actions">
+                <a href="/logout" class="sidebar-footer-link">
+                    <span class="nav-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+                <button class="sidebar-footer-link" onclick="toggleTheme()" style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;" title="Toggle theme">
+                    <span class="nav-icon" id="theme-icon">☀️</span>
+                    <span>Theme</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Mobile Navigation -->
+            <nav class="mobile-nav">
+                <div class="mobile-nav-item">
+                    <a href="/" class="mobile-nav-link">
+                        <span>👥</span>
+                        <span>Users</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/renewals" class="mobile-nav-link active">
+                        <span>📅</span>
+                        <span>Renewals</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/licenses" class="mobile-nav-link">
+                        <span>📜</span>
+                        <span>Licenses</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/apps" class="mobile-nav-link">
+                        <span>📦</span>
+                        <span>Apps</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/account" class="mobile-nav-link">
+                        <span>⚙️</span>
+                        <span>Account</span>
+                    </a>
+                </div>
+                <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
+                <div class="mobile-nav-item">
+                    <a href="/dev" class="mobile-nav-link">
+                        <span>🛠️</span>
+                        <span>Dev</span>
+                    </a>
+                </div>
+                <% } %>
+            </nav>
+
+            <header>
+                <div class="header-content">
+                    <h1>
+                        <span class="header-icon" aria-hidden="true">📅</span>
+                        <span class="header-title-text">Subscription Renewals</span>
+                    </h1>
+                </div>
+            </header>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-content">
+                        <div class="stat-value">
+                            <span id="stat-total">0</span>
+                            <span class="stat-icon">📋</span>
+                        </div>
+                        <div class="stat-label">Total Subscriptions</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-content">
+                        <div class="stat-value">
+                            <span id="stat-this-month">0</span>
+                            <span class="stat-icon">⏰</span>
+                        </div>
+                        <div class="stat-label">This Month</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-content">
+                        <div class="stat-value">
+                            $<span id="stat-upcoming-cost">0</span>
+                            <span class="stat-icon">💰</span>
+                        </div>
+                        <div class="stat-label">Upcoming Spend (90 days)</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-content">
+                        <div class="stat-value">
+                            <span id="stat-past-due">0</span>
+                            <span class="stat-icon">⚠️</span>
+                        </div>
+                        <div class="stat-label">Past Due</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pending Imports Section -->
+            <div class="pending-imports-section" id="pending-imports-section" style="display: none;">
+                <div class="pending-imports-header">
+                    <div class="pending-imports-title">
+                        <span>📥</span>
+                        <span>Pending Imports</span>
+                        <span class="pending-badge" id="pending-count">0</span>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="toggleUploadZone()" id="upload-toggle-btn">
+                        📄 Upload Invoice
+                    </button>
+                </div>
+                
+                <!-- Upload Zone (hidden by default) -->
+                <div class="upload-zone" id="upload-zone" style="display: none;" onclick="document.getElementById('file-input').click()">
+                    <div class="upload-zone-icon">📄</div>
+                    <div class="upload-zone-text">
+                        <strong>Click to upload</strong> or drag & drop
+                    </div>
+                    <div class="upload-zone-hint">
+                        PDF, PNG, JPG up to 30MB · Invoices, contracts, renewal notices
+                    </div>
+                    <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt" multiple onchange="handleFileUpload(this.files)">
+                    <div class="upload-progress" id="upload-progress">
+                        <div class="upload-progress-bar">
+                            <div class="upload-progress-fill"></div>
+                        </div>
+                        <div class="upload-status" id="upload-status">Processing...</div>
+                    </div>
+                </div>
+                
+                <!-- Pending Cards -->
+                <div class="pending-cards" id="pending-cards">
+                    <!-- Cards populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Upload Zone (shown when no pending imports) -->
+            <div class="upload-zone" id="main-upload-zone" onclick="document.getElementById('main-file-input').click()">
+                <div class="upload-zone-icon">📄</div>
+                <div class="upload-zone-text">
+                    <strong>Click to upload</strong> or drag & drop invoices
+                </div>
+                <div class="upload-zone-hint">
+                    Forward documents to <strong>bills@saswatch.com</strong> or upload here · PDF, PNG, JPG up to 30MB
+                </div>
+                <input type="file" id="main-file-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt" multiple onchange="handleFileUpload(this.files)">
+                <div class="upload-progress" id="main-upload-progress">
+                    <div class="upload-progress-bar">
+                        <div class="upload-progress-fill"></div>
+                    </div>
+                    <div class="upload-status" id="main-upload-status">Processing...</div>
+                </div>
+            </div>
+
+            <!-- Calendar View -->
+            <div class="renewals-container calendar-view" id="calendar-view">
+                <div class="calendar-section">
+                    <div id="calendar"></div>
+                </div>
+                <div class="upcoming-section">
+                    <h3>📌 Upcoming Renewals</h3>
+                    <div id="upcoming-list">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📅</div>
+                            <p>No upcoming renewals</p>
+                            <p style="font-size: 0.85rem;">Add a subscription to get started</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table View -->
+            <div class="table-view" id="table-view">
+                <section class="users-section">
+                    <div class="table-container">
+                        <table class="users-table" id="renewals-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Vendor</th>
+                                    <th>Renewal Date</th>
+                                    <th>Days Left</th>
+                                    <th>Cost</th>
+                                    <th>Billing</th>
+                                    <th>Owner</th>
+                                    <th style="width: 100px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="renewals-table-body">
+                                <tr>
+                                    <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                        Loading...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add/Edit Subscription Modal -->
+    <div class="modal renewal-modal" id="subscription-modal" style="display: none;">
+        <div class="modal-backdrop" onclick="closeModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Add Subscription</h2>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="subscription-form" onsubmit="saveSubscription(event)">
+                    <input type="hidden" id="subscription-id">
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sub-name">Subscription Name *</label>
+                            <input type="text" id="sub-name" required placeholder="e.g., Adobe Creative Cloud">
+                        </div>
+                        <div class="form-group">
+                            <label for="sub-vendor">Vendor *</label>
+                            <input type="text" id="sub-vendor" required placeholder="e.g., Adobe" list="vendor-list">
+                            <datalist id="vendor-list">
+                                <option value="Adobe">
+                                <option value="Microsoft">
+                                <option value="Google">
+                                <option value="Salesforce">
+                                <option value="Atlassian">
+                                <option value="Slack">
+                                <option value="Zoom">
+                                <option value="AWS">
+                                <option value="Other">
+                            </datalist>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sub-renewal-date">Renewal Date *</label>
+                            <input type="date" id="sub-renewal-date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sub-cancel-by-date">Cancel By Date</label>
+                            <input type="date" id="sub-cancel-by-date">
+                            <p class="form-hint">Last day to cancel without penalty</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sub-cost" id="sub-cost-label">Cost ($)</label>
+                            <input type="number" id="sub-cost" min="0" step="0.01" placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label for="sub-billing-cycle">Billing Cycle</label>
+                            <select id="sub-billing-cycle">
+                                <option value="annual">Annual</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="multi-year">Multi-Year</option>
+                                <option value="one-time">One-Time</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sub-seats">Number of Seats/Licenses</label>
+                            <input type="number" id="sub-seats" min="0" step="1" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="sub-account-number">Reference Number</label>
+                            <input type="text" id="sub-account-number" placeholder="Optional - account/contract/invoice number">
+                            <p class="form-hint">For reference only</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sub-owner">Owner</label>
+                            <input type="text" id="sub-owner" placeholder="e.g., IT Department">
+                        </div>
+                        <div class="form-group">
+                            <label for="sub-alert-email">Alert Email</label>
+                            <input type="email" id="sub-alert-email" placeholder="Leave empty for account email">
+                            <p class="form-hint">Where renewal reminders will be sent</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Alert Days Before Renewal</label>
+                        <div class="alert-days-group">
+                            <label class="alert-day-checkbox">
+                                <input type="checkbox" name="alert-days" value="90"> 90 days
+                            </label>
+                            <label class="alert-day-checkbox">
+                                <input type="checkbox" name="alert-days" value="60" checked> 60 days
+                            </label>
+                            <label class="alert-day-checkbox">
+                                <input type="checkbox" name="alert-days" value="30" checked> 30 days
+                            </label>
+                            <label class="alert-day-checkbox">
+                                <input type="checkbox" name="alert-days" value="14"> 14 days
+                            </label>
+                            <label class="alert-day-checkbox">
+                                <input type="checkbox" name="alert-days" value="7" checked> 7 days
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sub-notes">Notes</label>
+                        <textarea id="sub-notes" placeholder="Any additional notes about this subscription..."></textarea>
+                    </div>
+                    
+                    <div class="modal-footer" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between;">
+                        <div>
+                            <button type="button" class="btn btn-danger" id="delete-btn" onclick="deleteSubscription()" style="display: none;">
+                                🗑️ Delete
+                            </button>
+                            <button type="button" class="btn btn-danger" id="reject-pending-btn" onclick="rejectPending()" style="display: none;" data-pending-id="">
+                                ✕ Reject Import
+                            </button>
+                            <% if (process.env.NODE_ENV !== 'production') { %>
+                            <button type="button" class="btn btn-secondary" id="test-alert-btn" onclick="testAlert()" style="display: none;">
+                                📧 Test Alert
+                            </button>
+                            <% } %>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem;">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- FullCalendar JS -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+    <script src="/js/theme.js"></script>
+    <script src="/js/ui-components.js"></script>
+    <script src="/js/renewals.js"></script>
+
+    <%- include('_survey-widget') %>
+</body>
+</html>
+
+

@@ -263,7 +263,8 @@ async function deleteAllUsageEvents(options = {}) {
     await prisma.usageEvent.deleteMany({});
     await prisma.entraSignIn.deleteMany({});
 
-    const hours = Number.isFinite(cursorHours) && cursorHours > 0 ? cursorHours : 24;
+    // Default to 6 hours backfill window
+    const hours = Number.isFinite(cursorHours) && cursorHours > 0 ? cursorHours : 6;
     const cursorDate = new Date(Date.now() - hours * 60 * 60 * 1000);
 
     const accountUpdate = resetCursor

@@ -27,24 +27,27 @@
                 </a>
             </div>
             <div class="sidebar-nav-item">
+                <a href="/renewals" class="sidebar-nav-link" data-tooltip="Renewals">
+                    <span class="nav-icon">📅</span>
+                    <span>Renewals</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
                 <a href="/licenses" class="sidebar-nav-link active" data-tooltip="Licenses">
                     <span class="nav-icon">📜</span>
                     <span>Licenses</span>
-                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
                     <span class="nav-icon">📦</span>
                     <span>Apps</span>
-                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
                     <span class="nav-icon">📊</span>
                     <span>Activity</span>
-                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
@@ -94,6 +97,12 @@
                     <a href="/" class="mobile-nav-link">
                         <span>👥</span>
                         <span>Users</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/renewals" class="mobile-nav-link">
+                        <span>📅</span>
+                        <span>Renewals</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
@@ -204,11 +213,11 @@
                             <tr>
                                 <th style="width: 150px; min-width: 150px;">Vendor</th>
                                 <th style="width: 200px; max-width: 200px;">License Type</th>
-                                <th style="width: 70px; text-align: center;">Owned</th>
-                                <th style="width: 50px; text-align: center;">Assigned</th>
+                                <th style="width: 40px; text-align: center;">Owned</th>
+                                <th style="width: 40px; text-align: center;">Assigned</th>
                                 <th style="width: 45px; text-align: center;">Active</th>
                                 <th style="width: 70px; text-align: center;">Available</th>
-                                <th style="width: 100px;">Last Activity</th>
+                                <th style="width: 120px; text-align: right;">Total Cost</th>
                             </tr>
                         </thead>
                         <tbody id="licenses-table-body">
@@ -223,6 +232,66 @@
             </section>
         </div>
     </main>
+
+    <!-- License Detail Modal (Slide-Over Panel) -->
+    <div class="modal" id="license-detail-modal" style="display: none;">
+        <div class="modal-backdrop" onclick="closeLicenseDetailModal()"></div>
+        <div class="modal-content app-detail-modal-large">
+            <div class="modal-header">
+                <div class="app-header-info">
+                    <h2 id="license-detail-name">License</h2>
+                    <span class="status-badge" id="license-detail-vendor"></span>
+                    <div class="app-stats" style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                        <span class="stat-badge">
+                            <span class="stat-icon">👥</span>
+                            <span id="license-detail-assigned">0</span> assigned
+                        </span>
+                        <span class="stat-badge">
+                            <span class="stat-icon">✅</span>
+                            <span id="license-detail-active">0</span> active
+                        </span>
+                        <span class="stat-badge">
+                            <span class="stat-icon">🎫</span>
+                            <span id="license-detail-owned">0</span> owned
+                        </span>
+                    </div>
+                </div>
+                <button class="modal-close" onclick="closeLicenseDetailModal()">×</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="license-detail-edit-form">
+                    <input type="hidden" id="license-detail-name-input">
+                    <div class="form-group">
+                        <label for="license-detail-total-licenses-input">Total Number of Licenses</label>
+                        <input type="number" id="license-detail-total-licenses-input" class="form-input" min="0" step="1" placeholder="0">
+                        <p style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">
+                            Enter the total number of licenses purchased for this license type.
+                        </p>
+                    </div>
+                    <div class="form-group" style="margin-top: 1.5rem;">
+                        <label for="license-detail-cost-per-input">Cost Per License ($)</label>
+                        <input type="number" id="license-detail-cost-per-input" class="form-input" min="0" step="0.01" placeholder="0.00">
+                        <p style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">
+                            Enter the cost per individual license. Total cost will be calculated automatically.
+                        </p>
+                    </div>
+                    <div class="form-group" style="margin-top: 1.5rem;">
+                        <label for="license-detail-cost-input">Total Cost ($)</label>
+                        <input type="number" id="license-detail-cost-input" class="form-input" min="0" step="0.01" placeholder="0.00">
+                        <p style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">
+                            Enter the total cost, or it will be calculated from (Number of Licenses × Cost Per License).
+                        </p>
+                    </div>
+                    <div class="modal-footer" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                        <div class="modal-footer-right">
+                            <button type="button" class="btn btn-secondary" onclick="closeLicenseDetailModal()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <script src="/js/theme.js"></script>
     <script src="/js/ui-components.js"></script>

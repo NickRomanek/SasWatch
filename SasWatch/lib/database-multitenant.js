@@ -580,23 +580,49 @@ function mapSignInForResponse(signIn) {
 
 async function getUsageData(accountId, limit = 1000) {
     try {
-        const [adobeEvents, wrapperEvents, signInEvents] = await Promise.all([
+        // Map usage event to response format (includes new fields)
+        const mapUsageEvent = (e) => ({
+            event: e.event,
+            url: e.url,
+            source: e.source,
+            tabId: e.tabId,
+            clientId: e.clientId,
+            why: e.why,
+            when: e.when,
+            receivedAt: e.receivedAt,
+            windowsUser: e.windowsUser,
+            userDomain: e.userDomain,
+            computerName: e.computerName,
+            windowTitle: e.windowTitle,
+            browser: e.browser
+        });
+
+        const [adobeEvents, wrapperEvents, desktopEvents, browserEvents, signInEvents] = await Promise.all([
+            // Legacy web extension events
             prisma.usageEvent.findMany({
-                where: { 
-                    accountId,
-                    source: 'adobe' 
-                },
+                where: { accountId, source: 'adobe' },
                 orderBy: { receivedAt: 'desc' },
                 take: limit
             }),
+            // Legacy wrapper/process monitor events
             prisma.usageEvent.findMany({
-                where: { 
-                    accountId,
-                    source: 'wrapper' 
-                },
+                where: { accountId, source: 'wrapper' },
                 orderBy: { receivedAt: 'desc' },
                 take: limit
             }),
+            // ActivityAgent desktop app launches
+            prisma.usageEvent.findMany({
+                where: { accountId, source: 'desktop' },
+                orderBy: { receivedAt: 'desc' },
+                take: limit
+            }),
+            // ActivityAgent browser/website visits
+            prisma.usageEvent.findMany({
+                where: { accountId, source: 'browser' },
+                orderBy: { receivedAt: 'desc' },
+                take: limit
+            }),
+            // Entra SSO sign-in events
             prisma.entraSignIn.findMany({
                 where: { accountId },
                 orderBy: { createdDateTime: 'desc' },
@@ -605,32 +631,12 @@ async function getUsageData(accountId, limit = 1000) {
         ]);
         
         return {
-            adobe: adobeEvents.map(e => ({
-                event: e.event,
-                url: e.url,
-                source: 'adobe',
-                tabId: e.tabId,
-                clientId: e.clientId,
-                why: e.why,
-                when: e.when,
-                receivedAt: e.receivedAt,
-                windowsUser: e.windowsUser,
-                userDomain: e.userDomain,
-                computerName: e.computerName
-            })),
-            wrapper: wrapperEvents.map(e => ({
-                event: e.event,
-                url: e.url,
-                source: 'wrapper',
-                tabId: e.tabId,
-                clientId: e.clientId,
-                why: e.why,
-                when: e.when,
-                receivedAt: e.receivedAt,
-                windowsUser: e.windowsUser,
-                userDomain: e.userDomain,
-                computerName: e.computerName
-            })),
+            adobe: adobeEvents.map(mapUsageEvent),
+            wrapper: [
+                ...wrapperEvents.map(mapUsageEvent),
+                ...desktopEvents.map(mapUsageEvent),
+                ...browserEvents.map(mapUsageEvent)
+            ],
             entra: signInEvents.map(mapSignInForResponse)
         };
     } catch (error) {
@@ -641,7 +647,9 @@ async function getUsageData(accountId, limit = 1000) {
 
 async function addUsageEvent(accountId, eventData, source) {
     try {
-        await prisma.usageEvent.create({
+        console.log(`[DB] Storing event: source=${source}, event=${eventData.event}, url=${eventData.url}`);
+        
+        const created = await prisma.usageEvent.create({
             data: {
                 accountId,
                 event: eventData.event,
@@ -658,12 +666,14 @@ async function addUsageEvent(accountId, eventData, source) {
             }
         });
         
-        // ✅ Update user activity if windowsUser is present (use actual event timestamp)
+        console.log(`[DB] Event stored successfully: id=${created.id}`);
+        
+        // Update user activity if windowsUser is present (use actual event timestamp)
         if (eventData.windowsUser) {
             await updateUserActivityByUsername(accountId, eventData.windowsUser, new Date(eventData.when));
         }
     } catch (error) {
-        console.error('Error adding usage event:', error);
+        console.error('[DB] Error adding usage event:', error);
     }
 }
 
@@ -677,8 +687,11 @@ async function deleteAllUsageEvents(accountId, options = {}) {
         where: { accountId }
     });
     
-    const hours = Number.isFinite(cursorHours) && cursorHours > 0 ? cursorHours : 24;
+    // Default to 6 hours backfill window (was 24h)
+    const hours = Number.isFinite(cursorHours) && cursorHours > 0 ? cursorHours : 6;
     const cursorDate = new Date(Date.now() - hours * 60 * 60 * 1000);
+    
+    console.log(`[Clear Data] Resetting cursor to ${hours} hours ago: ${cursorDate.toISOString()}`);
 
     const accountUpdate = resetCursor
         ? {
@@ -2344,12 +2357,13 @@ function extractVendor(licenseName) {
 // Get aggregated license data for an account
 async function getLicensesData(accountId) {
     try {
-        // Get account to retrieve hidden licenses
+        // Get account to retrieve hidden licenses and license costs
         const account = await prisma.account.findUnique({
             where: { id: accountId },
-            select: { hiddenLicenses: true }
+            select: { hiddenLicenses: true, licenseCosts: true }
         });
         const hiddenLicenses = account?.hiddenLicenses || [];
+        const licenseCosts = account?.licenseCosts || {};
 
         // Get all users for this account
         const users = await prisma.user.findMany({
@@ -2469,6 +2483,24 @@ async function getLicensesData(accountId) {
                 : 0;
             const waste = license.assigned - license.active;
             const available = Math.max(0, license.totalOwned - license.assigned);
+            
+            // Get license pricing info (supports both old format { "name": cost } and new format { "name": { costPerLicense, totalLicenses, totalCost } })
+            const pricingInfo = licenseCosts[license.name];
+            let costPerLicense = null;
+            let totalLicenses = null;
+            let totalCost = null;
+            
+            if (pricingInfo) {
+                if (typeof pricingInfo === 'number') {
+                    // Old format: just a number (total cost)
+                    totalCost = pricingInfo;
+                } else if (typeof pricingInfo === 'object') {
+                    // New format: object with all fields
+                    costPerLicense = pricingInfo.costPerLicense || null;
+                    totalLicenses = pricingInfo.totalLicenses || null;
+                    totalCost = pricingInfo.totalCost || null;
+                }
+            }
 
             return {
                 vendor: license.vendor,
@@ -2480,7 +2512,10 @@ async function getLicensesData(accountId) {
                 waste: waste,
                 available: available,
                 lastActivity: license.lastActivity,
-                users: license.users
+                users: license.users,
+                totalCost: totalCost,
+                costPerLicense: costPerLicense,
+                totalLicenses: totalLicenses
             };
         });
 

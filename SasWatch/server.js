@@ -1,8 +1,12 @@
 const express = require('express');
 const path = require('path');
+const compression = require('compression');
+const http = require('http');
 require('dotenv').config();
 
 const { startBackgroundSync } = require('./lib/background-sync');
+const { initializeSocketIO, setupNamespaceReferences } = require('./lib/socket-handler');
+const { startRenewalScheduler } = require('./lib/renewal-scheduler');
 const { 
     setupHelmet, 
     requireHTTPS, 
@@ -46,6 +50,9 @@ setupHelmet(app);
 // Security: Add unique request IDs for tracing
 app.use(addRequestId);
 
+// Performance: Enable response compression (gzip/brotli)
+app.use(compression());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -68,11 +75,12 @@ const {
     setupAppsRoutes,
     setupDevRoutes,
     setupAdminRoutes,
-    setupDataRoutes
+    setupDataRoutes,
+    setupRenewalsRoutes
 } = require('./server-multitenant-routes');
 
 // Initialize session management (must be before routes)
-setupSession(app);
+const sessionStore = setupSession(app);
 
 // Setup all route modules
 setupAuthRoutes(app);
@@ -85,6 +93,7 @@ setupDataRoutes(app);
 setupAppsRoutes(app);
 setupDevRoutes(app);
 setupAdminRoutes(app);
+setupRenewalsRoutes(app);
 
 // ============================================
 // Health Check Endpoints
@@ -211,15 +220,26 @@ process.on('SIGINT', () => {
 });
 
 // ============================================
-// Start Server
+// Start Server with Socket.IO
 // ============================================
 
-const server = app.listen(PORT, () => {
+// Create HTTP server (required for Socket.IO)
+const server = http.createServer(app);
+
+// Initialize Socket.IO on the HTTP server (pass session store for dashboard auth)
+const io = initializeSocketIO(server, sessionStore);
+setupNamespaceReferences(io);
+
+// Make io available to routes if needed
+app.set('io', io);
+
+server.listen(PORT, () => {
     console.log('╔═══════════════════════════════════════════════════╗');
     console.log('║         📊 SasWatch Multi-Tenant Server         ║');
     console.log('╚═══════════════════════════════════════════════════╝');
     console.log('');
     console.log(`🚀 Server running on: http://localhost:${PORT}`);
+    console.log(`🔌 Socket.IO: Enabled (namespaces: /agent, /dashboard)`);
     console.log(`🔐 Database: ${process.env.DATABASE_URL ? 'PostgreSQL (Connected)' : 'PostgreSQL (Local)'}`);
     console.log('');
     console.log('📖 Quick Start:');
@@ -231,4 +251,7 @@ const server = app.listen(PORT, () => {
     
     // Start background sync for Entra sign-ins
     startBackgroundSync();
+    
+    // Start renewal reminder scheduler
+    startRenewalScheduler();
 });

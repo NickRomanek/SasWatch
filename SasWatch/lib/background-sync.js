@@ -4,8 +4,8 @@ const { syncEntraSignInsIfNeeded, syncEntraUsersIfNeeded } = require('./database
 
 const prisma = new PrismaClient();
 
-// Run every hour for better real-time sync
-const SYNC_SCHEDULE = '0 * * * *'; // At minute 0 past every hour
+// Run every 30 minutes for better real-time sync
+const SYNC_SCHEDULE = '*/30 * * * *'; // Every 30 minutes
 
 async function syncAllAccounts() {
     const startTime = new Date();
@@ -111,7 +111,7 @@ function startBackgroundSync() {
         return;
     }
     
-    console.log(`[Background Sync] Scheduling: ${SYNC_SCHEDULE} (every hour)`);
+    console.log(`[Background Sync] Scheduling: ${SYNC_SCHEDULE} (every 30 minutes)`);
     
     // Schedule the job
     cron.schedule(SYNC_SCHEDULE, syncAllAccounts);

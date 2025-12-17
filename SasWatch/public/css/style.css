@@ -69,20 +69,20 @@
 }
 
 [data-theme="dark"] {
-    /* Dark theme */
-    --bg-primary: #0F1C18;
-    --bg-secondary: #112821;
-    --bg-tertiary: #152924;
-    --bg-card: rgba(29, 91, 79, 0.72);
-    --bg-hover: rgba(79, 209, 197, 0.08);
+    /* Dark theme - slightly darker overall */
+    --bg-primary: #0B1512;
+    --bg-secondary: #0E1F1A;
+    --bg-tertiary: #111F1B;
+    --bg-card: #152924;
+    --bg-hover: rgba(79, 209, 197, 0.06);
 
-    --text-primary: #F5FBF8;
-    --text-secondary: #C6E0D8;
-    --text-tertiary: #8FAFA8;
+    --text-primary: #E8F5F0;
+    --text-secondary: #B8D9CE;
+    --text-tertiary: #7FA59A;
 
-    --border-color: rgba(79, 209, 197, 0.18);
-    --border-hover: rgba(79, 209, 197, 0.35);
-    --card-border: rgba(47, 110, 94, 0.6);
+    --border-color: rgba(79, 209, 197, 0.15);
+    --border-hover: rgba(79, 209, 197, 0.3);
+    --card-border: rgba(47, 110, 94, 0.5);
 
     --accent-primary: var(--sw-accent);
     --accent-hover: #6FE1D8;
@@ -629,6 +629,71 @@ header h1 {
 .stat-card.combined .stat-icon {
     background: linear-gradient(145deg, rgba(79, 209, 197, 0.18), rgba(79, 209, 197, 0.08));
     color: var(--accent-primary);
+}
+
+/* Real-time activity pulse animation */
+.stat-card.activity-pulse {
+    animation: activity-pulse 0.5s ease-out;
+}
+
+@keyframes activity-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(79, 209, 197, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(79, 209, 197, 0);
+    }
+    100% {
+        box-shadow: var(--shadow-md);
+    }
+}
+
+/* Socket connection status indicator */
+.socket-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.socket-status::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.socket-status.connected::before {
+    background: var(--success);
+    box-shadow: 0 0 6px var(--success);
+}
+
+.socket-status.disconnected::before {
+    background: var(--text-tertiary);
+}
+
+.agent-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.agent-status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.agent-status.connected::before {
+    background: var(--success);
+}
+
+.agent-status.disconnected::before {
+    background: var(--warning);
 }
 
 .stat-content {
@@ -2157,6 +2222,28 @@ nav a.active {
     background: var(--success-light);
     color: var(--success);
     border: 1px solid var(--success);
+}
+
+/* ActivityAgent source badges */
+.source-desktop {
+    background: rgba(139, 92, 246, 0.15);
+    color: #7c3aed;
+    border: 1px solid rgba(124, 58, 237, 0.4);
+}
+
+.source-browser {
+    background: rgba(249, 115, 22, 0.15);
+    color: #c2410c;
+    border: 1px solid rgba(194, 65, 12, 0.4);
+}
+
+/* Dark theme overrides for ActivityAgent badges */
+[data-theme="dark"] .source-desktop {
+    color: #c4b5fd;
+}
+
+[data-theme="dark"] .source-browser {
+    color: #fdba74;
 }
 
 .source-entra-web {

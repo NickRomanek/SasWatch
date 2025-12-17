@@ -27,24 +27,27 @@
                 </a>
             </div>
             <div class="sidebar-nav-item">
+                <a href="/renewals" class="sidebar-nav-link" data-tooltip="Renewals">
+                    <span class="nav-icon">📅</span>
+                    <span>Renewals</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
                 <a href="/licenses" class="sidebar-nav-link" data-tooltip="Licenses">
                     <span class="nav-icon">📜</span>
                     <span>Licenses</span>
-                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
                     <span class="nav-icon">📦</span>
                     <span>Apps</span>
-                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/dashboard" class="sidebar-nav-link active" data-tooltip="Activity">
                     <span class="nav-icon">📊</span>
                     <span>Activity</span>
-                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
@@ -100,6 +103,12 @@
                     </a>
                 </div>
                 <div class="mobile-nav-item">
+                    <a href="/renewals" class="mobile-nav-link">
+                        <span>📅</span>
+                        <span>Renewals</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
                     <a href="/licenses" class="mobile-nav-link">
                         <span>📜</span>
                         <span>Licenses</span>
@@ -141,15 +150,6 @@
                     </h1>
                 </div>
             </header>
-
-            <!-- Beta Notice Banner -->
-            <div class="beta-notice-banner">
-                <span class="beta-icon">🧪</span>
-                <div class="beta-content">
-                    <span class="beta-badge">Beta</span>
-                    <strong>This feature is in beta.</strong> We're still testing and improving it. Found a bug or have feedback? We'd love to hear from you!
-                </div>
-            </div>
 
             <div class="stats-grid">
                 <div class="stat-card adobe">
@@ -199,8 +199,20 @@
                     </div>
                     <div class="dashboard-controls">
                         <button class="btn btn-primary" onclick="startManualSync()">
-                            🔄 Sync
+                            🔄 Refresh
                         </button>
+                        <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
+                        <button
+                            class="btn btn-secondary"
+                            id="sync-graph-btn"
+                            onclick="syncGraphManual()"
+                            title="Superadmin: Force sync from Microsoft Graph API"
+                            data-sync-hours="24"
+                            data-sync-limit="50"
+                            data-sync-page-size="25">
+                            ☁️ Sync Graph
+                        </button>
+                        <% } %>
                         <button class="btn btn-danger" onclick="clearData()">🗑️ Clear Data</button>
                     </div>
                 </div>
@@ -220,8 +232,16 @@
         </div>
     </main>
 
+    <!-- Critical scripts (load immediately) -->
     <script src="/js/ui-components.js"></script>
-    <script src="/js/app.js"></script>
+    <!-- Socket.IO client library (CDN with fallback) -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" 
+            integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO" 
+            crossorigin="anonymous"></script>
+    <!-- Real-time socket client -->
+    <script src="/js/socket-client.js"></script>
+    <!-- Non-critical scripts (defer loading) -->
+    <script src="/js/app.js" defer></script>
     <script>
         // Sidebar toggle functionality
         function toggleSidebar() {

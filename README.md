@@ -14,6 +14,8 @@ SasWatch lives where finance and IT can’t see: in the shadows of your licenses
 
 SasWatch currently track Adobe and Microsoft 365 licenses across your org (more coming soon). It stays in the shadows, quietly watching for waste to surface.
 
+**Note:** SasWatch is currently in beta. Some features, including the PowerShell monitoring script, Intune package, browser extension, and various dashboard features, are still being actively tested and improved. We appreciate your patience and feedback as we continue to refine the platform.
+
 Ever wonder why you're paying for Creative Cloud licenses when half your team hasn't opened Photoshop in six months? SasWatch tracks actual usage and shows you where the money's going.
 
 ### The problem we're solving

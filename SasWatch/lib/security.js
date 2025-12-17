@@ -270,7 +270,11 @@ const signupLimiter = rateLimit({
 const apiSpeedLimiter = slowDown({
     windowMs: 15 * 60 * 1000, // 15 minutes
     delayAfter: 50, // Allow 50 requests per window at full speed
-    delayMs: 100, // Add 100ms delay per request after delayAfter
+    // Preserve legacy incremental delay behavior per express-slow-down v1
+    delayMs: (used, req) => {
+        const delayAfter = req.slowDown.limit;
+        return (used - delayAfter) * 100;
+    },
     maxDelayMs: 5000, // Maximum delay of 5 seconds
     skipSuccessfulRequests: false
 });

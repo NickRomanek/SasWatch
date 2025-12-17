@@ -630,24 +630,27 @@
                 </a>
             </div>
             <div class="sidebar-nav-item">
+                <a href="/renewals" class="sidebar-nav-link" data-tooltip="Renewals">
+                    <span class="nav-icon">📅</span>
+                    <span>Renewals</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
                 <a href="/licenses" class="sidebar-nav-link" data-tooltip="Licenses">
                     <span class="nav-icon">📜</span>
                     <span>Licenses</span>
-                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
                     <span class="nav-icon">📦</span>
                     <span>Apps</span>
-                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
                     <span class="nav-icon">📊</span>
                     <span>Activity</span>
-                    <span class="nav-beta-badge">Beta</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
@@ -703,6 +706,12 @@
                     <a href="/licenses" class="mobile-nav-link">
                         <span>📜</span>
                         <span>Licenses</span>
+                    </a>
+                </div>
+                <div class="mobile-nav-item">
+                    <a href="/renewals" class="mobile-nav-link">
+                        <span>📅</span>
+                        <span>Renewals</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
@@ -802,20 +811,9 @@
             <% } %>
         </div>
 
-        <!-- Beta Notice Section -->
-        <div class="account-section">
-            <div class="beta-notice-banner" style="margin: 0;">
-                <span class="beta-icon">🧪</span>
-                <div class="beta-content">
-                    <span class="beta-badge">Beta</span>
-                    <strong>The PowerShell Script, Intune Package, and Browser extension are still in beta.</strong> We're actively testing and improving these tools. Found a bug or have feedback? We'd love to hear from you!
-                </div>
-            </div>
-        </div>
-
         <!-- API Key -->
         <div class="account-section">
-            <h2>🔑 API Key <span class="nav-beta-badge" style="font-size: 0.6rem; padding: 2px 6px; margin-left: 0.5rem; vertical-align: middle;">Beta</span></h2>
+            <h2>🔑 API Key</h2>
             <p class="section-description">Use this API key in your PowerShell monitoring scripts to send data to your account.</p>
             
             <div class="api-key-display">
@@ -837,7 +835,7 @@
 
         <!-- Script Download -->
         <div class="account-section">
-            <h2>📥 Downloads <span class="nav-beta-badge" style="font-size: 0.6rem; padding: 2px 6px; margin-left: 0.5rem; vertical-align: middle;">Beta</span></h2>
+            <h2>📥 Downloads</h2>
             <p class="section-description">Download pre-configured monitoring tools with your API key embedded.</p>
 
             <div class="download-grid">
