@@ -1,10 +1,8 @@
-# Use Node.js 18 Debian slim as base image (for poppler support)
-FROM node:18-bullseye-slim
+# Use Node.js 18 Alpine as base image
+FROM node:18-alpine
 
-# Install curl for health checks and poppler-utils for PDF image extraction
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl poppler-utils && \
-    rm -rf /var/lib/apt/lists/*
+# Install curl for health checks
+RUN apk add --no-cache curl
 
 # Set working directory
 WORKDIR /app

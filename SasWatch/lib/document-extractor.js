@@ -6,6 +6,9 @@
 const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
+const { createCanvas } = require('canvas');
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+pdfjsLib.GlobalWorkerOptions.workerSrc = require('pdfjs-dist/legacy/build/pdf.worker.js');
 
 // Initialize OpenAI client
 let openaiClient = null;
@@ -57,65 +60,35 @@ Important guidelines:
 
 /**
  * Convert a PDF buffer to base64 images for GPT-4o vision
- * Uses pdf-poppler to convert PDF pages to images
+ * Uses pdfjs-dist (pure JS) so it works on Railway without system deps
  * @param {Buffer} pdfBuffer - The PDF file buffer
  * @returns {Promise<string[]>} Array of base64-encoded images
  */
 async function convertPdfToImages(pdfBuffer) {
-    const tempDir = path.join(__dirname, '../temp');
-    const tempPdfPath = path.join(tempDir, `pdf_${Date.now()}.pdf`);
-    
-    // Ensure temp directory exists
-    if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-    }
+    const images = [];
     
     try {
-        // Write PDF buffer to temp file
-        fs.writeFileSync(tempPdfPath, pdfBuffer);
+        const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
+        const pageCount = Math.min(pdf.numPages, 5); // cap pages for perf
         
-        // Try to use pdf-poppler for conversion
-        let images = [];
-        
-        try {
-            const pdfPoppler = require('pdf-poppler');
+        for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 2.0 }); // balance quality/perf
             
-            const opts = {
-                format: 'png',
-                out_dir: tempDir,
-                out_prefix: `img_${Date.now()}`,
-                page: null, // Convert all pages
-                scale: 2048, // Good resolution for OCR
-            };
+            const canvas = createCanvas(viewport.width, viewport.height);
+            const context = canvas.getContext('2d');
             
-            await pdfPoppler.convert(tempPdfPath, opts);
+            await page.render({ canvasContext: context, viewport }).promise;
             
-            // Read generated images
-            const files = fs.readdirSync(tempDir)
-                .filter(f => f.startsWith(opts.out_prefix) && f.endsWith('.png'))
-                .sort();
-            
-            for (const file of files) {
-                const imagePath = path.join(tempDir, file);
-                const imageBuffer = fs.readFileSync(imagePath);
-                images.push(imageBuffer.toString('base64'));
-                
-                // Clean up image file
-                fs.unlinkSync(imagePath);
-            }
-        } catch (popplerError) {
-            console.warn('[DocumentExtractor] pdf-poppler failed, falling back to text extraction:', popplerError.message);
-            // If pdf-poppler fails (e.g., poppler not installed), we'll handle it in extractFromDocument
-            throw new Error('PDF_CONVERSION_FAILED');
+            const base64 = canvas.toBuffer('image/png').toString('base64');
+            images.push(base64);
         }
-        
-        return images;
-    } finally {
-        // Clean up temp PDF
-        if (fs.existsSync(tempPdfPath)) {
-            fs.unlinkSync(tempPdfPath);
-        }
+    } catch (err) {
+        console.warn('[DocumentExtractor] pdfjs conversion failed, falling back to text extraction:', err.message);
+        throw new Error('PDF_CONVERSION_FAILED');
     }
+    
+    return images;
 }
 
 /**
@@ -203,13 +176,18 @@ async function extractFromDocument(fileBuffer, mimeType, filename) {
                 }
             } catch (conversionError) {
                 // Fall back to text extraction
-                console.log('[DocumentExtractor] Using text extraction fallback');
-                rawText = await extractTextFromPdf(fileBuffer);
-                
-                messages = [{
-                    role: 'user',
-                    content: `${EXTRACTION_PROMPT}\n\n---\nDocument text:\n${rawText}`
-                }];
+                console.log('[DocumentExtractor] Using text extraction fallback for PDF');
+                try {
+                    rawText = await extractTextFromPdf(fileBuffer);
+                    
+                    messages = [{
+                        role: 'user',
+                        content: `${EXTRACTION_PROMPT}\n\n---\nDocument text:\n${rawText}`
+                    }];
+                } catch (textError) {
+                    console.error('[DocumentExtractor] Text extraction also failed:', textError.message);
+                    throw new Error(`Failed to extract data from PDF: ${textError.message}`);
+                }
             }
         } else if (mimeType.startsWith('image/')) {
             // Direct image processing
