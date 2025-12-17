@@ -136,8 +136,8 @@ function setupHelmet(app) {
         contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
             directives: {
                 defaultSrc: ["'self'"],
-                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://static.cloudflareinsights.com"],
+                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://static.cloudflareinsights.com", "https://cdn.jsdelivr.net"],
                 scriptSrcAttr: ["'unsafe-inline'"],
                 imgSrc: ["'self'", "data:", "https:"],
                 connectSrc: ["'self'", "https://graph.microsoft.com", "https://login.microsoftonline.com"],
