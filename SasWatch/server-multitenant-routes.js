@@ -2462,9 +2462,10 @@ function setupDashboardRoutes(app) {
     // Renewals page (default landing page)
     app.get('/', auth.requireAuth, async (req, res) => {
         try {
+            const account = req.account || await auth.getAccountById(req.session.accountId);
             res.render('renewals', {
                 title: 'SubTracker - Renewals & Subscriptions',
-                account: req.account
+                account: account
             });
         } catch (error) {
             console.error('Renewals page error:', error);
