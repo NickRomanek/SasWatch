@@ -2809,8 +2809,10 @@ function setupAdminRoutes(app) {
     // Admin dashboard - list all accounts
     app.get('/admin', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
         try {
+            console.log('[Admin] Loading admin dashboard...');
             const currentAccount = req.account || await auth.getAccountById(req.session.accountId);
             
+            console.log('[Admin] Fetching accounts...');
             const accounts = await prisma.account.findMany({
                 select: {
                     id: true,
@@ -2827,25 +2829,46 @@ function setupAdminRoutes(app) {
                 orderBy: { createdAt: 'desc' }
             });
 
-            // Get stats for each account
+            console.log(`[Admin] Found ${accounts.length} accounts, loading stats...`);
+
+            // Get stats for each account (with error handling)
             const accountsWithStats = await Promise.all(
                 accounts.map(async (account) => {
-                    const stats = await db.getDatabaseStats(account.id);
-                    return {
-                        ...account,
-                        stats
-                    };
+                    try {
+                        const stats = await db.getDatabaseStats(account.id);
+                        return {
+                            ...account,
+                            stats
+                        };
+                    } catch (error) {
+                        console.error(`[Admin] Error getting stats for account ${account.id}:`, error);
+                        // Return account without stats if stats query fails
+                        return {
+                            ...account,
+                            stats: {
+                                users: 0,
+                                usageEvents: 0,
+                                unmappedUsernames: 0,
+                                signInEvents: 0
+                            }
+                        };
+                    }
                 })
             );
 
+            console.log('[Admin] Rendering admin page...');
             res.render('admin', {
                 title: 'Admin Dashboard',
                 accounts: accountsWithStats,
                 currentAccount: currentAccount
             });
+            console.log('[Admin] Admin dashboard rendered successfully');
         } catch (error) {
-            console.error('Admin dashboard error:', error);
-            res.status(500).send('Error loading admin dashboard');
+            console.error('[Admin] Admin dashboard error:', error);
+            console.error('[Admin] Error stack:', error.stack);
+            if (!res.headersSent) {
+                res.status(500).send('Error loading admin dashboard');
+            }
         }
     });
 
