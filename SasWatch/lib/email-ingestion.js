@@ -15,6 +15,20 @@ let cachedTokenExpiresAt = 0;
 const processedEmails = new Set();
 
 /**
+ * Sanitize text for PostgreSQL UTF-8 storage
+ * Removes null bytes and other problematic characters
+ */
+function sanitizeTextForDb(text) {
+    if (!text) return null;
+    // Remove null bytes (0x00) which PostgreSQL doesn't accept
+    // Also remove other control characters except newlines/tabs
+    return text
+        .replace(/\x00/g, '')  // Remove null bytes
+        .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F]/g, ' ')  // Replace other control chars with space
+        .trim();
+}
+
+/**
  * Acquire a Graph API access token
  */
 async function acquireGraphToken() {
@@ -334,14 +348,14 @@ async function processEmail(message) {
                     sourceType: 'email',
                     sourceEmailId: messageId,
                     senderEmail: senderEmail,
-                    vendor: data.vendor,
-                    name: data.name,
+                    vendor: sanitizeTextForDb(data.vendor),
+                    name: sanitizeTextForDb(data.name),
                     cost: data.cost,
                     renewalDate: data.renewalDate,
                     billingCycle: data.billingCycle,
-                    accountNumber: data.accountNumber,
+                    accountNumber: sanitizeTextForDb(data.accountNumber),
                     confidence: data.confidence,
-                    rawText: data.rawText,
+                    rawText: sanitizeTextForDb(data.rawText),
                     attachmentNames: data.attachmentNames || [],
                     status: 'pending'
                 }
