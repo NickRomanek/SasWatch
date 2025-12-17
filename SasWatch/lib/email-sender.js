@@ -1,11 +1,10 @@
 const axios = require('axios');
 
-const REQUIRED_ENV_VARS = [
+// Required env vars for token acquisition
+const TOKEN_REQUIRED_ENV_VARS = [
     'GRAPH_TENANT_ID',
     'GRAPH_CLIENT_ID',
-    'GRAPH_CLIENT_SECRET',
-    'GRAPH_FROM_EMAIL',
-    'GRAPH_NOTIFY_EMAILS'
+    'GRAPH_CLIENT_SECRET'
 ];
 
 const SURVEY_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -13,12 +12,38 @@ const SURVEY_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
 
-function getEnvValue(name) {
+/**
+ * Get environment variable value
+ * @param {string} name - Environment variable name
+ * @param {boolean} required - Whether the variable is required (default: true)
+ * @returns {string|undefined} - The value or undefined if not required and missing
+ */
+function getEnvValue(name, required = true) {
     const value = process.env[name];
-    if (!value) {
+    if (!value && required) {
         throw new Error(`Missing required environment variable: ${name}`);
     }
     return value;
+}
+
+/**
+ * Get the "from" email address for a specific purpose
+ * @param {string} purpose - 'reset', 'verification', 'reminder', 'survey', 'notification'
+ * @returns {string} - The email address to send from
+ */
+function getFromEmail(purpose) {
+    switch (purpose) {
+        case 'reminder':
+            // Use GRAPH_REMINDER_EMAIL for renewal reminders, fallback to GRAPH_FROM_EMAIL
+            return getEnvValue('GRAPH_REMINDER_EMAIL', false) || getEnvValue('GRAPH_FROM_EMAIL');
+        case 'reset':
+        case 'verification':
+        case 'survey':
+        case 'notification':
+        default:
+            // Use GRAPH_FROM_EMAIL for password resets, verification, surveys, and notifications
+            return getEnvValue('GRAPH_FROM_EMAIL');
+    }
 }
 
 function getNotifyRecipients() {
@@ -42,7 +67,8 @@ async function acquireGraphToken() {
         return cachedToken;
     }
 
-    REQUIRED_ENV_VARS.forEach(getEnvValue);
+    // Only check token-required vars, not email addresses
+    TOKEN_REQUIRED_ENV_VARS.forEach(name => getEnvValue(name));
 
     const tenantId = getEnvValue('GRAPH_TENANT_ID');
     const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
@@ -66,6 +92,44 @@ async function acquireGraphToken() {
     } catch (error) {
         const message = error.response?.data?.error_description || error.message;
         throw new Error(`Failed to acquire Microsoft Graph access token: ${message}`);
+    }
+}
+
+/**
+ * Send an email via Microsoft Graph API with enhanced error logging
+ */
+async function sendGraphEmail(fromEmail, message, emailType) {
+    const graphToken = await acquireGraphToken();
+    
+    console.log(`[Email] Sending ${emailType} email from ${fromEmail}`);
+    
+    try {
+        await axios.post(
+            `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`,
+            message,
+            {
+                headers: {
+                    Authorization: `Bearer ${graphToken}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            }
+        );
+        console.log(`[Email] Successfully sent ${emailType} email from ${fromEmail}`);
+    } catch (error) {
+        // Enhanced error logging for debugging
+        const graphError = error.response?.data?.error || {};
+        console.error(`[Email] Graph API Error for ${emailType}:`, JSON.stringify({
+            message: graphError.message || error.message,
+            code: graphError.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            fromEmail: fromEmail,
+            innerError: graphError.innerError
+        }, null, 2));
+        
+        const errorMessage = graphError.message || error.message;
+        throw new Error(`Failed to send ${emailType} email via Microsoft Graph: ${errorMessage}`);
     }
 }
 
@@ -99,8 +163,7 @@ async function sendSurveyEmail({ email, feedback, rating, submittedAt = new Date
         throw new Error('Invalid email address provided for survey submission');
     }
 
-    const token = await acquireGraphToken();
-    const fromEmail = getEnvValue('GRAPH_FROM_EMAIL');
+    const fromEmail = getFromEmail('survey');
     const message = {
         message: {
             subject: 'Survey Submission',
@@ -119,22 +182,7 @@ async function sendSurveyEmail({ email, feedback, rating, submittedAt = new Date
         saveToSentItems: false
     };
 
-    try {
-        await axios.post(
-            `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`,
-            message,
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 15000
-            }
-        );
-    } catch (error) {
-        const graphError = error.response?.data?.error?.message || error.message;
-        throw new Error(`Failed to send survey email via Microsoft Graph: ${graphError}`);
-    }
+    await sendGraphEmail(fromEmail, message, 'survey');
 }
 
 function buildVerificationEmailBody(accountName, verificationLink) {
@@ -181,8 +229,7 @@ async function sendVerificationEmail({ to, token, accountName }) {
         throw new Error('Invalid email address provided for verification');
     }
 
-    const graphToken = await acquireGraphToken();
-    const fromEmail = getEnvValue('GRAPH_FROM_EMAIL');
+    const fromEmail = getFromEmail('verification');
     const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
     const verificationLink = `${baseUrl}/verify-email?token=${token}`;
 
@@ -198,22 +245,7 @@ async function sendVerificationEmail({ to, token, accountName }) {
         saveToSentItems: false
     };
 
-    try {
-        await axios.post(
-            `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`,
-            message,
-            {
-                headers: {
-                    Authorization: `Bearer ${graphToken}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 15000
-            }
-        );
-    } catch (error) {
-        const graphError = error.response?.data?.error?.message || error.message;
-        throw new Error(`Failed to send verification email via Microsoft Graph: ${graphError}`);
-    }
+    await sendGraphEmail(fromEmail, message, 'verification');
 }
 
 function buildPasswordResetEmailBody(accountName, resetLink) {
@@ -264,8 +296,7 @@ async function sendPasswordResetEmail({ to, token, accountName }) {
         throw new Error('Invalid email address provided for password reset');
     }
 
-    const graphToken = await acquireGraphToken();
-    const fromEmail = getEnvValue('GRAPH_FROM_EMAIL');
+    const fromEmail = getFromEmail('reset');
     const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
     const resetLink = `${baseUrl}/reset-password?token=${token}`;
 
@@ -281,22 +312,7 @@ async function sendPasswordResetEmail({ to, token, accountName }) {
         saveToSentItems: false
     };
 
-    try {
-        await axios.post(
-            `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`,
-            message,
-            {
-                headers: {
-                    Authorization: `Bearer ${graphToken}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 15000
-            }
-        );
-    } catch (error) {
-        const graphError = error.response?.data?.error?.message || error.message;
-        throw new Error(`Failed to send password reset email via Microsoft Graph: ${graphError}`);
-    }
+    await sendGraphEmail(fromEmail, message, 'password-reset');
 }
 
 // Renewal Reminder Email
@@ -405,8 +421,8 @@ async function sendRenewalReminderEmail({ to, subscription, daysUntil, accountNa
         throw new Error('Invalid email address provided for renewal reminder');
     }
 
-    const graphToken = await acquireGraphToken();
-    const fromEmail = getEnvValue('GRAPH_FROM_EMAIL');
+    // Use GRAPH_REMINDER_EMAIL for renewal reminders, fallback to GRAPH_FROM_EMAIL
+    const fromEmail = getFromEmail('reminder');
 
     const urgencyPrefix = daysUntil <= 7 ? '🔴' : daysUntil <= 30 ? '🟡' : '🟢';
     const daysText = daysUntil === 0 ? 'Today' : daysUntil < 0 ? `${Math.abs(daysUntil)} days overdue` : `${daysUntil} days`;
@@ -423,23 +439,7 @@ async function sendRenewalReminderEmail({ to, subscription, daysUntil, accountNa
         saveToSentItems: false
     };
 
-    try {
-        await axios.post(
-            `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`,
-            message,
-            {
-                headers: {
-                    Authorization: `Bearer ${graphToken}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 15000
-            }
-        );
-        console.log(`[Email] Sent renewal reminder for "${subscription.name}" to ${to}`);
-    } catch (error) {
-        const graphError = error.response?.data?.error?.message || error.message;
-        throw new Error(`Failed to send renewal reminder email via Microsoft Graph: ${graphError}`);
-    }
+    await sendGraphEmail(fromEmail, message, 'renewal-reminder');
 }
 
 module.exports = {
@@ -449,4 +449,3 @@ module.exports = {
     sendRenewalReminderEmail,
     SURVEY_EMAIL_REGEX
 };
-

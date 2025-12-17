@@ -159,10 +159,11 @@ function startRenewalScheduler() {
     }
     
     // Check if email configuration is available
+    // Requires Graph API credentials and at least one "from" email address
     const hasEmailConfig = process.env.GRAPH_TENANT_ID && 
                            process.env.GRAPH_CLIENT_ID && 
                            process.env.GRAPH_CLIENT_SECRET &&
-                           process.env.GRAPH_FROM_EMAIL;
+                           (process.env.GRAPH_FROM_EMAIL || process.env.GRAPH_REMINDER_EMAIL);
     
     if (!hasEmailConfig) {
         console.log('[Renewal Scheduler] Email not configured, scheduler disabled');
