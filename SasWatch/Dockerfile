@@ -1,8 +1,8 @@
 # Use Node.js 18 Alpine as base image
 FROM node:18-alpine
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install curl for health checks and poppler-utils for PDF image extraction
+RUN apk add --no-cache curl poppler-utils
 
 # Set working directory
 WORKDIR /app
