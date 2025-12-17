@@ -2809,6 +2809,8 @@ function setupAdminRoutes(app) {
     // Admin dashboard - list all accounts
     app.get('/admin', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
         try {
+            const currentAccount = req.account || await auth.getAccountById(req.session.accountId);
+            
             const accounts = await prisma.account.findMany({
                 select: {
                     id: true,
@@ -2839,7 +2841,7 @@ function setupAdminRoutes(app) {
             res.render('admin', {
                 title: 'Admin Dashboard',
                 accounts: accountsWithStats,
-                currentAccount: req.account
+                currentAccount: currentAccount
             });
         } catch (error) {
             console.error('Admin dashboard error:', error);

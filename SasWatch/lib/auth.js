@@ -374,52 +374,60 @@ function optionalAuth(req, res, next) {
 
 // Middleware to require super admin access (hybrid security: env variable + DB flag)
 async function requireSuperAdmin(req, res, next) {
-    // Must be authenticated first
-    if (!req.session || !req.session.accountId) {
-        if (req.path.startsWith('/api/')) {
-            return res.status(401).json({ error: 'Authentication required' });
+    try {
+        // Must be authenticated first
+        if (!req.session || !req.session.accountId) {
+            if (req.path.startsWith('/api/')) {
+                return res.status(401).json({ error: 'Authentication required' });
+            }
+            return res.redirect('/login');
         }
-        return res.redirect('/login');
-    }
-    
-    // Get fresh account from database (don't trust session alone)
-    const account = await getAccountById(req.session.accountId);
-    if (!account) {
-        if (req.path.startsWith('/api/')) {
-            return res.status(401).json({ error: 'Account not found' });
-        }
-        return res.redirect('/login');
-    }
-    
-    // Check against environment variable (can't be changed via DB)
-    const adminEmails = (process.env.SUPER_ADMIN_EMAILS || '')
-        .split(',')
-        .map(e => e.trim().toLowerCase())
-        .filter(e => e.length > 0);
-    
-    const isInAllowlist = adminEmails.length > 0 && 
-        adminEmails.includes(account.email.toLowerCase());
-    const hasDbFlag = account.isSuperAdmin === true;
-    
-    // BOTH must be true: database flag AND email in allowlist
-    if (!isInAllowlist || !hasDbFlag) {
-        const { auditLog } = require('./security');
-        auditLog('ADMIN_ACCESS_DENIED', account.id, {
-            path: req.path,
-            hasDbFlag,
-            isInAllowlist,
-            email: account.email
-        }, req);
         
-        if (req.path.startsWith('/api/')) {
-            return res.status(403).json({ error: 'Super admin access required' });
+        // Get fresh account from database (don't trust session alone)
+        const account = await getAccountById(req.session.accountId);
+        if (!account) {
+            if (req.path.startsWith('/api/')) {
+                return res.status(401).json({ error: 'Account not found' });
+            }
+            return res.redirect('/login');
         }
-        return res.status(403).send('Access denied: Super admin privileges required');
+        
+        // Check against environment variable (can't be changed via DB)
+        const adminEmails = (process.env.SUPER_ADMIN_EMAILS || '')
+            .split(',')
+            .map(e => e.trim().toLowerCase())
+            .filter(e => e.length > 0);
+        
+        const isInAllowlist = adminEmails.length > 0 && 
+            adminEmails.includes(account.email.toLowerCase());
+        const hasDbFlag = account.isSuperAdmin === true;
+        
+        // BOTH must be true: database flag AND email in allowlist
+        if (!isInAllowlist || !hasDbFlag) {
+            const { auditLog } = require('./security');
+            auditLog('ADMIN_ACCESS_DENIED', account.id, {
+                path: req.path,
+                hasDbFlag,
+                isInAllowlist,
+                email: account.email
+            }, req);
+            
+            if (req.path.startsWith('/api/')) {
+                return res.status(403).json({ error: 'Super admin access required' });
+            }
+            return res.status(403).send('Access denied: Super admin privileges required');
+        }
+        
+        req.account = account;
+        req.isSuperAdmin = true;
+        next();
+    } catch (error) {
+        console.error('requireSuperAdmin error:', error);
+        if (req.path.startsWith('/api/')) {
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+        return res.status(500).send('Internal server error');
     }
-    
-    req.account = account;
-    req.isSuperAdmin = true;
-    next();
 }
 
 // ============================================
