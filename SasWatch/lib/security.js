@@ -137,10 +137,10 @@ function setupHelmet(app) {
             directives: {
                 defaultSrc: ["'self'"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://static.cloudflareinsights.com", "https://cdn.jsdelivr.net"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://static.cloudflareinsights.com", "https://cdn.jsdelivr.net", "https://cdn.socket.io"],
                 scriptSrcAttr: ["'unsafe-inline'"],
                 imgSrc: ["'self'", "data:", "https:"],
-                connectSrc: ["'self'", "https://graph.microsoft.com", "https://login.microsoftonline.com"],
+                connectSrc: ["'self'", "https://graph.microsoft.com", "https://login.microsoftonline.com", "https://cdn.socket.io"],
                 fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
                 objectSrc: ["'none'"]
             }

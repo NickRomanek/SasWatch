@@ -651,9 +651,9 @@ function setupAccountRoutes(app) {
     });
 
     // Account settings page
-    app.get('/account', auth.requireAuth, async (req, res) => {
+    app.get('/account', auth.requireAuth, auth.attachAccount, async (req, res) => {
         try {
-            const account = await auth.getAccountById(req.session.accountId);
+            const account = req.account || await auth.getAccountById(req.session.accountId);
             const stats = await db.getDatabaseStats(req.session.accountId);
 
             res.render('account', { account, stats });
@@ -2807,7 +2807,7 @@ function setupMultiTenantRoutes(app) {
 
 function setupAdminRoutes(app) {
     // Admin dashboard - list all accounts
-    app.get('/admin', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+    app.get('/admin', auth.requireAuth, auth.attachAccount, auth.requireSuperAdmin, async (req, res) => {
         // Add timeout to prevent hanging
         const timeout = setTimeout(() => {
             if (!res.headersSent) {
