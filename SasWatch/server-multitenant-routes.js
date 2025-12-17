@@ -2808,9 +2808,27 @@ function setupMultiTenantRoutes(app) {
 function setupAdminRoutes(app) {
     // Admin dashboard - list all accounts
     app.get('/admin', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        // Add timeout to prevent hanging
+        const timeout = setTimeout(() => {
+            if (!res.headersSent) {
+                console.error('[Admin] Request timeout after 30 seconds');
+                res.status(504).send('Request timeout');
+            }
+        }, 30000);
+
         try {
             console.log('[Admin] Loading admin dashboard...');
-            const currentAccount = req.account || await auth.getAccountById(req.session.accountId);
+            
+            // Ensure account is set
+            if (!req.account && req.session.accountId) {
+                req.account = await auth.getAccountById(req.session.accountId);
+            }
+            const currentAccount = req.account;
+            
+            if (!currentAccount) {
+                clearTimeout(timeout);
+                return res.status(401).send('Account not found');
+            }
             
             console.log('[Admin] Fetching accounts...');
             const accounts = await prisma.account.findMany({
@@ -2832,31 +2850,33 @@ function setupAdminRoutes(app) {
             console.log(`[Admin] Found ${accounts.length} accounts, loading stats...`);
 
             // Get stats for each account (with error handling)
-            const accountsWithStats = await Promise.all(
-                accounts.map(async (account) => {
-                    try {
-                        const stats = await db.getDatabaseStats(account.id);
-                        return {
-                            ...account,
-                            stats
-                        };
-                    } catch (error) {
-                        console.error(`[Admin] Error getting stats for account ${account.id}:`, error);
-                        // Return account without stats if stats query fails
-                        return {
-                            ...account,
-                            stats: {
-                                users: 0,
-                                usageEvents: 0,
-                                unmappedUsernames: 0,
-                                signInEvents: 0
-                            }
-                        };
-                    }
-                })
-            );
+            // Limit concurrent queries to prevent database overload
+            const statsPromises = accounts.map(async (account) => {
+                try {
+                    const stats = await db.getDatabaseStats(account.id);
+                    return {
+                        ...account,
+                        stats
+                    };
+                } catch (error) {
+                    console.error(`[Admin] Error getting stats for account ${account.id}:`, error.message);
+                    // Return account without stats if stats query fails
+                    return {
+                        ...account,
+                        stats: {
+                            users: 0,
+                            usageEvents: 0,
+                            unmappedUsernames: 0,
+                            signInEvents: 0
+                        }
+                    };
+                }
+            });
+
+            const accountsWithStats = await Promise.all(statsPromises);
 
             console.log('[Admin] Rendering admin page...');
+            clearTimeout(timeout);
             res.render('admin', {
                 title: 'Admin Dashboard',
                 accounts: accountsWithStats,
@@ -2864,6 +2884,7 @@ function setupAdminRoutes(app) {
             });
             console.log('[Admin] Admin dashboard rendered successfully');
         } catch (error) {
+            clearTimeout(timeout);
             console.error('[Admin] Admin dashboard error:', error);
             console.error('[Admin] Error stack:', error.stack);
             if (!res.headersSent) {
