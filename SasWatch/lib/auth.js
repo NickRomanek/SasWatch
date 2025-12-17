@@ -281,14 +281,21 @@ async function resetPassword(token, newPassword) {
     const hashedPassword = await hashPassword(newPassword);
 
     // Update password and clear reset token
+    // Also verify email - if they can receive password reset emails, they own the address
     await prisma.account.update({
         where: { id: account.id },
         data: {
             password: hashedPassword,
             passwordResetToken: null,
-            passwordResetExpires: null
+            passwordResetExpires: null,
+            // Auto-verify email since they proved ownership via password reset
+            emailVerified: true,
+            emailVerificationToken: null,
+            emailVerificationExpires: null
         }
     });
+    
+    console.log(`[Auth] Password reset successful for ${account.email}, email auto-verified`);
 
     return {
         success: true,
