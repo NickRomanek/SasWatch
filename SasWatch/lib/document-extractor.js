@@ -6,9 +6,6 @@
 const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
-const { createCanvas } = require('canvas');
-const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-pdfjsLib.GlobalWorkerOptions.workerSrc = require('pdfjs-dist/legacy/build/pdf.worker.js');
 
 // Initialize OpenAI client
 let openaiClient = null;
@@ -58,46 +55,75 @@ Important guidelines:
 - Be conservative - use null if uncertain rather than guessing
 - If multiple subscriptions are in one document, extract the primary/most prominent one`;
 
+// Lazy-load pdfjs-dist to avoid issues at startup
+let pdfjsLib = null;
+
 /**
- * Convert a PDF buffer to base64 images for GPT-4o vision
- * Uses pdfjs-dist (pure JS) so it works on Railway without system deps
- * @param {Buffer} pdfBuffer - The PDF file buffer
- * @returns {Promise<string[]>} Array of base64-encoded images
+ * Get pdfjs-dist module (lazy loaded)
  */
-async function convertPdfToImages(pdfBuffer) {
-    const images = [];
-    
-    try {
-        const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
-        const pageCount = Math.min(pdf.numPages, 5); // cap pages for perf
-        
-        for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
-            const page = await pdf.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 2.0 }); // balance quality/perf
-            
-            const canvas = createCanvas(viewport.width, viewport.height);
-            const context = canvas.getContext('2d');
-            
-            await page.render({ canvasContext: context, viewport }).promise;
-            
-            const base64 = canvas.toBuffer('image/png').toString('base64');
-            images.push(base64);
+function getPdfjsLib() {
+    if (!pdfjsLib) {
+        try {
+            pdfjsLib = require('pdfjs-dist/legacy/build/pdf.mjs');
+        } catch (e) {
+            // Fallback for different Node versions
+            try {
+                pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+            } catch (e2) {
+                console.warn('[DocumentExtractor] pdfjs-dist not available:', e2.message);
+                return null;
+            }
         }
-    } catch (err) {
-        console.warn('[DocumentExtractor] pdfjs conversion failed, falling back to text extraction:', err.message);
-        throw new Error('PDF_CONVERSION_FAILED');
     }
-    
-    return images;
+    return pdfjsLib;
 }
 
 /**
- * Extract text from a PDF using basic parsing
- * Fallback when image conversion isn't available
+ * Extract text from PDF using pdfjs-dist (pure JS, no native deps)
  * @param {Buffer} pdfBuffer - The PDF file buffer
  * @returns {Promise<string>} Extracted text
  */
-async function extractTextFromPdf(pdfBuffer) {
+async function extractTextFromPdfWithPdfjs(pdfBuffer) {
+    const pdfjs = getPdfjsLib();
+    
+    if (!pdfjs) {
+        throw new Error('pdfjs-dist not available');
+    }
+    
+    try {
+        // Convert Buffer to Uint8Array for pdfjs
+        const data = new Uint8Array(pdfBuffer);
+        const pdf = await pdfjs.getDocument({ data }).promise;
+        
+        let fullText = '';
+        const numPages = Math.min(pdf.numPages, 10); // Limit pages for performance
+        
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            
+            // Extract text items and join them
+            const pageText = textContent.items
+                .map(item => item.str)
+                .join(' ');
+            
+            fullText += pageText + '\n\n';
+        }
+        
+        console.log(`[DocumentExtractor] Extracted ${fullText.length} chars from ${numPages} PDF pages`);
+        return fullText.trim();
+    } catch (error) {
+        console.error('[DocumentExtractor] pdfjs extraction failed:', error.message);
+        throw error;
+    }
+}
+
+/**
+ * Extract text from a PDF using basic parsing (fallback)
+ * @param {Buffer} pdfBuffer - The PDF file buffer
+ * @returns {Promise<string>} Extracted text
+ */
+async function extractTextFromPdfBasic(pdfBuffer) {
     // Simple PDF text extraction - looks for text streams
     const content = pdfBuffer.toString('latin1');
     
@@ -134,6 +160,26 @@ async function extractTextFromPdf(pdfBuffer) {
 }
 
 /**
+ * Extract text from PDF - tries pdfjs first, falls back to basic extraction
+ * @param {Buffer} pdfBuffer - The PDF file buffer
+ * @returns {Promise<string>} Extracted text
+ */
+async function extractTextFromPdf(pdfBuffer) {
+    // Try pdfjs-dist first (better extraction)
+    try {
+        const text = await extractTextFromPdfWithPdfjs(pdfBuffer);
+        if (text && text.length > 50) {
+            return text;
+        }
+    } catch (error) {
+        console.log('[DocumentExtractor] pdfjs failed, trying basic extraction');
+    }
+    
+    // Fallback to basic extraction
+    return await extractTextFromPdfBasic(pdfBuffer);
+}
+
+/**
  * Main extraction function - analyzes a document and extracts subscription info
  * @param {Buffer} fileBuffer - The file buffer (PDF or image)
  * @param {string} mimeType - The MIME type of the file
@@ -150,47 +196,21 @@ async function extractFromDocument(fileBuffer, mimeType, filename) {
     
     try {
         if (mimeType === 'application/pdf') {
-            // Try image-based extraction first (better for scanned PDFs)
-            try {
-                const images = await convertPdfToImages(fileBuffer);
-                
-                if (images.length > 0) {
-                    // Use vision API with images
-                    const imageContent = images.slice(0, 5).map(base64 => ({
-                        type: 'image_url',
-                        image_url: {
-                            url: `data:image/png;base64,${base64}`,
-                            detail: 'high'
-                        }
-                    }));
-                    
-                    messages = [{
-                        role: 'user',
-                        content: [
-                            { type: 'text', text: EXTRACTION_PROMPT },
-                            ...imageContent
-                        ]
-                    }];
-                } else {
-                    throw new Error('No images generated');
-                }
-            } catch (conversionError) {
-                // Fall back to text extraction
-                console.log('[DocumentExtractor] Using text extraction fallback for PDF');
-                try {
-                    rawText = await extractTextFromPdf(fileBuffer);
-                    
-                    messages = [{
-                        role: 'user',
-                        content: `${EXTRACTION_PROMPT}\n\n---\nDocument text:\n${rawText}`
-                    }];
-                } catch (textError) {
-                    console.error('[DocumentExtractor] Text extraction also failed:', textError.message);
-                    throw new Error(`Failed to extract data from PDF: ${textError.message}`);
-                }
+            // Extract text from PDF and send to GPT-4o
+            console.log('[DocumentExtractor] Extracting text from PDF');
+            rawText = await extractTextFromPdf(fileBuffer);
+            
+            if (!rawText || rawText.length < 20) {
+                throw new Error('Could not extract meaningful text from PDF');
             }
+            
+            messages = [{
+                role: 'user',
+                content: `${EXTRACTION_PROMPT}\n\n---\nDocument text:\n${rawText}`
+            }];
+            
         } else if (mimeType.startsWith('image/')) {
-            // Direct image processing
+            // Direct image processing with vision API
             const base64 = fileBuffer.toString('base64');
             const imageType = mimeType.split('/')[1];
             
@@ -409,7 +429,5 @@ module.exports = {
     extractFromDocument,
     processMultipleAttachments,
     isSupportedFileType,
-    getMimeTypeFromFilename,
-    convertPdfToImages
+    getMimeTypeFromFilename
 };
-

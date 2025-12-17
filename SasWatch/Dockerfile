@@ -1,5 +1,5 @@
-# Use Node.js 18 Alpine as base image
-FROM node:18-alpine
+# Use Node.js 20 Alpine as base image (required by pdfjs-dist)
+FROM node:20-alpine
 
 # Install curl for health checks
 RUN apk add --no-cache curl
