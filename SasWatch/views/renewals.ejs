@@ -25,7 +25,7 @@
         /* Renewal-specific styles */
         .renewals-container {
             display: grid;
-            grid-template-columns: 1fr 400px;
+            grid-template-columns: 400px 1fr;
             gap: 1.5rem;
             margin-top: 1.5rem;
         }
@@ -1235,9 +1235,6 @@
 
             <!-- Calendar View -->
             <div class="renewals-container calendar-view" id="calendar-view">
-                <div class="calendar-section">
-                    <div id="calendar"></div>
-                </div>
                 <div class="upcoming-section">
                     <h3>📌 Upcoming Renewals</h3>
                     <div id="upcoming-list">
@@ -1247,6 +1244,9 @@
                             <p style="font-size: 0.85rem;">Add a subscription to get started</p>
                         </div>
                     </div>
+                </div>
+                <div class="calendar-section">
+                    <div id="calendar"></div>
                 </div>
             </div>
 

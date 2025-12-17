@@ -2459,8 +2459,21 @@ function setupDataRoutes(app) {
 // ============================================
 
 function setupDashboardRoutes(app) {
-    // Users page (default landing page)
+    // Renewals page (default landing page)
     app.get('/', auth.requireAuth, async (req, res) => {
+        try {
+            res.render('renewals', {
+                title: 'SubTracker - Renewals & Subscriptions',
+                account: req.account
+            });
+        } catch (error) {
+            console.error('Renewals page error:', error);
+            res.status(500).send('Error loading renewals page');
+        }
+    });
+    
+    // Users page (moved to /users)
+    app.get('/users', auth.requireAuth, async (req, res) => {
         try {
             const account = await auth.getAccountById(req.session.accountId);
             const syncResult = await db.syncEntraUsersIfNeeded(req.session.accountId);
