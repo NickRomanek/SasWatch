@@ -2104,6 +2104,7 @@ async function syncEntraSignInsIfNeeded(accountId, options = {}) {
         since: sinceDate.toISOString(),
         maxPages: options.maxPages,
         top: options.top,
+        timeout: options.timeout, // Pass through timeout option for background syncs
         onProgress: options.onProgress || (() => {})
     });
 
