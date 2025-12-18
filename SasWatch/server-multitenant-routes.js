@@ -2881,19 +2881,23 @@ function setupAdminRoutes(app) {
 
             console.log(`[Admin] Found ${accounts.length} accounts, loading stats...`);
 
-            // Get stats for each account (with error handling)
-            // Limit concurrent queries to prevent database overload
-            const statsPromises = accounts.map(async (account) => {
+            // ✅ OPTIMIZED: Process accounts SEQUENTIALLY to prevent memory exhaustion
+            // Running all stats queries in parallel was overwhelming Railway's limited resources
+            const accountsWithStats = [];
+            for (const account of accounts) {
                 try {
-                    const stats = await db.getDatabaseStats(account.id);
-                    return {
-                        ...account,
-                        stats
-                    };
+                    // Check if we still have time (allow 3s per account max)
+                    const stats = await Promise.race([
+                        db.getDatabaseStats(account.id),
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Stats timeout')), 3000)
+                        )
+                    ]);
+                    accountsWithStats.push({ ...account, stats });
                 } catch (error) {
-                    console.error(`[Admin] Error getting stats for account ${account.id}:`, error.message);
-                    // Return account without stats if stats query fails
-                    return {
+                    console.error(`[Admin] Error/timeout getting stats for account ${account.id}:`, error.message);
+                    // Return account with default stats if query fails/times out
+                    accountsWithStats.push({
                         ...account,
                         stats: {
                             users: 0,
@@ -2901,11 +2905,9 @@ function setupAdminRoutes(app) {
                             unmappedUsernames: 0,
                             signInEvents: 0
                         }
-                    };
+                    });
                 }
-            });
-
-            const accountsWithStats = await Promise.all(statsPromises);
+            }
 
             console.log('[Admin] Rendering admin page...');
             clearTimeout(timeout);

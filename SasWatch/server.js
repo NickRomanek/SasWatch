@@ -159,6 +159,17 @@ app.use((err, req, res, next) => {
 // Process-Level Error Handlers
 // ============================================
 
+// Memory monitoring - log usage every 5 minutes in production
+const logMemoryUsage = () => {
+    const used = process.memoryUsage();
+    const mb = (bytes) => Math.round(bytes / 1024 / 1024);
+    console.log(`[Memory] RSS: ${mb(used.rss)}MB, Heap: ${mb(used.heapUsed)}/${mb(used.heapTotal)}MB, External: ${mb(used.external)}MB`);
+};
+
+// Log memory on startup and periodically
+logMemoryUsage();
+setInterval(logMemoryUsage, 5 * 60 * 1000); // Every 5 minutes
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
     console.error('❌ UNHANDLED PROMISE REJECTION:', {
@@ -166,6 +177,9 @@ process.on('unhandledRejection', (reason, promise) => {
         promise: promise,
         timestamp: new Date().toISOString()
     });
+    
+    // Log memory state during rejection
+    logMemoryUsage();
     
     // Log to audit system
     auditLog('UNHANDLED_REJECTION', null, {

@@ -1017,20 +1017,49 @@ async function backfillAllUserActivity(accountId) {
 // Utility Functions (Account-Scoped)
 // ============================================
 
+// Simple in-memory cache for stats (prevents repeated expensive COUNT queries)
+const statsCache = new Map();
+const STATS_CACHE_TTL_MS = 60000; // 1 minute cache
+
 async function getDatabaseStats(accountId) {
-    const [userCount, eventCount, unmappedCount, signInCount] = await Promise.all([
-        prisma.user.count({ where: { accountId } }),
-        prisma.usageEvent.count({ where: { accountId } }),
-        prisma.unmappedUsername.count({ where: { accountId } }),
-        prisma.entraSignIn.count({ where: { accountId } })
-    ]);
+    // Check cache first
+    const cacheKey = `stats:${accountId}`;
+    const cached = statsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL_MS) {
+        return cached.data;
+    }
+
+    // ✅ OPTIMIZED: Run counts SEQUENTIALLY to prevent memory spikes
+    // COUNT(*) on large tables can use significant memory when run in parallel
+    let userCount = 0, eventCount = 0, unmappedCount = 0, signInCount = 0;
     
-    return {
+    try {
+        userCount = await prisma.user.count({ where: { accountId } });
+    } catch (e) { console.error('[Stats] user count error:', e.message); }
+    
+    try {
+        eventCount = await prisma.usageEvent.count({ where: { accountId } });
+    } catch (e) { console.error('[Stats] event count error:', e.message); }
+    
+    try {
+        unmappedCount = await prisma.unmappedUsername.count({ where: { accountId } });
+    } catch (e) { console.error('[Stats] unmapped count error:', e.message); }
+    
+    try {
+        signInCount = await prisma.entraSignIn.count({ where: { accountId } });
+    } catch (e) { console.error('[Stats] signIn count error:', e.message); }
+    
+    const result = {
         users: userCount,
         usageEvents: eventCount,
         unmappedUsernames: unmappedCount,
         signInEvents: signInCount
     };
+
+    // Cache the result
+    statsCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    
+    return result;
 }
 
 async function importUsersFromCSV(accountId, csvData) {

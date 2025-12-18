@@ -200,10 +200,9 @@ async function fetchEntraSignIns(tenantId, options = {}) {
     const since = options.since ? new Date(options.since) : null;
 
     // Set a reasonable timeout for individual Graph API calls
-    // First page can take longer (up to 5 minutes) due to large date ranges
-    // Subsequent pages are faster (2 minutes)
-    const FIRST_PAGE_TIMEOUT_MS = 300000; // 5 minutes for first page
-    const SUBSEQUENT_PAGE_TIMEOUT_MS = 120000; // 2 minutes for subsequent pages
+    // Allow custom timeout override for background syncs
+    const FIRST_PAGE_TIMEOUT_MS = options.timeout || 300000; // Default 5 minutes, but can be overridden
+    const SUBSEQUENT_PAGE_TIMEOUT_MS = Math.min(FIRST_PAGE_TIMEOUT_MS, 120000); // 2 minutes max for subsequent pages
 
     let request = client
         .api('/auditLogs/signIns')
