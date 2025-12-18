@@ -2546,28 +2546,60 @@ function setupDashboardRoutes(app) {
 function setupAppsRoutes(app) {
     // Apps page
     app.get('/apps', auth.requireAuth, auth.attachAccount, async (req, res) => {
+        const timeout = setTimeout(() => {
+            if (!res.headersSent) {
+                console.error('[Apps] Request timed out after 30 seconds');
+                res.status(504).send('Apps page request timed out. Please try again.');
+            }
+        }, 30000); // 30-second timeout
+
         try {
+            console.log('[Apps] Loading apps page...');
             const appsData = await db.getAppsData(req.session.accountId);
-            res.render('apps', {
-                title: 'SubTracker - Applications',
-                apps: appsData.apps || [],
-                stats: appsData.stats || {},
-                account: req.account
-            });
+            
+            clearTimeout(timeout);
+            if (!res.headersSent) {
+                console.log('[Apps] Rendering apps page...');
+                res.render('apps', {
+                    title: 'SubTracker - Applications',
+                    apps: appsData.apps || [],
+                    stats: appsData.stats || {},
+                    account: req.account
+                });
+                console.log('[Apps] Apps page rendered successfully');
+            }
         } catch (error) {
-            console.error('Apps page error:', error);
-            res.status(500).send('Error loading apps page');
+            clearTimeout(timeout);
+            if (!res.headersSent) {
+                console.error('[Apps] Apps page error:', error);
+                res.status(500).send('Error loading apps page: ' + error.message);
+            }
         }
     });
 
     // Get apps API endpoint
     app.get('/api/apps', auth.requireAuth, async (req, res) => {
+        const timeout = setTimeout(() => {
+            if (!res.headersSent) {
+                console.error('[Apps API] Request timed out after 30 seconds');
+                res.status(504).json({ error: 'Apps API request timed out' });
+            }
+        }, 30000); // 30-second timeout
+
         try {
+            console.log('[Apps API] Fetching apps data...');
             const appsData = await db.getAppsData(req.session.accountId);
-            res.json(appsData);
+            
+            clearTimeout(timeout);
+            if (!res.headersSent) {
+                res.json(appsData);
+            }
         } catch (error) {
-            console.error('Get apps error:', error);
-            res.status(500).json({ error: 'Failed to get apps' });
+            clearTimeout(timeout);
+            if (!res.headersSent) {
+                console.error('[Apps API] Get apps error:', error);
+                res.status(500).json({ error: 'Failed to get apps: ' + error.message });
+            }
         }
     });
 
