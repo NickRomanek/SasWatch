@@ -1055,11 +1055,13 @@ async function importUsersFromCSV(accountId, csvData) {
 
 async function getAppsData(accountId) {
     try {
-        // ✅ PHASE 1: Calculate 30 days ago timestamp for active users
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        // ✅ OPTIMIZED: Only fetch last 7 days with 5,000 record limit to prevent memory issues
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        
+        const RECORD_LIMIT = 5000; // Hard limit to prevent memory exhaustion
 
-        const [manualApps, overrides, usageEvents, signInEvents, recentUsageEvents, recentSignInEvents] = await Promise.all([
+        const [manualApps, overrides, usageEvents, signInEvents] = await Promise.all([
             prisma.application.findMany({
                 where: { accountId, isHidden: false },
                 orderBy: [
@@ -1070,35 +1072,11 @@ async function getAppsData(accountId) {
             prisma.appOverride.findMany({
                 where: { accountId }
             }),
-            prisma.usageEvent.findMany({
-                where: { accountId },
-                select: {
-                    event: true,
-                    url: true,
-                    source: true,
-                    windowsUser: true,
-                    clientId: true,
-                    computerName: true,
-                    when: true
-                }
-            }),
-            prisma.entraSignIn.findMany({
-                where: { accountId },
-                select: {
-                    appDisplayName: true,
-                    resourceDisplayName: true,
-                    clientAppUsed: true,
-                    userPrincipalName: true,
-                    userDisplayName: true,
-                    deviceDisplayName: true,
-                    createdDateTime: true
-                }
-            }),
-            // ✅ PHASE 1: Get recent usage events (last 30 days)
+            // ✅ OPTIMIZED: Only fetch recent usage events (last 7 days) with limit
             prisma.usageEvent.findMany({
                 where: { 
                     accountId,
-                    when: { gte: thirtyDaysAgo }
+                    when: { gte: sevenDaysAgo }
                 },
                 select: {
                     event: true,
@@ -1108,13 +1086,15 @@ async function getAppsData(accountId) {
                     clientId: true,
                     computerName: true,
                     when: true
-                }
+                },
+                take: RECORD_LIMIT,
+                orderBy: { when: 'desc' }
             }),
-            // ✅ PHASE 1: Get recent sign-in events (last 30 days)
+            // ✅ OPTIMIZED: Only fetch recent sign-in events (last 7 days) with limit
             prisma.entraSignIn.findMany({
                 where: { 
                     accountId,
-                    createdDateTime: { gte: thirtyDaysAgo }
+                    createdDateTime: { gte: sevenDaysAgo }
                 },
                 select: {
                     appDisplayName: true,
@@ -1124,7 +1104,9 @@ async function getAppsData(accountId) {
                     userDisplayName: true,
                     deviceDisplayName: true,
                     createdDateTime: true
-                }
+                },
+                take: RECORD_LIMIT,
+                orderBy: { createdDateTime: 'desc' }
             })
         ]);
 
@@ -1194,7 +1176,7 @@ async function getAppsData(accountId) {
                     licensesOwned,
                     detectedUsers: 0,
                     userIdentifiers: new Set(),
-                    activeUserIdentifiers: new Set(), // ✅ PHASE 1: Track active users (last 30 days)
+                    activeUserIdentifiers: new Set(), // Track active users (last 7 days)
                     isManual: false,
                     hasOverride: !!override,
                     components: new Map()
@@ -1212,6 +1194,7 @@ async function getAppsData(accountId) {
             const identifier = (event.windowsUser || event.clientId || event.computerName || '').trim().toLowerCase();
             if (identifier) {
                 entry.userIdentifiers.add(identifier);
+                entry.activeUserIdentifiers.add(identifier); // All fetched users are active (within 7-day window)
             }
 
             addComponent(entry, `auto:${metadata.key}`, {
@@ -1245,7 +1228,7 @@ async function getAppsData(accountId) {
                     licensesOwned: override ? override.licensesOwned : 0,
                     detectedUsers: 0,
                     userIdentifiers: new Set(),
-                    activeUserIdentifiers: new Set(), // ✅ PHASE 1: Track active users (last 30 days)
+                    activeUserIdentifiers: new Set(), // Track active users (last 7 days)
                     isManual: false,
                     hasOverride: !!override,
                     components: new Map()
@@ -1263,6 +1246,7 @@ async function getAppsData(accountId) {
             const identifier = (signIn.userPrincipalName || signIn.userDisplayName || signIn.deviceDisplayName || '').trim().toLowerCase();
             if (identifier) {
                 entry.userIdentifiers.add(identifier);
+                entry.activeUserIdentifiers.add(identifier); // All fetched users are active (within 7-day window)
             }
 
             addComponent(entry, `auto:${sourceKey}`, {
@@ -1276,35 +1260,7 @@ async function getAppsData(accountId) {
             });
         });
 
-        // ✅ PHASE 1: Process recent events to track active users (last 30 days)
-        recentUsageEvents.forEach(event => {
-            const metadata = resolveAppMetadataFromEvent(event);
-            if (!metadata || !metadata.key) {
-                return;
-            }
-            
-            const entry = appMap.get(metadata.key);
-            if (!entry) return;
-            
-            const identifier = (event.windowsUser || event.clientId || event.computerName || '').trim().toLowerCase();
-            if (identifier && entry.activeUserIdentifiers) {
-                entry.activeUserIdentifiers.add(identifier);
-            }
-        });
-        
-        recentSignInEvents.forEach(signIn => {
-            const rawName = (signIn.appDisplayName || signIn.resourceDisplayName || signIn.clientAppUsed || '').trim();
-            const displayName = rawName || 'Unknown Application';
-            const sourceKey = `entra:${displayName.toLowerCase()}`;
-            
-            const entry = appMap.get(sourceKey);
-            if (!entry) return;
-            
-            const identifier = (signIn.userPrincipalName || signIn.userDisplayName || signIn.deviceDisplayName || '').trim().toLowerCase();
-            if (identifier && entry.activeUserIdentifiers) {
-                entry.activeUserIdentifiers.add(identifier);
-            }
-        });
+        // ✅ Active users are tracked inline above (all fetched data is within 7-day window)
 
         const combinedMap = new Map();
 
