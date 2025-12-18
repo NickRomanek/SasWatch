@@ -2,6 +2,10 @@
 
 The core application for SasWatch, a multi-tenant platform for tracking Adobe Creative Cloud license usage across organizations.
 
+> **🚀 Try it Free!**  
+> SasWatch is currently available for free at **[app.saswatch.com](https://app.saswatch.com)**  
+> Sign up and start tracking your Adobe license usage today — no credit card required.
+
 ## Features
 
 - **Adobe Usage Tracking**: Monitor Adobe Creative Cloud application usage via PowerShell scripts and Chrome extension
