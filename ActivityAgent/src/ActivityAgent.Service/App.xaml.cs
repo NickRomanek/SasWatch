@@ -38,6 +38,7 @@ public partial class App : Application
                 Path.Combine(LogPath, "activity-agent-.log"),
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 30,
+                shared: true,  // Allow other processes to read the file while it's being written
                 outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
 
