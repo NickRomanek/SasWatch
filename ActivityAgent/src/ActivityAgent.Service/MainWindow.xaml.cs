@@ -53,16 +53,16 @@ public partial class MainWindow : Window
         
         // Update monitor badges based on config
         AppMonitorBadge.Background = config.EnableApplicationMonitoring 
-            ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0f3460")!)
-            : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333")!);
+            ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2F6E5E")!)
+            : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111F1B")!);
             
         WindowMonitorBadge.Background = config.EnableWindowFocusMonitoring
-            ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0f3460")!)
-            : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333")!);
+            ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2F6E5E")!)
+            : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111F1B")!);
             
         BrowserMonitorBadge.Background = config.EnableBrowserMonitoring
-            ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0f3460")!)
-            : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333")!);
+            ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2F6E5E")!)
+            : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111F1B")!);
             
         NetworkMonitorBadge.Visibility = config.EnableNetworkMonitoring 
             ? Visibility.Visible 
@@ -77,13 +77,13 @@ public partial class MainWindow : Window
         // Update connection indicator
         if (status.IsConnected)
         {
-            StatusIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4ecca3")!);
+            StatusIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4DD4A2")!);
             StatusText.Text = "Connected";
             ConnectedText.Text = "Yes";
         }
         else
         {
-            StatusIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#e94560")!);
+            StatusIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF8D7B")!);
             StatusText.Text = "Disconnected";
             ConnectedText.Text = "No";
         }

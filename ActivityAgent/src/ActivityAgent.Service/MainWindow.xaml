@@ -4,51 +4,54 @@
         Title="SasWatch Activity Agent" 
         Height="550" Width="650"
         WindowStartupLocation="CenterScreen"
-        Background="#1a1a2e"
-        Foreground="White"
+        Background="#0B1512"
+        Foreground="#E8F5F0"
         ResizeMode="CanResizeWithGrip"
-        MinWidth="500" MinHeight="400">
+        MinWidth="500" MinHeight="400"
+        Icon="Resources/icon.png">
 
     <Window.Resources>
         <!-- Modern dark theme styles -->
         <Style x:Key="HeaderText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="24"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#e94560"/>
+            <Setter Property="Foreground" Value="#4FD1C5"/>
         </Style>
         
         <Style x:Key="SubHeaderText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#aaa"/>
+            <Setter Property="Foreground" Value="#B8D9CE"/>
         </Style>
         
         <Style x:Key="CardBorder" TargetType="Border">
-            <Setter Property="Background" Value="#16213e"/>
+            <Setter Property="Background" Value="#152924"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="15"/>
             <Setter Property="Margin" Value="0,0,0,15"/>
+            <Setter Property="BorderBrush" Value="#2F6E5E"/>
+            <Setter Property="BorderThickness" Value="1"/>
         </Style>
         
         <Style x:Key="CardTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#e94560"/>
+            <Setter Property="Foreground" Value="#4FD1C5"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
         
         <Style x:Key="StatLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#888"/>
+            <Setter Property="Foreground" Value="#7FA59A"/>
         </Style>
         
         <Style x:Key="StatValue" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="#E8F5F0"/>
         </Style>
         
         <Style x:Key="ModernButton" TargetType="Button">
-            <Setter Property="Background" Value="#e94560"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#4FD1C5"/>
+            <Setter Property="Foreground" Value="#0B1512"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="20,10"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -66,16 +69,17 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#ff6b6b"/>
+                    <Setter Property="Background" Value="#6FE1D8"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         
         <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
-            <Setter Property="Background" Value="#0f3460"/>
+            <Setter Property="Background" Value="#2F6E5E"/>
+            <Setter Property="Foreground" Value="#E8F5F0"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1a4f8a"/>
+                    <Setter Property="Background" Value="#3B7F6C"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -92,7 +96,7 @@
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
             <TextBlock Text="SasWatch Activity Agent" Style="{StaticResource HeaderText}"/>
             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                <Ellipse x:Name="StatusIndicator" Width="12" Height="12" Margin="0,0,10,0" Fill="Gray"/>
+                <Ellipse x:Name="StatusIndicator" Width="12" Height="12" Margin="0,0,10,0" Fill="#7FA59A"/>
                 <TextBlock x:Name="StatusText" Text="Initializing..." Style="{StaticResource SubHeaderText}" VerticalAlignment="Center"/>
             </StackPanel>
         </StackPanel>
@@ -101,14 +105,18 @@
         <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0">
             <TabControl.Resources>
                 <Style TargetType="TabItem">
-                    <Setter Property="Background" Value="#0f3460"/>
-                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Background" Value="#0E1F1A"/>
+                    <Setter Property="Foreground" Value="#B8D9CE"/>
                     <Setter Property="Padding" Value="15,8"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
                     <Setter Property="BorderThickness" Value="0"/>
                     <Style.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="#e94560"/>
+                            <Setter Property="Background" Value="#4FD1C5"/>
+                            <Setter Property="Foreground" Value="#0B1512"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#111F1B"/>
                         </Trigger>
                     </Style.Triggers>
                 </Style>
@@ -162,17 +170,17 @@
                             </Grid.RowDefinitions>
                             
                             <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                <TextBlock x:Name="EventsSentText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#4ecca3" HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="EventsSentText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#4DD4A2" HorizontalAlignment="Center"/>
                                 <TextBlock Text="Events Sent" Style="{StaticResource StatLabel}" HorizontalAlignment="Center"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                <TextBlock x:Name="EventsQueuedText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#ffc107" HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="EventsQueuedText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#E5A86A" HorizontalAlignment="Center"/>
                                 <TextBlock Text="Queued" Style="{StaticResource StatLabel}" HorizontalAlignment="Center"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="2" HorizontalAlignment="Center">
-                                <TextBlock x:Name="ErrorCountText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#e94560" HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="ErrorCountText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#FF8D7B" HorizontalAlignment="Center"/>
                                 <TextBlock Text="Errors" Style="{StaticResource StatLabel}" HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Grid>
@@ -184,17 +192,17 @@
                     <StackPanel>
                         <TextBlock Text="Active Monitors" Style="{StaticResource CardTitle}"/>
                         <WrapPanel>
-                            <Border x:Name="AppMonitorBadge" Background="#0f3460" CornerRadius="12" Padding="10,5" Margin="0,0,8,8">
-                                <TextBlock Text="📱 Applications" FontSize="11"/>
+                            <Border x:Name="AppMonitorBadge" Background="#2F6E5E" CornerRadius="12" Padding="10,5" Margin="0,0,8,8">
+                                <TextBlock Text="📱 Applications" FontSize="11" Foreground="#E8F5F0"/>
                             </Border>
-                            <Border x:Name="WindowMonitorBadge" Background="#0f3460" CornerRadius="12" Padding="10,5" Margin="0,0,8,8">
-                                <TextBlock Text="🪟 Window Focus" FontSize="11"/>
+                            <Border x:Name="WindowMonitorBadge" Background="#2F6E5E" CornerRadius="12" Padding="10,5" Margin="0,0,8,8">
+                                <TextBlock Text="🪟 Window Focus" FontSize="11" Foreground="#E8F5F0"/>
                             </Border>
-                            <Border x:Name="BrowserMonitorBadge" Background="#0f3460" CornerRadius="12" Padding="10,5" Margin="0,0,8,8">
-                                <TextBlock Text="🌐 Browser URLs" FontSize="11"/>
+                            <Border x:Name="BrowserMonitorBadge" Background="#2F6E5E" CornerRadius="12" Padding="10,5" Margin="0,0,8,8">
+                                <TextBlock Text="🌐 Browser URLs" FontSize="11" Foreground="#E8F5F0"/>
                             </Border>
-                            <Border x:Name="NetworkMonitorBadge" Background="#333" CornerRadius="12" Padding="10,5" Margin="0,0,8,8" Visibility="Collapsed">
-                                <TextBlock Text="📡 Network" FontSize="11" Foreground="#666"/>
+                            <Border x:Name="NetworkMonitorBadge" Background="#111F1B" CornerRadius="12" Padding="10,5" Margin="0,0,8,8" Visibility="Collapsed">
+                                <TextBlock Text="📡 Network" FontSize="11" Foreground="#7FA59A"/>
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -214,7 +222,7 @@
                                     <TextBlock Text="{Binding}" 
                                                FontFamily="Consolas" 
                                                FontSize="10" 
-                                               Foreground="#aaa"
+                                               Foreground="#B8D9CE"
                                                TextTrimming="CharacterEllipsis"/>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
@@ -236,13 +244,13 @@
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
                         <Button Content="Refresh" Click="RefreshLogs_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="15,5"/>
                         <Button Content="Clear" Click="ClearLogs_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="15,5"/>
-                        <CheckBox x:Name="AutoScrollCheckBox" Content="Auto-scroll" IsChecked="True" Foreground="#aaa" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="AutoScrollCheckBox" Content="Auto-scroll" IsChecked="True" Foreground="#B8D9CE" VerticalAlignment="Center"/>
                     </StackPanel>
                     
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                         <TextBox x:Name="LogsTextBox" 
-                                 Background="#0a0a1a"
-                                 Foreground="#4ecca3"
+                                 Background="#0E1F1A"
+                                 Foreground="#4DD4A2"
                                  FontFamily="Consolas"
                                  FontSize="11"
                                  IsReadOnly="True"

@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Imaging;
+using System.Drawing;
 using ActivityAgent.Service.Configuration;
 using Hardcodet.Wpf.TaskbarNotification;
 using Microsoft.Extensions.Logging;
@@ -56,15 +58,37 @@ public partial class App : Application
             // Try to load icon from resources, fall back to default
             try
             {
+                // Try ICO first (preferred for tray icons)
                 var iconUri = new Uri("pack://application:,,,/Resources/icon.ico");
                 var streamInfo = GetResourceStream(iconUri);
                 if (streamInfo != null)
                 {
                     _notifyIcon.Icon = new System.Drawing.Icon(streamInfo.Stream);
                 }
+                else
+                {
+                    // Fall back to PNG - convert to Icon
+                    var pngUri = new Uri("pack://application:,,,/Resources/icon.png");
+                    var pngStream = GetResourceStream(pngUri);
+                    if (pngStream != null)
+                    {
+                        // Load PNG and convert to Icon
+                        using (var ms = new MemoryStream())
+                        {
+                            pngStream.Stream.CopyTo(ms);
+                            ms.Position = 0;
+                            using (var bitmap = new System.Drawing.Bitmap(ms))
+                            {
+                                var iconHandle = bitmap.GetHicon();
+                                _notifyIcon.Icon = System.Drawing.Icon.FromHandle(iconHandle);
+                            }
+                        }
+                    }
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Warning(ex, "Could not load custom icon, using default");
                 // Use a default system icon if resource not found
                 _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
             }

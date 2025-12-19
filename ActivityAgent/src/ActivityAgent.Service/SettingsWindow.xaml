@@ -4,53 +4,53 @@
         Title="Settings - SasWatch Agent" 
         Height="450" Width="500"
         WindowStartupLocation="CenterOwner"
-        Background="#1a1a2e"
-        Foreground="White"
+        Background="#0B1512"
+        Foreground="#E8F5F0"
         ResizeMode="NoResize">
 
     <Window.Resources>
         <Style x:Key="HeaderText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="20"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#e94560"/>
+            <Setter Property="Foreground" Value="#4FD1C5"/>
             <Setter Property="Margin" Value="0,0,0,20"/>
         </Style>
         
         <Style x:Key="LabelText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#aaa"/>
+            <Setter Property="Foreground" Value="#B8D9CE"/>
             <Setter Property="Margin" Value="0,0,0,5"/>
         </Style>
         
         <Style x:Key="InputBox" TargetType="TextBox">
-            <Setter Property="Background" Value="#16213e"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#0f3460"/>
+            <Setter Property="Background" Value="#152924"/>
+            <Setter Property="Foreground" Value="#E8F5F0"/>
+            <Setter Property="BorderBrush" Value="#2F6E5E"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="FontSize" Value="12"/>
         </Style>
         
         <Style x:Key="PasswordBox" TargetType="PasswordBox">
-            <Setter Property="Background" Value="#16213e"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#0f3460"/>
+            <Setter Property="Background" Value="#152924"/>
+            <Setter Property="Foreground" Value="#E8F5F0"/>
+            <Setter Property="BorderBrush" Value="#2F6E5E"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="FontSize" Value="12"/>
         </Style>
         
         <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Background" Value="#16213e"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#0f3460"/>
+            <Setter Property="Background" Value="#152924"/>
+            <Setter Property="Foreground" Value="#E8F5F0"/>
+            <Setter Property="BorderBrush" Value="#2F6E5E"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="FontSize" Value="12"/>
         </Style>
         
         <Style x:Key="SaveButton" TargetType="Button">
-            <Setter Property="Background" Value="#e94560"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#4FD1C5"/>
+            <Setter Property="Foreground" Value="#0B1512"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="30,12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -69,7 +69,7 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#ff6b6b"/>
+                    <Setter Property="Background" Value="#6FE1D8"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -111,7 +111,7 @@
                          Margin="0,0,0,20"/>
 
             <!-- Info Text -->
-            <TextBlock TextWrapping="Wrap" Foreground="#888" FontSize="11" Margin="0,0,0,20">
+            <TextBlock TextWrapping="Wrap" Foreground="#7FA59A" FontSize="11" Margin="0,0,0,20">
                 <Run Text="Note: Changes require restarting the agent. "/>
                 <Run Text="You may need to run as Administrator to save settings."/>
             </TextBlock>
@@ -121,10 +121,35 @@
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Cancel" 
                     Click="Cancel_Click" 
-                    Style="{StaticResource SaveButton}"
-                    Background="#0f3460"
                     Margin="0,0,10,0"
-                    Padding="20,12"/>
+                    Padding="20,12"
+                    Background="#2F6E5E"
+                    Foreground="#E8F5F0"
+                    BorderThickness="0"
+                    FontWeight="SemiBold"
+                    FontSize="14"
+                    Cursor="Hand">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" 
+                                            CornerRadius="5"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3B7F6C"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
             <Button Content="Save Settings" 
                     Click="Save_Click" 
                     Style="{StaticResource SaveButton}"
