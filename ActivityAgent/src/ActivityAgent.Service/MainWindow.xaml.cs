@@ -175,13 +175,38 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Read the most recent log file (last 1000 lines to avoid memory issues)
+            // Read the most recent log file with shared read access
             var logFile = logFiles.First();
-            var lines = File.ReadAllLines(logFile);
+            var lines = new List<string>();
+            
+            // Use FileStream with FileShare.ReadWrite to allow reading while file is being written
+            try
+            {
+                using (var fileStream = new FileStream(logFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(fileStream))
+                {
+                    string? line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        lines.Add(line);
+                    }
+                }
+            }
+            catch (IOException ioEx) when (ioEx.Message.Contains("being used by another process"))
+            {
+                // File is locked, keep showing cached content
+                if (!string.IsNullOrEmpty(LogsTextBox.Text) && !LogsTextBox.Text.StartsWith("Error"))
+                {
+                    return; // Keep showing cached content
+                }
+                LogsTextBox.Text = $"[Note: Log file is being written, showing cached content. Last update: {DateTime.Now:HH:mm:ss}]";
+                return;
+            }
+            
+            // Get last 1000 lines to avoid memory issues
             var recentLines = lines.TakeLast(1000);
             
             var wasAutoScroll = AutoScrollCheckBox.IsChecked == true;
-            var scrollPosition = LogsTextBox.SelectionStart;
             
             LogsTextBox.Text = string.Join(Environment.NewLine, recentLines);
             
@@ -193,7 +218,12 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            LogsTextBox.Text = $"Error loading logs: {ex.Message}";
+            // Only show error if we don't have any cached content
+            if (string.IsNullOrEmpty(LogsTextBox.Text) || LogsTextBox.Text.StartsWith("Error loading logs:"))
+            {
+                LogsTextBox.Text = $"Error loading logs: {ex.Message}";
+            }
+            // Otherwise, keep showing cached content
         }
     }
 

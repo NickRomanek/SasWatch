@@ -186,38 +186,29 @@ public class AgentWorker : IDisposable
         {
             _logger.LogInformation("Processing {Count} events from queue", events.Count);
 
-            if (_socketClient.IsConnected && _socketClient.UseSocketIO)
+            int sent = 0;
+            
+            // Always try to send - Socket.IO will fall back to HTTP automatically
+            sent = await _socketClient.SendBatchAsync(events, cancellationToken);
+            _eventsSent += sent;
+            _lastSyncTime = DateTime.Now;
+            
+            if (sent < events.Count)
             {
-                // Send in real-time via Socket.IO
-                var sent = await _socketClient.SendBatchAsync(events, cancellationToken);
-                _eventsSent += sent;
-                _lastSyncTime = DateTime.Now;
-                
-                if (sent < events.Count)
-                {
-                    // Queue failed events for retry
-                    var failedEvents = events.Skip(sent).ToList();
-                    foreach (var evt in failedEvents)
-                    {
-                        _persistentQueue.Enqueue(evt);
-                    }
-                    _logger.LogWarning("{Failed} events queued for retry", failedEvents.Count);
-                }
-                
-                RaiseStatusChanged($"Sent {sent} events");
-            }
-            else
-            {
-                // No socket connection - persist events for later
-                foreach (var evt in events)
+                // Queue failed events for retry
+                var failedEvents = events.Skip(sent).ToList();
+                foreach (var evt in failedEvents)
                 {
                     _persistentQueue.Enqueue(evt);
                 }
-                _logger.LogInformation("Events persisted to queue (socket not connected)");
-                
-                // Try to send via HTTP fallback
-                await ProcessPersistentQueueAsync(cancellationToken);
+                _logger.LogWarning("{Failed} events queued for retry", failedEvents.Count);
             }
+            else
+            {
+                _logger.LogInformation("Successfully sent {Count} events", sent);
+            }
+            
+            RaiseStatusChanged($"Sent {sent} events");
         }
 
         // Send heartbeat to keep connection alive
