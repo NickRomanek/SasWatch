@@ -8,6 +8,7 @@ const auth = require('./lib/auth');
 const db = require('./lib/database-multitenant');
 const { generateMonitorScript, generateDeploymentInstructions } = require('./lib/script-generator');
 const { generateIntunePackage, getPackageFilename } = require('./lib/intune-package-generator');
+const { generateInstallerPackage } = require('./lib/msi-generator');
 const { fetchEntraDirectory, fetchEntraSignIns, fetchEntraApplications } = require('./lib/entra-sync');
 const prisma = require('./lib/prisma');
 const { 
@@ -1310,6 +1311,68 @@ function setupScriptRoutes(app) {
         } catch (error) {
             console.error('Intune package download error:', error);
             res.status(500).send('Failed to generate Intune package');
+        }
+    });
+
+    // Download Activity Agent Installer (customizable)
+    app.post('/download/activity-agent-installer', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await auth.getAccountById(req.session.accountId);
+
+            // Prefer explicit API_URL, else infer from request protocol/host
+            const inferredBaseUrl = `${req.protocol}://${req.get('host')}`;
+            const apiUrl = process.env.API_URL || inferredBaseUrl;
+
+            // Get configuration from request body
+            const {
+                apiUrl: customApiUrl,
+                enableApplicationMonitoring = true,
+                enableWindowFocusMonitoring = true,
+                enableBrowserMonitoring = true,
+                enableNetworkMonitoring = false,
+                checkIntervalSeconds = 30,
+                hideGui = false,
+                startWithWindows = true,
+                silentInstall = false
+            } = req.body;
+
+            // Use custom API URL if provided, otherwise use default
+            const finalApiUrl = customApiUrl || apiUrl;
+
+            console.log('Generating Activity Agent installer for account:', account.name);
+
+            // Generate installer package with user configuration
+            const packageBuffer = await generateInstallerPackage({
+                apiUrl: finalApiUrl,
+                apiKey: account.apiKey,
+                enableApplicationMonitoring,
+                enableWindowFocusMonitoring,
+                enableBrowserMonitoring,
+                enableNetworkMonitoring,
+                checkIntervalSeconds: parseInt(checkIntervalSeconds) || 30,
+                hideGui: hideGui === true || hideGui === 'true',
+                startWithWindows: startWithWindows === true || startWithWindows === 'true',
+                silentInstall: silentInstall === true || silentInstall === 'true'
+            });
+
+            // Generate filename
+            const timestamp = new Date().toISOString().split('T')[0];
+            const filename = `SasWatchAgent-Installer-${timestamp}.zip`;
+
+            console.log('Activity Agent installer generated successfully:', filename);
+
+            // Send ZIP file
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+            res.setHeader('Content-Length', packageBuffer.length);
+            res.send(packageBuffer);
+
+        } catch (error) {
+            console.error('Activity Agent installer download error:', error);
+            res.status(500).json({ 
+                success: false, 
+                error: 'Failed to generate installer: ' + error.message 
+            });
         }
     });
 }

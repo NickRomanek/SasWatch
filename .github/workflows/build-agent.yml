@@ -1,0 +1,115 @@
+name: Build and Release Activity Agent
+
+on:
+  push:
+    tags:
+      - 'agent-v*'
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-agent:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        working-directory: ActivityAgent/src/ActivityAgent.Service
+        run: dotnet restore
+
+      - name: Build agent
+        working-directory: ActivityAgent/src/ActivityAgent.Service
+        run: dotnet build -c Release
+
+      - name: Publish agent
+        working-directory: ActivityAgent/src/ActivityAgent.Service
+        run: |
+          dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ./publish
+
+      - name: Rename executable
+        working-directory: ActivityAgent/src/ActivityAgent.Service/publish
+        run: |
+          if (Test-Path "ActivityAgent.Service.exe") {
+            Rename-Item -Path "ActivityAgent.Service.exe" -NewName "SasWatchAgent.exe"
+          } elseif (Test-Path "SasWatchAgent.exe") {
+            Write-Host "SasWatchAgent.exe already exists"
+          } else {
+            Write-Host "Warning: No executable found"
+            Get-ChildItem
+          }
+
+      - name: Get version
+        id: get_version
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $version = $env:GITHUB_REF_NAME -replace '^agent-v', ''
+          } else {
+            $version = "latest"
+          }
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "tag=$env:GITHUB_REF_NAME" >> $env:GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SasWatchAgent
+          path: ActivityAgent/src/ActivityAgent.Service/publish/SasWatchAgent.exe
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/agent-v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ActivityAgent/src/ActivityAgent.Service/publish/SasWatchAgent.exe
+          name: Activity Agent ${{ steps.get_version.outputs.version }}
+          body: |
+            ## SasWatch Activity Agent ${{ steps.get_version.outputs.version }}
+            
+            ### Installation
+            1. Download the installer package from your account page at https://app.saswatch.com
+            2. The installer will automatically download `SasWatchAgent.exe` from this release
+            3. The agent will be configured with your API key and settings
+            
+            ### Changes
+            - See commit history for details
+            
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to latest release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ActivityAgent/src/ActivityAgent.Service/publish/SasWatchAgent.exe
+          tag_name: agent-latest
+          name: Activity Agent (Latest)
+          body: |
+            ## SasWatch Activity Agent (Latest Build)
+            
+            This is the latest build from the main branch.
+            
+            ### Installation
+            1. Download the installer package from your account page at https://app.saswatch.com
+            2. The installer will automatically download `SasWatchAgent.exe` from this release
+            3. The agent will be configured with your API key and settings
+            
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

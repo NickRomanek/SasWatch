@@ -444,6 +444,102 @@
             font-weight: 500;
         }
 
+        .agent-config-form {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.938rem;
+        }
+
+        .form-group input[type="text"],
+        .form-group select {
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 0.938rem;
+            transition: all 0.2s;
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-group small {
+            color: var(--text-secondary);
+            font-size: 0.813rem;
+            margin-top: -4px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 8px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .checkbox-label:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-hover);
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            margin-top: 2px;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-primary);
+        }
+
+        .checkbox-label span {
+            flex: 1;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .checkbox-label small {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.813rem;
+            margin-top: 4px;
+        }
+
+        .form-actions {
+            margin-top: 8px;
+        }
+
+        .form-actions .btn-download {
+            width: 100%;
+            justify-content: center;
+        }
+
         .survey-tab-button {
             position: fixed;
             bottom: 24px;
@@ -833,57 +929,109 @@
             </div>
         </div>
 
-        <!-- Script Download -->
+        <!-- Activity Agent Installer -->
         <div class="account-section">
-            <h2>📥 Downloads</h2>
-            <p class="section-description">Download pre-configured monitoring tools with your API key embedded.</p>
+            <h2>📥 Activity Agent Installer</h2>
+            <p class="section-description">Configure and download a custom installer for the SasWatch Activity Agent. The installer will download the latest agent from GitHub and configure it with your settings.</p>
 
-            <div class="download-grid">
-                <!-- PowerShell Script (Simple) -->
-                <div class="download-card">
-                    <h3>💻 PowerShell Script (Simple)</h3>
-                    <p>For manual deployment or testing on individual machines</p>
-                    <ul>
-                        <li>✓ Download and run directly</li>
-                        <li>✓ Quick testing on one machine</li>
-                        <li>✓ Custom deployment scenarios</li>
-                    </ul>
-                    <a href="/download/monitor-script" class="btn-download">📥 Download Script (.ps1)</a>
+            <form id="agentInstallerForm" class="agent-config-form">
+                <!-- API Configuration -->
+                <div class="form-group">
+                    <label for="apiUrl">API URL</label>
+                    <input type="text" id="apiUrl" name="apiUrl" value="" placeholder="https://app.saswatch.com">
+                    <small>Base URL for your SasWatch instance (will be auto-filled on page load)</small>
                 </div>
 
-                <!-- Intune Deployment Package -->
-                <div class="download-card">
-                    <h3>🚀 Intune Package (Enterprise)</h3>
-                    <p>Complete package for Microsoft Intune deployment across all devices</p>
-                    <ul>
-                        <li>✓ Deploy to hundreds of devices</li>
-                        <li>✓ Includes installer & uninstaller</li>
-                        <li>✓ Runs as SYSTEM at startup</li>
-                        <li>✓ Step-by-step deployment guide</li>
-                    </ul>
-                    <div class="download-buttons">
-                        <a href="/download/intune-package" class="btn-download">📦 Download Production Package (5min intervals)</a>
-                        <a href="/download/intune-package-testing" class="btn-download btn-testing">🧪 Download Testing Package (5s intervals)</a>
+                <div class="form-group">
+                    <label for="apiKeyDisplay">API Key</label>
+                    <div class="api-key-display">
+                        <div class="api-key-input-wrapper">
+                            <input type="password" id="apiKeyDisplay" value="<%= account.apiKey %>" readonly>
+                            <button class="btn-eye-toggle" type="button" onclick="toggleApiKeyVisibility(event)">👁️</button>
+                        </div>
+                        <button class="btn-copy" type="button" onclick="copyApiKey()">📋 Copy</button>
+                    </div>
+                    <small>Your API key (auto-filled from account)</small>
+                </div>
+
+                <!-- Monitoring Options -->
+                <div class="form-group">
+                    <label>Monitoring Options</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="enableApplicationMonitoring" checked>
+                            <span>Application Monitoring</span>
+                            <small>Track application launches</small>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="enableWindowFocusMonitoring" checked>
+                            <span>Window Focus Monitoring</span>
+                            <small>Track window focus changes</small>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="enableBrowserMonitoring" checked>
+                            <span>Browser URL Monitoring</span>
+                            <small>Track browser URLs and domains</small>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="enableNetworkMonitoring">
+                            <span>Network Monitoring</span>
+                            <small>Track network connections (high volume)</small>
+                        </label>
                     </div>
                 </div>
 
-                <!-- Chrome Extension -->
-                <div class="download-card">
-                    <h3>🌐 Chrome Extension (Optional)</h3>
-                    <p>Tracks Adobe web applications (Acrobat Web, Express, Admin Console)</p>
-                    <ul>
-                        <li>✓ Monitors web apps</li>
-                        <li>✓ Easy browser installation</li>
-                        <li>✓ Configure with your API key</li>
-                    </ul>
-                    <a href="/download/extension" class="btn-download">📥 Download Extension (.zip)</a>
+                <!-- Check Interval -->
+                <div class="form-group">
+                    <label for="checkIntervalSeconds">Check Interval</label>
+                    <select id="checkIntervalSeconds" name="checkIntervalSeconds">
+                        <option value="30">30 seconds</option>
+                        <option value="60" selected>1 minute</option>
+                        <option value="300">5 minutes</option>
+                        <option value="600">10 minutes</option>
+                    </select>
+                    <small>How often the agent sends data to the server</small>
                 </div>
-            </div>
 
-            <div class="deployment-note">
-                <strong>🚀 Recommended for Enterprise:</strong> Download the Intune Package for professional deployment to all devices.
-                It includes everything you need: monitoring script (with your API key), installer, uninstaller, and complete deployment instructions.
-            </div>
+                <!-- Startup Behavior -->
+                <div class="form-group">
+                    <label for="startWithWindows">Startup Behavior</label>
+                    <select id="startWithWindows" name="startWithWindows">
+                        <option value="true" selected>Start with Windows</option>
+                        <option value="false">Manual start only</option>
+                    </select>
+                    <small>Whether to start the agent automatically on Windows startup</small>
+                </div>
+
+                <!-- Install Options -->
+                <div class="form-group">
+                    <label>Install Options</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="hideGui">
+                            <span>Hide GUI / Tray-only mode</span>
+                            <small>Run in system tray only (no main window)</small>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="silentInstall">
+                            <span>Silent Install</span>
+                            <small>For Intune/SCCM deployment (no user prompts)</small>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Download Button -->
+                <div class="form-actions">
+                    <button type="submit" class="btn-download" id="downloadInstallerBtn">
+                        📥 Download Installer Package
+                    </button>
+                </div>
+
+                <div class="deployment-note">
+                    <strong>📦 Installation:</strong> Extract the ZIP file and run <code>Install-SasWatchAgent.ps1</code> as Administrator. 
+                    For silent installation (Intune/SCCM), use: <code>powershell.exe -ExecutionPolicy Bypass -File "Install-SasWatchAgent.ps1" -Silent</code>
+                </div>
+            </form>
         </div>
 
         <!-- Account Stats -->
@@ -1203,6 +1351,95 @@
         }
 
         document.addEventListener('DOMContentLoaded', initSurveyModal);
+
+        // Auto-fill API URL on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const apiUrlInput = document.getElementById('apiUrl');
+            if (apiUrlInput && !apiUrlInput.value) {
+                // Get current origin
+                const currentOrigin = window.location.origin;
+                apiUrlInput.value = currentOrigin;
+            }
+        });
+
+        // Agent Installer Form Handler
+        const agentInstallerForm = document.getElementById('agentInstallerForm');
+        if (agentInstallerForm) {
+            agentInstallerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const downloadBtn = document.getElementById('downloadInstallerBtn');
+                const originalText = downloadBtn.innerHTML;
+                
+                // Disable button and show loading
+                downloadBtn.disabled = true;
+                downloadBtn.innerHTML = '<span class="spinner"></span> Generating installer...';
+                
+                try {
+                    // Collect form data
+                    const formData = {
+                        apiUrl: document.getElementById('apiUrl').value.trim(),
+                        enableApplicationMonitoring: document.querySelector('input[name="enableApplicationMonitoring"]').checked,
+                        enableWindowFocusMonitoring: document.querySelector('input[name="enableWindowFocusMonitoring"]').checked,
+                        enableBrowserMonitoring: document.querySelector('input[name="enableBrowserMonitoring"]').checked,
+                        enableNetworkMonitoring: document.querySelector('input[name="enableNetworkMonitoring"]').checked,
+                        checkIntervalSeconds: parseInt(document.getElementById('checkIntervalSeconds').value) || 30,
+                        startWithWindows: document.getElementById('startWithWindows').value === 'true',
+                        hideGui: document.querySelector('input[name="hideGui"]').checked,
+                        silentInstall: document.querySelector('input[name="silentInstall"]').checked
+                    };
+
+                    // Validate
+                    if (!formData.apiUrl) {
+                        Toast.error('Please enter an API URL');
+                        downloadBtn.disabled = false;
+                        downloadBtn.innerHTML = originalText;
+                        return;
+                    }
+
+                    // Make POST request to generate installer
+                    const response = await fetch('/download/activity-agent-installer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({ error: 'Failed to generate installer' }));
+                        throw new Error(error.error || 'Failed to generate installer');
+                    }
+
+                    // Get filename from Content-Disposition header or use default
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let filename = 'SasWatchAgent-Installer.zip';
+                    if (contentDisposition) {
+                        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+                        if (match) filename = match[1];
+                    }
+
+                    // Download the file
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+
+                    Toast.success('✓ Installer downloaded successfully!');
+                } catch (error) {
+                    console.error('Installer generation error:', error);
+                    Toast.error('Failed to generate installer: ' + error.message);
+                } finally {
+                    downloadBtn.disabled = false;
+                    downloadBtn.innerHTML = originalText;
+                }
+            });
+        }
     </script>
         </div>
     </main>

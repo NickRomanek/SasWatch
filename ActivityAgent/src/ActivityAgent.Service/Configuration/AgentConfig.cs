@@ -37,6 +37,11 @@ public class AgentConfig
     public bool EnableWindowFocusMonitoring { get; set; } = true;
 
     /// <summary>
+    /// Hide GUI - run in tray-only mode (no main window)
+    /// </summary>
+    public bool HideGui { get; set; } = false;
+
+    /// <summary>
     /// Load configuration from Windows Registry
     /// Location: HKLM\Software\ActivityAgent
     /// </summary>
@@ -66,6 +71,7 @@ public class AgentConfig
             config.EnableNetworkMonitoring = GetBoolValue(key, "EnableNetwork", config.EnableNetworkMonitoring);
             config.EnableApplicationMonitoring = GetBoolValue(key, "EnableApps", config.EnableApplicationMonitoring);
             config.EnableWindowFocusMonitoring = GetBoolValue(key, "EnableWindowFocus", config.EnableWindowFocusMonitoring);
+            config.HideGui = GetBoolValue(key, "HideGui", config.HideGui);
 
             Console.WriteLine($"Configuration loaded from registry:");
             Console.WriteLine($"  API URL: {config.ApiUrl}");
@@ -76,6 +82,7 @@ public class AgentConfig
             Console.WriteLine($"    Browser Monitoring: {(config.EnableBrowserMonitoring ? "ENABLED" : "DISABLED")}");
             Console.WriteLine($"    Window Focus Monitoring: {(config.EnableWindowFocusMonitoring ? "ENABLED" : "DISABLED")}");
             Console.WriteLine($"    Network Monitoring: {(config.EnableNetworkMonitoring ? "ENABLED" : "DISABLED")}");
+            Console.WriteLine($"    Hide GUI: {(config.HideGui ? "ENABLED" : "DISABLED")}");
         }
         catch (Exception ex)
         {
@@ -116,6 +123,7 @@ public class AgentConfig
             key.SetValue("EnableBrowser", config.EnableBrowserMonitoring ? 1 : 0, RegistryValueKind.DWord);
             key.SetValue("EnableWindowFocus", config.EnableWindowFocusMonitoring ? 1 : 0, RegistryValueKind.DWord);
             key.SetValue("EnableNetwork", config.EnableNetworkMonitoring ? 1 : 0, RegistryValueKind.DWord);
+            key.SetValue("HideGui", config.HideGui ? 1 : 0, RegistryValueKind.DWord);
 
             return true;
         }

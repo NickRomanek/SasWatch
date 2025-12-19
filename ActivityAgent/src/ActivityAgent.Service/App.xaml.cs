@@ -85,8 +85,11 @@ public partial class App : Application
                 StartWorker(config);
             }
 
-            // Show main window on startup
-            ShowMainWindow();
+            // Show main window on startup (unless HideGui is enabled)
+            if (!config.HideGui)
+            {
+                ShowMainWindow();
+            }
             
             Log.Information("Application started successfully");
         }
@@ -167,6 +170,13 @@ public partial class App : Application
 
     private void ShowMainWindow()
     {
+        var config = AgentConfig.LoadFromRegistry();
+        if (config.HideGui)
+        {
+            // In HideGui mode, don't show the window
+            return;
+        }
+
         if (_mainWindow == null)
         {
             _mainWindow = new MainWindow(_worker);
@@ -186,7 +196,21 @@ public partial class App : Application
     }
 
     // Context menu handlers
-    private void ShowWindow_Click(object sender, RoutedEventArgs e) => ShowMainWindow();
+    private void ShowWindow_Click(object sender, RoutedEventArgs e)
+    {
+        var config = AgentConfig.LoadFromRegistry();
+        if (config.HideGui)
+        {
+            // Temporarily allow showing window even in HideGui mode when explicitly requested
+            var tempConfig = config;
+            tempConfig.HideGui = false;
+            ShowMainWindow();
+        }
+        else
+        {
+            ShowMainWindow();
+        }
+    }
     
     private void ViewLogs_Click(object sender, RoutedEventArgs e)
     {
