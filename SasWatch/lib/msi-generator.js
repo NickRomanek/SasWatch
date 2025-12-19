@@ -292,12 +292,24 @@ async function generateInstallerPackage(config) {
 This package contains the installer script for the SasWatch Activity Agent.
 
 INSTALLATION:
+Option 1 (Recommended - Right-click method):
 1. Right-click "Install-SasWatchAgent.ps1"
 2. Select "Run with PowerShell" (as Administrator)
 3. Follow the prompts
 
+Option 2 (Command line):
+1. Open PowerShell as Administrator
+2. Run: powershell.exe -ExecutionPolicy Bypass -File "Install-SasWatchAgent.ps1"
+3. Follow the prompts
+
 SILENT INSTALLATION (for Intune/SCCM):
     powershell.exe -ExecutionPolicy Bypass -File "Install-SasWatchAgent.ps1" -Silent
+
+TROUBLESHOOTING:
+If you get an "execution policy" error:
+- Run PowerShell as Administrator
+- Use: powershell.exe -ExecutionPolicy Bypass -File "Install-SasWatchAgent.ps1"
+- Or temporarily set policy: Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 
 The installer will:
 - Download the latest agent from GitHub Releases
