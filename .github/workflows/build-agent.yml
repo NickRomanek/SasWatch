@@ -69,9 +69,9 @@ jobs:
           name: SasWatchAgent
           path: ActivityAgent/src/ActivityAgent.Service/publish/SasWatchAgent.exe
 
-      - name: Create Release
+      - name: Create Tagged Release
         if: startsWith(github.ref, 'refs/tags/agent-v')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ActivityAgent/src/ActivityAgent.Service/publish/SasWatchAgent.exe
           name: Activity Agent ${{ steps.get_version.outputs.version }}
@@ -88,12 +88,13 @@ jobs:
             
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload to latest release
+      - name: Upload to Latest Release
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ActivityAgent/src/ActivityAgent.Service/publish/SasWatchAgent.exe
           tag_name: agent-latest
@@ -110,6 +111,8 @@ jobs:
             
           draft: false
           prerelease: true
+          fail_on_unmatched_files: false
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
