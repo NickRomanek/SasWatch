@@ -17,6 +17,8 @@ on:
 jobs:
   build-agent:
     runs-on: windows-latest
+    permissions:
+      contents: write  # Required to create releases
     
     steps:
       - name: Checkout code
