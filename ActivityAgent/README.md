@@ -30,28 +30,28 @@ dotnet build
 
 ### Configure
 
-Run PowerShell as Administrator:
+**Using the GUI (Recommended):**
+
+1. Run the application
+2. Click **Settings** button in the main window
+3. Select environment preset:
+   - **Production** - `https://app.saswatch.com/api/track`
+   - **Local Development** - `http://localhost:3000/api/track`
+   - **Custom** - Enter your own URL
+4. Enter your API Key
+5. Click **Save Settings**
+
+**Note:** Saving settings may require Administrator privileges. If save fails, restart the application as Administrator.
+
+**Manual Registry Configuration (Advanced):**
+
+If you prefer to configure via registry:
 
 ```powershell
-# Create registry key
+# Run as Administrator
 New-Item -Path "HKLM:\Software\ActivityAgent" -Force
-
-# Set your SasWatch API URL and Key
 Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "ApiUrl" -Value "https://app.saswatch.com/api/track"
 Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "ApiKey" -Value "your-api-key-here"
-
-# Optional settings
-Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "CheckInterval" -Value 30
-Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "EnableApps" -Value 1
-Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "EnableBrowser" -Value 1
-Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "EnableWindowFocus" -Value 1
-Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "EnableNetwork" -Value 0
-```
-
-Or use the helper script:
-
-```powershell
-.\setup-local-config.ps1 -ApiUrl "https://app.saswatch.com/api/track" -ApiKey "your-api-key"
 ```
 
 ### Run
@@ -93,17 +93,28 @@ This creates a single self-contained executable (~70-100MB) that includes the .N
 - **Double-click** - Open status window
 - **Right-click** - Context menu:
   - Show Window
-  - View Logs
+  - View Logs (opens log directory in Explorer)
   - Open Dashboard
   - Exit
 
 ### Status Window
 
+**Status Tab:**
 - Connection status (green = connected)
 - Events sent/queued counters
 - Active monitors list
 - Recent activity log
-- Quick action buttons
+
+**Logs Tab:**
+- Real-time log viewer (auto-refreshes every 5 seconds)
+- Shows last 1000 lines from log files
+- Refresh and Clear buttons
+- Auto-scroll option
+
+**Buttons:**
+- **Settings** - Configure API URL and Key (Local/Production/Custom presets)
+- **Open Dashboard** - Opens SasWatch web dashboard
+- **Hide to Tray** - Minimize to system tray
 
 ## ⚙️ Configuration
 

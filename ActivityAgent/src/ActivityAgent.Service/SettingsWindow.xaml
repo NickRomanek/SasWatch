@@ -1,0 +1,135 @@
+<Window x:Class="ActivityAgent.Service.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings - SasWatch Agent" 
+        Height="450" Width="500"
+        WindowStartupLocation="CenterOwner"
+        Background="#1a1a2e"
+        Foreground="White"
+        ResizeMode="NoResize">
+
+    <Window.Resources>
+        <Style x:Key="HeaderText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#e94560"/>
+            <Setter Property="Margin" Value="0,0,0,20"/>
+        </Style>
+        
+        <Style x:Key="LabelText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#aaa"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+        
+        <Style x:Key="InputBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#16213e"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#0f3460"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        
+        <Style x:Key="PasswordBox" TargetType="PasswordBox">
+            <Setter Property="Background" Value="#16213e"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#0f3460"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        
+        <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background" Value="#16213e"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#0f3460"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        
+        <Style x:Key="SaveButton" TargetType="Button">
+            <Setter Property="Background" Value="#e94560"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="30,12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#ff6b6b"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Settings" Style="{StaticResource HeaderText}"/>
+
+        <StackPanel Grid.Row="1">
+            <!-- Environment Preset -->
+            <TextBlock Text="Environment" Style="{StaticResource LabelText}" Margin="0,0,0,5"/>
+            <ComboBox x:Name="EnvironmentCombo" 
+                      Style="{StaticResource ComboBoxStyle}"
+                      SelectionChanged="EnvironmentCombo_SelectionChanged"
+                      Margin="0,0,0,20">
+                <ComboBoxItem Content="Production" Tag="prod"/>
+                <ComboBoxItem Content="Local Development" Tag="local"/>
+                <ComboBoxItem Content="Custom" Tag="custom"/>
+            </ComboBox>
+
+            <!-- API URL -->
+            <TextBlock Text="API URL" Style="{StaticResource LabelText}"/>
+            <TextBox x:Name="ApiUrlBox" 
+                     Style="{StaticResource InputBox}"
+                     TextChanged="ApiUrlBox_TextChanged"
+                     Margin="0,0,0,20"/>
+
+            <!-- API Key -->
+            <TextBlock Text="API Key" Style="{StaticResource LabelText}"/>
+            <PasswordBox x:Name="ApiKeyBox" 
+                         Style="{StaticResource PasswordBox}"
+                         PasswordChanged="ApiKeyBox_PasswordChanged"
+                         Margin="0,0,0,20"/>
+
+            <!-- Info Text -->
+            <TextBlock TextWrapping="Wrap" Foreground="#888" FontSize="11" Margin="0,0,0,20">
+                <Run Text="Note: Changes require restarting the agent. "/>
+                <Run Text="You may need to run as Administrator to save settings."/>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" 
+                    Click="Cancel_Click" 
+                    Style="{StaticResource SaveButton}"
+                    Background="#0f3460"
+                    Margin="0,0,10,0"
+                    Padding="20,12"/>
+            <Button Content="Save Settings" 
+                    Click="Save_Click" 
+                    Style="{StaticResource SaveButton}"
+                    x:Name="SaveButton"/>
+        </StackPanel>
+    </Grid>
+</Window>
+

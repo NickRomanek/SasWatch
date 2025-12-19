@@ -96,6 +96,42 @@ public class AgentConfig
     }
 
     /// <summary>
+    /// Save configuration to Windows Registry
+    /// Requires administrator privileges
+    /// </summary>
+    public static bool SaveToRegistry(AgentConfig config)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.CreateSubKey(@"Software\ActivityAgent", true);
+            if (key == null)
+            {
+                return false;
+            }
+
+            key.SetValue("ApiUrl", config.ApiUrl ?? "", RegistryValueKind.String);
+            key.SetValue("ApiKey", config.ApiKey ?? "", RegistryValueKind.String);
+            key.SetValue("CheckInterval", config.CheckIntervalSeconds, RegistryValueKind.DWord);
+            key.SetValue("EnableApps", config.EnableApplicationMonitoring ? 1 : 0, RegistryValueKind.DWord);
+            key.SetValue("EnableBrowser", config.EnableBrowserMonitoring ? 1 : 0, RegistryValueKind.DWord);
+            key.SetValue("EnableWindowFocus", config.EnableWindowFocusMonitoring ? 1 : 0, RegistryValueKind.DWord);
+            key.SetValue("EnableNetwork", config.EnableNetworkMonitoring ? 1 : 0, RegistryValueKind.DWord);
+
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Need admin rights to write to HKLM
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving configuration: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Validate configuration
     /// </summary>
     public bool IsValid()

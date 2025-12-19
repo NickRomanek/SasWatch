@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ActivityAgent.Service.Configuration;
 
 namespace ActivityAgent.Service;
@@ -29,6 +32,17 @@ public partial class MainWindow : Window
         
         // Load initial configuration
         LoadConfiguration();
+        
+        // Load logs on startup
+        Loaded += (s, e) => RefreshLogs();
+        
+        // Set up auto-refresh timer for logs (every 5 seconds)
+        var logTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(5)
+        };
+        logTimer.Tick += (s, e) => RefreshLogs();
+        logTimer.Start();
     }
 
     private void LoadConfiguration()
@@ -96,15 +110,90 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ViewLogs_Click(object sender, RoutedEventArgs e)
+    private void Settings_Click(object sender, RoutedEventArgs e)
     {
-        if (Directory.Exists(LogPath))
+        var settingsWindow = new SettingsWindow
         {
-            Process.Start("explorer.exe", LogPath);
+            Owner = this
+        };
+        
+        if (settingsWindow.ShowDialog() == true && settingsWindow.SettingsChanged)
+        {
+            // Reload configuration
+            LoadConfiguration();
+            
+            // Show restart message
+            var result = MessageBox.Show(
+                "Settings saved successfully!\n\n" +
+                "The agent needs to restart to apply changes.\n\n" +
+                "Would you like to restart now?",
+                "Restart Required",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            
+            if (result == MessageBoxResult.Yes)
+            {
+                // Restart application
+                var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName 
+                    ?? System.Reflection.Assembly.GetExecutingAssembly().Location
+                    ?? AppDomain.CurrentDomain.BaseDirectory + "SasWatchAgent.exe";
+                
+                Application.Current.Shutdown();
+                System.Diagnostics.Process.Start(exePath);
+            }
         }
-        else
+    }
+
+    private void RefreshLogs_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshLogs();
+    }
+
+    private void ClearLogs_Click(object sender, RoutedEventArgs e)
+    {
+        LogsTextBox.Clear();
+    }
+
+    private void RefreshLogs()
+    {
+        try
         {
-            MessageBox.Show("Log directory not found.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (!Directory.Exists(LogPath))
+            {
+                LogsTextBox.Text = "Log directory not found.";
+                return;
+            }
+
+            // Get the most recent log file
+            var logFiles = Directory.GetFiles(LogPath, "activity-agent-*.log")
+                .OrderByDescending(f => new FileInfo(f).LastWriteTime)
+                .ToList();
+
+            if (logFiles.Count == 0)
+            {
+                LogsTextBox.Text = "No log files found.";
+                return;
+            }
+
+            // Read the most recent log file (last 1000 lines to avoid memory issues)
+            var logFile = logFiles.First();
+            var lines = File.ReadAllLines(logFile);
+            var recentLines = lines.TakeLast(1000);
+            
+            var wasAutoScroll = AutoScrollCheckBox.IsChecked == true;
+            var scrollPosition = LogsTextBox.SelectionStart;
+            
+            LogsTextBox.Text = string.Join(Environment.NewLine, recentLines);
+            
+            // Auto-scroll to bottom if enabled
+            if (wasAutoScroll)
+            {
+                LogsTextBox.ScrollToEnd();
+            }
+        }
+        catch (Exception ex)
+        {
+            LogsTextBox.Text = $"Error loading logs: {ex.Message}";
         }
     }
 

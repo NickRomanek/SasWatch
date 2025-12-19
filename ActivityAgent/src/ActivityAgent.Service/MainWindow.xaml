@@ -97,9 +97,27 @@
             </StackPanel>
         </StackPanel>
 
-        <!-- Main Content -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
+        <!-- Main Content with Tabs -->
+        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0">
+            <TabControl.Resources>
+                <Style TargetType="TabItem">
+                    <Setter Property="Background" Value="#0f3460"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Padding" Value="15,8"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#e94560"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </TabControl.Resources>
+            
+            <!-- Status Tab -->
+            <TabItem Header="Status">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
                 
                 <!-- Connection Status Card -->
                 <Border Style="{StaticResource CardBorder}">
@@ -203,12 +221,42 @@
                         </ListBox>
                     </StackPanel>
                 </Border>
-            </StackPanel>
-        </ScrollViewer>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            
+            <!-- Logs Tab -->
+            <TabItem Header="Logs">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="Refresh" Click="RefreshLogs_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="15,5"/>
+                        <Button Content="Clear" Click="ClearLogs_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="15,5"/>
+                        <CheckBox x:Name="AutoScrollCheckBox" Content="Auto-scroll" IsChecked="True" Foreground="#aaa" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                        <TextBox x:Name="LogsTextBox" 
+                                 Background="#0a0a1a"
+                                 Foreground="#4ecca3"
+                                 FontFamily="Consolas"
+                                 FontSize="11"
+                                 IsReadOnly="True"
+                                 TextWrapping="NoWrap"
+                                 BorderThickness="0"
+                                 Padding="10"/>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+        </TabControl>
 
         <!-- Footer Buttons -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
-            <Button Content="View Logs" Click="ViewLogs_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0"/>
+            <Button Content="Settings" Click="Settings_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0"/>
             <Button Content="Open Dashboard" Click="OpenDashboard_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0"/>
             <Button Content="Hide to Tray" Click="HideToTray_Click" Style="{StaticResource ModernButton}"/>
         </StackPanel>
