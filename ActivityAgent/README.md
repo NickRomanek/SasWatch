@@ -1,188 +1,188 @@
-# Activity Agent - Windows Monitoring Service
+# SasWatch Activity Agent
 
-A professional .NET 8 Windows Service for comprehensive activity monitoring. Tracks applications, browser URLs, and network connections. Integrates seamlessly with your existing SasWatch backend.
+A Windows desktop application for comprehensive activity monitoring. Runs in the system tray and tracks applications, browser URLs, and usage to help optimize SaaS license utilization.
 
-## 🎯 Overview
+## 🎯 Features
 
-This Windows Service monitors user activity and reports to the SasWatch backend API for license optimization and usage analytics. **Zero backend changes required!**
-
-## ⚡ Quick Start
-
-**Want to test it right now?** → [QUICK-START.md](QUICK-START.md) (5 minutes)
-
-**Want to understand what was built?** → [BUILD-SUMMARY.md](BUILD-SUMMARY.md) (10 minutes)
-
-**Ready for production?** → [ENTERPRISE-DEPLOYMENT.md](ENTERPRISE-DEPLOYMENT.md) (30 minutes)
-
-## 📁 Project Structure
-
-```
-ActivityAgent/
-├── src/
-│   ├── ActivityAgent.Service/           # Main Windows Service
-│   └── ActivityAgent.Installer/         # WiX MSI Installer
-├── tests/
-│   └── ActivityAgent.Tests/
-├── docs/
-│   └── ENTERPRISE-DEPLOYMENT.md
-└── build/
-    └── build.ps1                        # Build automation
-```
+- **System Tray Icon** - Runs quietly in the background with tray icon
+- **Modern GUI** - Dark-themed status window with real-time stats
+- **Application Monitoring** - Tracks running applications
+- **Browser URL Tracking** - Monitors Chrome, Edge, Firefox URLs
+- **Window Focus Tracking** - Detects active window changes
+- **Real-time Sync** - Socket.IO connection to SasWatch backend
+- **Offline Support** - Events queued when connection is lost
+- **Single Executable** - Self-contained .exe for easy deployment
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- .NET 8 SDK
-- Visual Studio 2022 (or VS Code)
-- WiX Toolset v4 (for installer)
+- Windows 10/11
+- .NET 8 SDK (for building)
+- SasWatch account with API key
 
 ### Build
 
 ```bash
-cd ActivityAgent
-dotnet restore
+cd ActivityAgent/src/ActivityAgent.Service
 dotnet build
 ```
 
-### Run Locally (Development)
+### Configure
+
+Run PowerShell as Administrator:
+
+```powershell
+# Create registry key
+New-Item -Path "HKLM:\Software\ActivityAgent" -Force
+
+# Set your SasWatch API URL and Key
+Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "ApiUrl" -Value "https://app.saswatch.com/api/track"
+Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "ApiKey" -Value "your-api-key-here"
+
+# Optional settings
+Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "CheckInterval" -Value 30
+Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "EnableApps" -Value 1
+Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "EnableBrowser" -Value 1
+Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "EnableWindowFocus" -Value 1
+Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "EnableNetwork" -Value 0
+```
+
+Or use the helper script:
+
+```powershell
+.\setup-local-config.ps1 -ApiUrl "https://app.saswatch.com/api/track" -ApiKey "your-api-key"
+```
+
+### Run
 
 ```bash
 cd src/ActivityAgent.Service
 dotnet run
 ```
 
-### Configuration
+The agent will:
+1. Show a window with status information
+2. Add an icon to the system tray
+3. Start monitoring and sending events to SasWatch
 
-The agent reads configuration from Windows Registry:
-- Location: `HKLM\Software\ActivityAgent`
-- Keys:
-  - `ApiUrl` - Backend API endpoint
-  - `ApiKey` - Account API key
-  - `CheckInterval` - Seconds between checks (default: 10)
+## 📦 Building for Distribution
 
-For local testing, set these manually:
+### Create Single Executable
 
-```powershell
-New-Item -Path "HKLM:\Software\ActivityAgent" -Force
-Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "ApiUrl" -Value "http://localhost:3000/api/track"
-Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "ApiKey" -Value "your-test-api-key"
-Set-ItemProperty -Path "HKLM:\Software\ActivityAgent" -Name "CheckInterval" -Value 10
+```bash
+cd ActivityAgent/src/ActivityAgent.Service
+dotnet publish -c Release
 ```
 
-## 🏗️ Architecture
+Output: `bin/Release/net8.0-windows/win-x64/publish/SasWatchAgent.exe`
 
-### Components
+This creates a single self-contained executable (~70-100MB) that includes the .NET runtime.
 
-1. **Configuration Manager** - Reads settings from registry
-2. **API Client** - Communicates with SasWatch backend
-3. **Event Queue** - In-memory queue for events
-4. **Monitors:**
-   - Application Monitor - Tracks running applications
-   - Browser Monitor - Extracts URLs from browsers
-   - Window Focus Monitor - Tracks active windows
-   - Network Monitor - Monitors network connections
+### Add Custom Icon (Optional)
 
-### Data Flow
+1. Create a 256x256 .ico file
+2. Save as `Resources/icon.ico`
+3. Uncomment `<ApplicationIcon>` in `.csproj`
+4. Rebuild
 
-```
-Monitors → Event Queue → API Client → SasWatch Backend
-                ↓
-         Offline Cache (SQLite)
-```
+## 🖥️ User Interface
 
-## 📊 What It Monitors
+### System Tray
+
+- **Double-click** - Open status window
+- **Right-click** - Context menu:
+  - Show Window
+  - View Logs
+  - Open Dashboard
+  - Exit
+
+### Status Window
+
+- Connection status (green = connected)
+- Events sent/queued counters
+- Active monitors list
+- Recent activity log
+- Quick action buttons
+
+## ⚙️ Configuration
+
+Settings are stored in Windows Registry:
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `ApiUrl` | SasWatch API endpoint | Required |
+| `ApiKey` | Your account API key | Required |
+| `CheckInterval` | Seconds between syncs | 30 |
+| `EnableApps` | Track applications | 1 (true) |
+| `EnableBrowser` | Track browser URLs | 1 (true) |
+| `EnableWindowFocus` | Track window focus | 1 (true) |
+| `EnableNetwork` | Track network (high volume) | 0 (false) |
+
+## 📊 What's Monitored
 
 - ✅ Running applications (process names, window titles)
 - ✅ Browser URLs (Chrome, Edge, Firefox)
-- ✅ Active window focus
-- ✅ Network connections (external domains)
-- ❌ Does NOT monitor: keystrokes, file contents, screenshots
+- ✅ Active window focus changes
+- ✅ Network connections (optional, disabled by default)
+- ❌ **NOT** monitored: keystrokes, file contents, screenshots
 
-## 🔒 Security
+## 🔒 Privacy & Security
 
-- Runs as Windows Service (SYSTEM account)
+- No keystroke logging
+- No file content access
+- No screenshots
+- Data sent only to your SasWatch instance
 - API key authentication
-- HTTPS-only communication
-- Respects system proxy settings
-- Minimal data collection (privacy-focused)
-
-## 📦 Deployment
-
-### Via Intune (Recommended)
-
-1. Build MSI installer
-2. Upload to Intune as Win32 app
-3. Configure install command:
-   ```
-   msiexec /i ActivityAgent.msi /qn APIKEY="%API_KEY%" APIURL="https://your-app.railway.app/api/track"
-   ```
-4. Assign to user groups
-
-### Manual Installation
-
-```powershell
-# Install
-msiexec /i ActivityAgent.msi /qn APIKEY="your-key" APIURL="https://your-api.com/api/track"
-
-# Uninstall
-msiexec /x {PRODUCT-GUID} /qn
-```
-
-## 🧪 Testing
-
-```bash
-cd tests/ActivityAgent.Tests
-dotnet test
-```
+- HTTPS encrypted communication
 
 ## 📝 Logs
 
-- Location: `C:\ProgramData\ActivityAgent\logs\`
-- Retention: 30 days
-- View logs: `Get-Content C:\ProgramData\ActivityAgent\logs\activity-agent-*.log -Tail 50`
+Location: `C:\ProgramData\ActivityAgent\logs\`
 
-## 🔧 Development
-
-### Adding a New Monitor
-
-1. Create class implementing `IMonitor`
-2. Add to `Worker.cs` monitors list
-3. Register in dependency injection
-
-### Testing Against Local Backend
-
-```bash
-# Terminal 1: Start SasWatch backend
-cd SasWatch
-npm start
-
-# Terminal 2: Run agent
-cd ActivityAgent/src/ActivityAgent.Service
-dotnet run
+View logs:
+```powershell
+Get-Content "C:\ProgramData\ActivityAgent\logs\activity-agent-*.log" -Tail 50 -Wait
 ```
 
-## 📚 Documentation
+## 🛠️ Development
 
-- [Enterprise Deployment Guide](ENTERPRISE-DEPLOYMENT.md)
-- [API Integration](docs/API-INTEGRATION.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
+### Project Structure
 
-## 🤝 Contributing
+```
+ActivityAgent/
+├── src/
+│   └── ActivityAgent.Service/
+│       ├── App.xaml(.cs)           # WPF Application (tray)
+│       ├── MainWindow.xaml(.cs)    # Status GUI
+│       ├── AgentWorker.cs          # Main monitoring logic
+│       ├── Configuration/
+│       │   └── AgentConfig.cs      # Registry settings
+│       ├── Monitors/
+│       │   ├── ApplicationMonitor.cs
+│       │   ├── WindowFocusMonitor.cs
+│       │   └── NetworkMonitor.cs
+│       └── Services/
+│           ├── SocketClient.cs     # Real-time API
+│           ├── EventQueue.cs
+│           └── PersistentQueue.cs
+└── README.md
+```
 
-This is an internal tool. For changes:
-1. Create feature branch
-2. Test thoroughly
-3. Update documentation
-4. Submit for review
+### Tech Stack
+
+- .NET 8 WPF
+- Hardcodet.NotifyIcon.Wpf (tray icon)
+- Socket.IO (real-time)
+- Serilog (logging)
+- SQLite (offline queue)
+
+## 🤝 Support
+
+- **Bugs/Issues**: GitHub Issues
+- **Feature Requests**: GitHub Issues
+- **Questions**: [app.saswatch.com](https://app.saswatch.com)
 
 ## 📄 License
 
-Proprietary - Internal Use Only
-
-## 🆘 Support
-
-- Technical Issues: IT Support
-- Feature Requests: Development Team
-- Privacy Questions: Legal/HR Department
-
+AGPL-3.0 - See LICENSE file
