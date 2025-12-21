@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+/**
+ * Startup script that ensures migrations run before server starts
+ * This is more reliable than using && chains in package.json
+ */
+
+const { execSync } = require('child_process');
+const path = require('path');
+
+function runCommand(command, description, continueOnError = false) {
+    console.log(`[Startup] ${description}...`);
+    try {
+        execSync(command, { stdio: 'inherit', cwd: __dirname + '/..' });
+        console.log(`[Startup] ✓ ${description} completed`);
+        return true;
+    } catch (error) {
+        if (continueOnError) {
+            console.error(`[Startup] ⚠️  ${description} had issues, but continuing...`);
+            return false;
+        } else {
+            console.error(`[Startup] ✗ ${description} failed`);
+            throw error;
+        }
+    }
+}
+
+async function main() {
+    try {
+        console.log('[Startup] ============================================');
+        console.log('[Startup] Starting SasWatch Server');
+        console.log('[Startup] ============================================');
+        
+        // Step 1: Check session secret
+        runCommand('node check-session-secret.js', 'Checking session secret');
+        
+        // Step 2: Ensure platformAdmin column exists
+        runCommand('node scripts/ensure-platform-admin-column.js', 'Running migration checks', true);
+        
+        // Step 3: Run Prisma migrations
+        runCommand('npx prisma migrate deploy', 'Running Prisma migrations', true);
+        
+        // Step 4: Start server
+        console.log('[Startup] ============================================');
+        console.log('[Startup] Starting server...');
+        console.log('[Startup] ============================================');
+        runCommand('node server.js', 'Starting server');
+        
+    } catch (error) {
+        console.error('[Startup] Fatal error during startup:', error.message);
+        process.exit(1);
+    }
+}
+
+main();
+

@@ -4,7 +4,7 @@
   "description": "Microsoft Graph API application for tracking login logs and managing SaaS licenses",
   "main": "server.js",
   "scripts": {
-    "start": "node check-session-secret.js && echo '[Startup] Running migration checks...' && node scripts/ensure-platform-admin-column.js && echo '[Startup] Running Prisma migrations...' && npx prisma migrate deploy && echo '[Startup] Migrations complete, starting server...' && node server.js",
+    "start": "node scripts/startup.js",
     "dev": "nodemon server.js",
     "test-connection": "node test-connection.js",
     "generate-secret": "node generate-secret.js",
