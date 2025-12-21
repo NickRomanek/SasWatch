@@ -6,14 +6,11 @@
   "scripts": {
     "start": "node scripts/startup.js",
     "dev": "nodemon server.js",
-    "test-connection": "node test-connection.js",
     "generate-secret": "node generate-secret.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio",
-    "db:seed": "node scripts/migrate-json-to-db.js",
-    "db:test": "node test-db-connection.js"
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@azure/msal-node": "^2.5.1",

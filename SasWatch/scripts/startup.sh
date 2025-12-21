@@ -6,17 +6,12 @@ set -e  # Exit on error
 echo "[Startup] Step 1: Checking session secret..."
 node check-session-secret.js
 
-echo "[Startup] Step 2: Running migration checks..."
-node scripts/ensure-platform-admin-column.js || {
-    echo "[Startup] Warning: Migration check script had issues, continuing..."
-}
-
-echo "[Startup] Step 3: Running Prisma migrations..."
+echo "[Startup] Step 2: Running Prisma migrations..."
 npx prisma migrate deploy || {
     echo "[Startup] Error: Migration failed, but continuing to start server..."
     echo "[Startup] You may need to run migrations manually"
 }
 
-echo "[Startup] Step 4: Starting server..."
+echo "[Startup] Step 3: Starting server..."
 node server.js
 

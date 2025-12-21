@@ -33,13 +33,10 @@ async function main() {
         // Step 1: Check session secret
         runCommand('node check-session-secret.js', 'Checking session secret');
         
-        // Step 2: Ensure platformAdmin column exists
-        runCommand('node scripts/ensure-platform-admin-column.js', 'Running migration checks', true);
-        
-        // Step 3: Run Prisma migrations
+        // Step 2: Run Prisma migrations
         runCommand('npx prisma migrate deploy', 'Running Prisma migrations', true);
         
-        // Step 4: Start server
+        // Step 3: Start server
         console.log('[Startup] ============================================');
         console.log('[Startup] Starting server...');
         console.log('[Startup] ============================================');
