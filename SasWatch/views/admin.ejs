@@ -397,7 +397,7 @@
                             <div class="hide-mobile" style="font-size: 0.75rem; color: var(--text-secondary);">
                                 <%= new Date(account.createdAt).toLocaleDateString() %>
                             </div>
-                            <div style="display: flex; gap: 8px;">
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                 <button class="expand-btn" onclick="toggleActivity('<%= account.id %>')" data-account-id="<%= account.id %>">
                                     📊 View
                                 </button>
@@ -407,6 +407,14 @@
                                     <%= account.id === currentAccount.id ? 'disabled title="Cannot disable your own account"' : '' %>
                                 >
                                     <%= account.isActive ? 'Disable' : 'Enable' %>
+                                </button>
+                                <button 
+                                    class="toggle-active-btn <%= (account.platformAdmin || account.isSuperAdmin) ? '' : 'active' %>"
+                                    style="font-size: 0.7rem; padding: 4px 8px;"
+                                    onclick="togglePlatformAdmin('<%= account.id %>', <%= account.platformAdmin || account.isSuperAdmin %>)"
+                                    <%= account.id === currentAccount.id ? 'disabled title="Cannot modify your own admin status"' : '' %>
+                                >
+                                    <%= (account.platformAdmin || account.isSuperAdmin) ? '👑 Revoke' : '👑 Grant' %>
                                 </button>
                             </div>
                             <div class="activity-section" id="activity-<%= account.id %>">
@@ -542,6 +550,45 @@
                     Toast.error('Failed to update account: ' + error.message);
                 } else {
                     alert('Failed to update account: ' + error.message);
+                }
+            }
+        }
+
+        async function togglePlatformAdmin(accountId, currentStatus) {
+            const action = currentStatus ? 'revoke platform admin from' : 'grant platform admin to';
+            if (!confirm(`Are you sure you want to ${action} this account?\n\nPlatform admins can manage all accounts on the platform.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/accounts/${accountId}/toggle-platform-admin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        platformAdmin: !currentStatus
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    if (typeof Toast !== 'undefined') {
+                        Toast.success(data.message);
+                    } else {
+                        alert(data.message);
+                    }
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    throw new Error(data.error || 'Failed to update platform admin status');
+                }
+            } catch (error) {
+                console.error('Toggle platform admin error:', error);
+                if (typeof Toast !== 'undefined') {
+                    Toast.error('Failed to update: ' + error.message);
+                } else {
+                    alert('Failed to update: ' + error.message);
                 }
             }
         }

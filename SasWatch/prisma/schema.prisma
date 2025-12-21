@@ -14,15 +14,16 @@ datasource db {
 model Account {
   id                    String    @id @default(uuid())
   name                  String // Organization name
-  email                 String    @unique // Admin email
-  password              String // Hashed password
+  email                 String    @unique // Primary contact email (for billing/notifications)
+  password              String? // Hashed password (DEPRECATED - use AccountMember.password)
   apiKey                String    @unique @default(uuid()) // Unique API key for this account
   isActive              Boolean   @default(true)
-  isSuperAdmin          Boolean   @default(false) // Super admin access (requires env variable match)
+  isSuperAdmin          Boolean   @default(false) // DEPRECATED - use platformAdmin
+  platformAdmin         Boolean   @default(false) // Platform-wide admin (for SaaS host)
   subscriptionTier      String    @default("free") // free, pro, enterprise
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
-  lastLoginAt           DateTime?
+  lastLoginAt           DateTime? // DEPRECATED - use AccountMember.lastLoginAt
   entraLastSyncAt       DateTime?
   entraTenantId         String? // Tenant ID from admin consent
   entraConnectedAt      DateTime? // When admin consent was granted
@@ -31,22 +32,23 @@ model Account {
   hiddenLicenses        String[]  @default([]) // Licenses to hide from user display
   licenseCosts          Json?     @default("{}") // License pricing: { "licenseName": { costPerLicense, totalLicenses, totalCost } }
 
-  // Email Verification
+  // Email Verification (DEPRECATED - use AccountMember fields)
   emailVerified            Boolean   @default(false)
   emailVerificationToken   String?   @unique
   emailVerificationExpires DateTime?
 
-  // Password Reset
+  // Password Reset (DEPRECATED - use AccountMember fields)
   passwordResetToken   String?   @unique
   passwordResetExpires DateTime?
 
-  // MFA/2FA - Email-based MFA using magic links
+  // MFA/2FA (DEPRECATED - use AccountMember fields)
   mfaEnabled     Boolean  @default(true)
   mfaSecret      String? // TOTP secret (encrypted)
   mfaBackupCodes String[] @default([]) // Encrypted backup codes
   mfaMethod      String? // 'totp', 'sms', 'email' (for future)
 
   // Relations
+  members              AccountMember[] // Team members who can log in
   users                User[]
   usageEvents          UsageEvent[]
   unmappedUsernames    UnmappedUsername[]
@@ -59,6 +61,46 @@ model Account {
   @@index([email])
   @@index([apiKey])
   @@map("accounts")
+}
+
+// AccountMember model - people who can log into an account (RBAC)
+model AccountMember {
+  id                       String    @id @default(uuid())
+  accountId                String
+  account                  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  email                    String    @unique // Login email (globally unique)
+  password                 String    // Hashed password
+  name                     String    // Display name
+  role                     String    @default("viewer") // owner, admin, editor, viewer
+  isActive                 Boolean   @default(true)
+
+  // Email Verification
+  emailVerified            Boolean   @default(false)
+  emailVerificationToken   String?   @unique
+  emailVerificationExpires DateTime?
+
+  // Password Reset
+  passwordResetToken       String?   @unique
+  passwordResetExpires     DateTime?
+
+  // MFA/2FA - Email-based MFA using magic links
+  mfaEnabled               Boolean   @default(true)
+  mfaSecret                String?   // TOTP secret (for future)
+  mfaBackupCodes           String[]  @default([])
+  mfaMethod                String?   // 'email', 'totp', 'sms'
+
+  // Tracking
+  lastLoginAt              DateTime?
+  invitedBy                String?   // ID of member who invited them
+  invitationToken          String?   @unique // For pending invitations
+  invitationExpires        DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([accountId])
+  @@index([email])
+  @@index([role])
+  @@map("account_members")
 }
 
 // User model - stores Adobe users and their information

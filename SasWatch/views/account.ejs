@@ -750,12 +750,18 @@
                 </a>
             </div>
             <div class="sidebar-nav-item">
+                <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
+                    <span class="nav-icon">🧑‍🤝‍🧑</span>
+                    <span>Team</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
                 <a href="/account" class="sidebar-nav-link active" data-tooltip="Account">
                     <span class="nav-icon">⚙️</span>
                     <span>Account</span>
                 </a>
             </div>
-            <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
+            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin)) { %>
             <div class="sidebar-nav-item">
                 <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
                     <span class="nav-icon">🛠️</span>
@@ -763,7 +769,7 @@
                 </a>
             </div>
             <% } %>
-            <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
+            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin)) { %>
             <div class="sidebar-nav-item">
                 <a href="/admin" class="sidebar-nav-link" data-tooltip="Admin">
                     <span class="nav-icon">👑</span>

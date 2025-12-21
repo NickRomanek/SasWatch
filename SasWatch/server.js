@@ -76,7 +76,8 @@ const {
     setupDevRoutes,
     setupAdminRoutes,
     setupDataRoutes,
-    setupRenewalsRoutes
+    setupRenewalsRoutes,
+    setupMembersRoutes
 } = require('./server-multitenant-routes');
 
 // Initialize session management (must be before routes)
@@ -94,6 +95,7 @@ setupAppsRoutes(app);
 setupDevRoutes(app);
 setupAdminRoutes(app);
 setupRenewalsRoutes(app);
+setupMembersRoutes(app);
 
 // ============================================
 // Health Check Endpoints

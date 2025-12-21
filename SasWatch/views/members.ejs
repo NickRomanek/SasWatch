@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - SasWatch</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .members-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .members-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .members-header h1 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 2rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .invite-btn {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .invite-btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .members-table {
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+        }
+
+        .table-header {
+            background: var(--bg-secondary);
+            padding: 16px 24px;
+            border-bottom: 2px solid var(--border-color);
+            font-weight: 600;
+            color: var(--text-primary);
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr 1fr 1fr 120px;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .table-row {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr 1fr 1fr 120px;
+            gap: 16px;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .table-row:hover {
+            background: var(--bg-hover);
+        }
+
+        .table-row:last-child {
+            border-bottom: none;
+        }
+
+        .member-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .member-email {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .role-owner {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .role-admin {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+
+        .role-editor {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .role-viewer {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: var(--success);
+            color: white;
+        }
+
+        .status-pending {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status-inactive {
+            background: var(--danger);
+            color: white;
+        }
+
+        .mfa-badge {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .mfa-enabled {
+            color: var(--success);
+        }
+
+        .actions-cell {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: var(--bg-hover);
+        }
+
+        .action-btn.danger {
+            color: var(--danger);
+        }
+
+        .action-btn.danger:hover {
+            background: var(--danger);
+            color: white;
+            border-color: var(--danger);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Invite Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal h2 {
+            margin: 0 0 24px 0;
+            color: var(--text-primary);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--text-primary);
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .your-badge {
+            background: var(--accent-primary);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            margin-left: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        .role-select {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .role-select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 900px) {
+            .table-header,
+            .table-row {
+                grid-template-columns: 1fr 1fr 1fr auto;
+            }
+            
+            .table-header .hide-mobile,
+            .table-row .hide-mobile {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <img src="/images/logoTransp.png" alt="SasWatch" class="logo-image" width="32" height="32">
+                <span>SasWatch</span>
+            </div>
+            <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+                <span id="sidebar-toggle-icon">◀</span>
+            </button>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <div class="sidebar-nav-item">
+                <a href="/" class="sidebar-nav-link" data-tooltip="Renewals">
+                    <span class="nav-icon">📅</span>
+                    <span>Renewals</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/users" class="sidebar-nav-link" data-tooltip="Users">
+                    <span class="nav-icon">👥</span>
+                    <span>Users</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/licenses" class="sidebar-nav-link" data-tooltip="Licenses">
+                    <span class="nav-icon">📜</span>
+                    <span>Licenses</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
+                    <span class="nav-icon">📦</span>
+                    <span>Apps</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
+                    <span class="nav-icon">📊</span>
+                    <span>Activity</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/members" class="sidebar-nav-link active" data-tooltip="Team">
+                    <span class="nav-icon">🧑‍🤝‍🧑</span>
+                    <span>Team</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/account" class="sidebar-nav-link" data-tooltip="Account">
+                    <span class="nav-icon">⚙️</span>
+                    <span>Account</span>
+                </a>
+            </div>
+            <% if (typeof currentAccount !== 'undefined' && currentAccount && (currentAccount.isSuperAdmin || currentAccount.platformAdmin)) { %>
+            <div class="sidebar-nav-item">
+                <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
+                    <span class="nav-icon">🛠️</span>
+                    <span>Dev</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/admin" class="sidebar-nav-link" data-tooltip="Admin">
+                    <span class="nav-icon">👑</span>
+                    <span>Admin</span>
+                </a>
+            </div>
+            <% } %>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-actions">
+                <a href="/logout" class="sidebar-footer-link">
+                    <span class="nav-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+                <button class="sidebar-footer-link" onclick="toggleTheme()" style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;" title="Toggle theme">
+                    <span class="nav-icon" id="theme-icon">☀️</span>
+                    <span>Theme</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="members-container">
+            <div class="members-header">
+                <h1>
+                    <span>🧑‍🤝‍🧑</span>
+                    <span>Team Members</span>
+                </h1>
+                <% if (canInvite) { %>
+                <button class="invite-btn" onclick="openInviteModal()">
+                    <span>➕</span>
+                    <span>Invite Member</span>
+                </button>
+                <% } %>
+            </div>
+
+            <% if (members.length === 0) { %>
+                <div class="empty-state">
+                    <div class="empty-state-icon">👥</div>
+                    <h2>No team members yet</h2>
+                    <p>Invite team members to collaborate on managing your subscriptions.</p>
+                </div>
+            <% } else { %>
+                <div class="members-table">
+                    <div class="table-header">
+                        <div>Name</div>
+                        <div>Email</div>
+                        <div>Role</div>
+                        <div class="hide-mobile">Status</div>
+                        <div class="hide-mobile">MFA</div>
+                        <div>Actions</div>
+                    </div>
+                    <% members.forEach((member) => { %>
+                        <div class="table-row" data-member-id="<%= member.id %>">
+                            <div class="member-name">
+                                <%= member.name %>
+                                <% if (currentMember && member.id === currentMember.id) { %>
+                                    <span class="your-badge">You</span>
+                                <% } %>
+                            </div>
+                            <div class="member-email"><%= member.email %></div>
+                            <div>
+                                <% if (canInvite && member.role !== 'owner' && member.id !== currentMember.id) { %>
+                                    <select class="role-select" onchange="changeRole('<%= member.id %>', this.value)" data-original-role="<%= member.role %>">
+                                        <% assignableRoles.forEach(role => { %>
+                                            <option value="<%= role %>" <%= member.role === role ? 'selected' : '' %>><%= role.charAt(0).toUpperCase() + role.slice(1) %></option>
+                                        <% }); %>
+                                        <% if (!assignableRoles.includes(member.role)) { %>
+                                            <option value="<%= member.role %>" selected disabled><%= member.role.charAt(0).toUpperCase() + member.role.slice(1) %></option>
+                                        <% } %>
+                                    </select>
+                                <% } else { %>
+                                    <span class="role-badge role-<%= member.role %>">
+                                        <%= member.role.charAt(0).toUpperCase() + member.role.slice(1) %>
+                                    </span>
+                                <% } %>
+                            </div>
+                            <div class="hide-mobile">
+                                <span class="status-badge <%= member.isActive ? 'status-active' : 'status-pending' %>">
+                                    <%= member.isActive ? 'Active' : 'Pending' %>
+                                </span>
+                            </div>
+                            <div class="hide-mobile">
+                                <span class="mfa-badge <%= member.mfaEnabled ? 'mfa-enabled' : '' %>">
+                                    <%= member.mfaEnabled ? '✓ Enabled' : '✗ Disabled' %>
+                                </span>
+                            </div>
+                            <div class="actions-cell">
+                                <% if (member.role !== 'owner' && member.id !== currentMember.id && canInvite) { %>
+                                    <button class="action-btn danger" onclick="removeMember('<%= member.id %>', '<%= member.name %>')">
+                                        Remove
+                                    </button>
+                                <% } else { %>
+                                    <button class="action-btn" disabled>—</button>
+                                <% } %>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } %>
+        </div>
+    </main>
+
+    <!-- Invite Modal -->
+    <div class="modal-overlay" id="inviteModal">
+        <div class="modal">
+            <h2>Invite Team Member</h2>
+            <form id="inviteForm" onsubmit="submitInvite(event)">
+                <div class="form-group">
+                    <label for="inviteEmail">Email Address *</label>
+                    <input type="email" id="inviteEmail" name="email" required placeholder="colleague@company.com">
+                </div>
+                <div class="form-group">
+                    <label for="inviteName">Name</label>
+                    <input type="text" id="inviteName" name="name" placeholder="John Doe">
+                </div>
+                <div class="form-group">
+                    <label for="inviteRole">Role</label>
+                    <select id="inviteRole" name="role">
+                        <% assignableRoles.forEach(role => { %>
+                            <option value="<%= role %>" <%= role === 'viewer' ? 'selected' : '' %>>
+                                <%= role.charAt(0).toUpperCase() + role.slice(1) %>
+                            </option>
+                        <% }); %>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeInviteModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Send Invitation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/theme.js"></script>
+    <script src="/js/ui-components.js"></script>
+    <script>
+        function openInviteModal() {
+            document.getElementById('inviteModal').classList.add('active');
+            document.getElementById('inviteEmail').focus();
+        }
+
+        function closeInviteModal() {
+            document.getElementById('inviteModal').classList.remove('active');
+            document.getElementById('inviteForm').reset();
+        }
+
+        async function submitInvite(e) {
+            e.preventDefault();
+            
+            const form = document.getElementById('inviteForm');
+            const formData = new FormData(form);
+            
+            try {
+                const response = await fetch('/api/members/invite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: formData.get('email'),
+                        name: formData.get('name'),
+                        role: formData.get('role')
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (typeof Toast !== 'undefined') {
+                        Toast.success(data.message || 'Invitation sent!');
+                    } else {
+                        alert(data.message || 'Invitation sent!');
+                    }
+                    closeInviteModal();
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    throw new Error(data.error || 'Failed to send invitation');
+                }
+            } catch (error) {
+                if (typeof Toast !== 'undefined') {
+                    Toast.error(error.message);
+                } else {
+                    alert(error.message);
+                }
+            }
+        }
+
+        async function changeRole(memberId, newRole) {
+            try {
+                const response = await fetch(`/api/members/${memberId}/role`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (typeof Toast !== 'undefined') {
+                        Toast.success('Role updated');
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to update role');
+                }
+            } catch (error) {
+                if (typeof Toast !== 'undefined') {
+                    Toast.error(error.message);
+                } else {
+                    alert(error.message);
+                }
+                // Revert select
+                const select = document.querySelector(`[data-member-id="${memberId}"] .role-select`);
+                if (select) {
+                    select.value = select.dataset.originalRole;
+                }
+            }
+        }
+
+        async function removeMember(memberId, memberName) {
+            if (!confirm(`Are you sure you want to remove ${memberName} from the team?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/members/${memberId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (typeof Toast !== 'undefined') {
+                        Toast.success('Member removed');
+                    }
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    throw new Error(data.error || 'Failed to remove member');
+                }
+            } catch (error) {
+                if (typeof Toast !== 'undefined') {
+                    Toast.error(error.message);
+                } else {
+                    alert(error.message);
+                }
+            }
+        }
+
+        // Close modal on outside click
+        document.getElementById('inviteModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                closeInviteModal();
+            }
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeInviteModal();
+            }
+        });
+
+        // Sidebar toggle functionality
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('sidebar-toggle-icon');
+            sidebar.classList.toggle('collapsed');
+            
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
+            icon.textContent = isCollapsed ? '▶' : '◀';
+        }
+
+        // Initialize sidebar state
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarIcon = document.getElementById('sidebar-toggle-icon');
+            const savedSidebarState = localStorage.getItem('sidebarCollapsed') === 'true';
+            if (savedSidebarState) {
+                sidebar.classList.add('collapsed');
+                sidebarIcon.textContent = '▶';
+            }
+        });
+
+        window.toggleSidebar = toggleSidebar;
+    </script>
+
+    <%- include('_survey-widget') %>
+</body>
+</html>
+

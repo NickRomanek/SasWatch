@@ -510,11 +510,72 @@ async function sendRenewalReminderEmail({ to, subscription, daysUntil, accountNa
     await sendGraphEmail(fromEmail, message, 'renewal-reminder');
 }
 
+/**
+ * Send team member invitation email
+ */
+async function sendInvitationEmail({ to, token, inviterName, accountName }) {
+    if (!SURVEY_EMAIL_REGEX.test(to)) {
+        throw new Error('Invalid email address provided for invitation');
+    }
+
+    const fromEmail = getFromEmail('notification');
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const inviteLink = `${baseUrl}/invite/accept?token=${token}`;
+
+    const message = {
+        message: {
+            subject: `You're invited to join ${accountName} on SasWatch`,
+            body: {
+                contentType: 'HTML',
+                content: buildInvitationEmailBody(inviterName, accountName, inviteLink)
+            },
+            toRecipients: [{ emailAddress: { address: to } }]
+        },
+        saveToSentItems: false
+    };
+
+    await sendGraphEmail(fromEmail, message, 'invitation');
+}
+
+function buildInvitationEmailBody(inviterName, accountName, inviteLink) {
+    return `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #1a1a2e; margin-bottom: 24px;">You're invited to join ${accountName}</h2>
+            
+            <p style="color: #333; font-size: 16px; line-height: 1.6;">
+                ${inviterName} has invited you to join <strong>${accountName}</strong> on SasWatch.
+            </p>
+            
+            <p style="color: #333; font-size: 16px; line-height: 1.6;">
+                SasWatch helps teams track software subscriptions, manage licenses, and monitor application usage.
+            </p>
+            
+            <div style="margin: 32px 0;">
+                <a href="${inviteLink}" 
+                   style="background: #4DD4A2; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
+                    Accept Invitation
+                </a>
+            </div>
+            
+            <p style="color: #666; font-size: 14px;">
+                This invitation link expires in 7 days. If you didn't expect this invitation, you can safely ignore this email.
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+            
+            <p style="color: #999; font-size: 12px;">
+                <a href="${inviteLink}" style="color: #4DD4A2; word-break: break-all;">${inviteLink}</a>
+            </p>
+        </div>
+    `;
+}
+
 module.exports = {
     sendSurveyEmail,
     sendVerificationEmail,
     sendPasswordResetEmail,
     sendMfaEmail,
     sendRenewalReminderEmail,
+    sendInvitationEmail,
     SURVEY_EMAIL_REGEX
 };

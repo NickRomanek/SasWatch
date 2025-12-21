@@ -334,14 +334,25 @@ function setupAuthRoutes(app) {
                 emailVerificationSkipped: isDevelopment && !account.emailVerified,
                 mfaSkipped: !shouldEnforceMfa && account.mfaEnabled,
                 nodeEnv: nodeEnv,
-                isRailway: isRailway
+                isRailway: isRailway,
+                memberId: account.memberId || null,
+                memberRole: account.memberRole || 'owner'
             }, req);
             
             // Create session
             req.session.accountId = account.id;
             req.session.accountEmail = account.email;
             
-            console.log('Session created:', req.session.accountId);
+            // Store member info if using new RBAC system
+            if (account.memberId) {
+                req.session.memberId = account.memberId;
+                req.session.memberRole = account.memberRole;
+            } else {
+                // Legacy login - treat as owner
+                req.session.memberRole = 'owner';
+            }
+            
+            console.log('Session created:', req.session.accountId, 'role:', req.session.memberRole);
             
             // Save session before redirect
             req.session.save((err) => {
@@ -3209,6 +3220,56 @@ function setupAdminRoutes(app) {
         }
     });
 
+    // Toggle platform admin status
+    app.post('/admin/accounts/:id/toggle-platform-admin', auth.requireAuth, auth.requirePlatformAdmin, async (req, res) => {
+        try {
+            const accountId = req.params.id;
+            const { platformAdmin } = req.body;
+
+            // Prevent modifying yourself
+            if (accountId === req.account.id) {
+                return res.status(400).json({ 
+                    error: 'Cannot modify your own platform admin status' 
+                });
+            }
+
+            const account = await prisma.account.update({
+                where: { id: accountId },
+                data: { 
+                    platformAdmin: platformAdmin === true || platformAdmin === 'true',
+                    isSuperAdmin: platformAdmin === true || platformAdmin === 'true' // Keep legacy field in sync
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    platformAdmin: true,
+                    isSuperAdmin: true
+                }
+            });
+
+            // Log admin action
+            auditLog('PLATFORM_ADMIN_TOGGLE', req.account.id, {
+                action: account.platformAdmin ? 'granted' : 'revoked',
+                targetAccountId: accountId,
+                targetEmail: account.email,
+                targetName: account.name
+            }, req);
+
+            res.json({
+                success: true,
+                account,
+                message: `Platform admin ${account.platformAdmin ? 'granted to' : 'revoked from'} ${account.name}`
+            });
+        } catch (error) {
+            console.error('Toggle platform admin error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to update platform admin status'
+            });
+        }
+    });
+
     // View single account details
     app.get('/admin/accounts/:id', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
         try {
@@ -4053,6 +4114,281 @@ function setupRenewalsRoutes(app) {
     });
 }
 
+// ============================================
+// Team Members Routes (RBAC)
+// ============================================
+
+const permissions = require('./lib/permissions');
+
+function setupMembersRoutes(app) {
+    // GET /members - Team members page
+    app.get('/members', auth.requireAuth, auth.attachAccount, auth.requireRole(['owner', 'admin']), async (req, res) => {
+        try {
+            const accountId = req.session.accountId;
+            const members = await auth.getAccountMembers(accountId);
+            const currentMember = req.member || { role: 'owner', id: req.session.memberId };
+            
+            res.render('members', {
+                title: 'Team Members',
+                account: req.account,
+                currentAccount: req.account,
+                members: members,
+                currentMember: currentMember,
+                roles: permissions.getAllRoles(),
+                roleInfo: permissions.getRoleInfo,
+                assignableRoles: permissions.getAssignableRoles(currentMember.role),
+                canInvite: permissions.hasPermission(currentMember.role, 'members.invite')
+            });
+        } catch (error) {
+            console.error('Error loading members page:', error);
+            res.status(500).render('error', {
+                title: 'Error',
+                message: 'Failed to load team members',
+                account: req.account
+            });
+        }
+    });
+    
+    // GET /api/members - Get all members (API)
+    app.get('/api/members', auth.requireAuth, auth.requireRole(['owner', 'admin']), async (req, res) => {
+        try {
+            const members = await auth.getAccountMembers(req.session.accountId);
+            res.json({ success: true, members });
+        } catch (error) {
+            console.error('Error fetching members:', error);
+            res.status(500).json({ success: false, error: 'Failed to fetch members' });
+        }
+    });
+    
+    // POST /api/members/invite - Invite a new member
+    app.post('/api/members/invite', auth.requireAuth, auth.requirePermission('members.invite'), async (req, res) => {
+        try {
+            const { email, name, role } = req.body;
+            
+            if (!email) {
+                return res.status(400).json({ success: false, error: 'Email is required' });
+            }
+            
+            // Get current member for audit and role check
+            const currentMember = req.member || { id: req.session.memberId, role: req.session.memberRole || 'owner' };
+            
+            // Check if assigning allowed role
+            const assignableRoles = permissions.getAssignableRoles(currentMember.role);
+            const targetRole = role || 'viewer';
+            if (!assignableRoles.includes(targetRole)) {
+                return res.status(403).json({ 
+                    success: false, 
+                    error: `You cannot assign the ${targetRole} role` 
+                });
+            }
+            
+            // Create invited member (with invitation token, no password yet)
+            const member = await auth.createMember(
+                req.session.accountId,
+                { email, name: name || email, role: targetRole },
+                currentMember.id
+            );
+            
+            // Send invitation email
+            const { sendInvitationEmail } = require('./lib/email-sender');
+            try {
+                await sendInvitationEmail({
+                    to: email,
+                    token: member.invitationToken,
+                    inviterName: currentMember.name || req.account.name,
+                    accountName: req.account.name
+                });
+            } catch (emailError) {
+                console.error('Failed to send invitation email:', emailError);
+                // Don't fail the request - member was created
+            }
+            
+            auditLog('MEMBER_INVITED', req.session.accountId, {
+                invitedEmail: email,
+                invitedRole: targetRole,
+                invitedBy: currentMember.id
+            }, req);
+            
+            res.json({ 
+                success: true, 
+                message: `Invitation sent to ${email}`,
+                member: auth.sanitizeMemberForClient(member)
+            });
+        } catch (error) {
+            console.error('Error inviting member:', error);
+            res.status(400).json({ success: false, error: error.message });
+        }
+    });
+    
+    // PATCH /api/members/:id/role - Update member role
+    app.patch('/api/members/:id/role', auth.requireAuth, auth.requirePermission('members.edit'), async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { role } = req.body;
+            
+            if (!role || !permissions.isValidRole(role)) {
+                return res.status(400).json({ success: false, error: 'Invalid role' });
+            }
+            
+            const currentMember = req.member || { id: req.session.memberId, role: req.session.memberRole || 'owner' };
+            
+            const updatedMember = await auth.updateMemberRole(id, role, currentMember);
+            
+            auditLog('MEMBER_ROLE_CHANGED', req.session.accountId, {
+                memberId: id,
+                newRole: role,
+                changedBy: currentMember.id
+            }, req);
+            
+            res.json({ success: true, member: auth.sanitizeMemberForClient(updatedMember) });
+        } catch (error) {
+            console.error('Error updating member role:', error);
+            res.status(400).json({ success: false, error: error.message });
+        }
+    });
+    
+    // DELETE /api/members/:id - Remove member
+    app.delete('/api/members/:id', auth.requireAuth, auth.requirePermission('members.remove'), async (req, res) => {
+        try {
+            const { id } = req.params;
+            const currentMember = req.member || { id: req.session.memberId, role: req.session.memberRole || 'owner' };
+            
+            await auth.removeMember(id, currentMember);
+            
+            auditLog('MEMBER_REMOVED', req.session.accountId, {
+                memberId: id,
+                removedBy: currentMember.id
+            }, req);
+            
+            res.json({ success: true, message: 'Member removed' });
+        } catch (error) {
+            console.error('Error removing member:', error);
+            res.status(400).json({ success: false, error: error.message });
+        }
+    });
+    
+    // GET /invite/accept - Accept invitation page
+    app.get('/invite/accept', async (req, res) => {
+        try {
+            const { token } = req.query;
+            
+            if (!token) {
+                return res.render('invite-accept', {
+                    error: 'Invalid invitation link',
+                    token: null,
+                    member: null
+                });
+            }
+            
+            // Find member by invitation token
+            const member = await prisma.accountMember.findUnique({
+                where: { invitationToken: token },
+                include: { account: true }
+            });
+            
+            if (!member) {
+                return res.render('invite-accept', {
+                    error: 'Invalid or expired invitation link',
+                    token: null,
+                    member: null
+                });
+            }
+            
+            if (member.invitationExpires && new Date() > member.invitationExpires) {
+                return res.render('invite-accept', {
+                    error: 'This invitation has expired. Please request a new one.',
+                    token: null,
+                    member: null
+                });
+            }
+            
+            res.render('invite-accept', {
+                error: null,
+                token: token,
+                member: {
+                    email: member.email,
+                    name: member.name,
+                    accountName: member.account.name
+                }
+            });
+        } catch (error) {
+            console.error('Error loading invitation page:', error);
+            res.render('invite-accept', {
+                error: 'An error occurred',
+                token: null,
+                member: null
+            });
+        }
+    });
+    
+    // POST /invite/accept - Accept invitation and set password
+    app.post('/invite/accept', async (req, res) => {
+        try {
+            const { token, name, password, confirmPassword } = req.body;
+            
+            if (!token) {
+                return res.render('invite-accept', {
+                    error: 'Invalid invitation',
+                    token: null,
+                    member: null
+                });
+            }
+            
+            if (!password || password.length < 8) {
+                return res.render('invite-accept', {
+                    error: 'Password must be at least 8 characters',
+                    token: token,
+                    member: { name }
+                });
+            }
+            
+            if (password !== confirmPassword) {
+                return res.render('invite-accept', {
+                    error: 'Passwords do not match',
+                    token: token,
+                    member: { name }
+                });
+            }
+            
+            const result = await auth.acceptInvitation(token, name, password);
+            
+            if (!result.success) {
+                return res.render('invite-accept', {
+                    error: result.message,
+                    token: token,
+                    member: { name }
+                });
+            }
+            
+            // Get member for session
+            const member = await auth.getMemberById(result.memberId);
+            
+            // Log member in
+            req.session.accountId = member.accountId;
+            req.session.accountEmail = member.email;
+            req.session.memberId = member.id;
+            req.session.memberRole = member.role;
+            
+            auditLog('MEMBER_INVITATION_ACCEPTED', member.accountId, {
+                memberId: member.id,
+                email: member.email
+            }, req);
+            
+            req.session.save((err) => {
+                if (err) console.error('Session save error:', err);
+                res.redirect('/');
+            });
+        } catch (error) {
+            console.error('Error accepting invitation:', error);
+            res.render('invite-accept', {
+                error: 'An error occurred. Please try again.',
+                token: req.body.token,
+                member: { name: req.body.name }
+            });
+        }
+    });
+}
+
 module.exports = {
     setupMultiTenantRoutes,
     setupSession,
@@ -4066,6 +4402,7 @@ module.exports = {
     setupAppsRoutes,
     setupAdminRoutes,
     setupRenewalsRoutes,
+    setupMembersRoutes,  // New RBAC routes
     // Original names for backward compatibility
     setupScriptRoutes,
     setupTrackingAPI,
