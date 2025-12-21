@@ -19,7 +19,8 @@ async function createTestAccount() {
                 apiKey: 'test-api-key-12345',
                 subscriptionTier: 'Pro',
                 isActive: true,
-                password: await bcrypt.hash('testpassword', 10)
+                password: await bcrypt.hash('testpassword', 10),
+                mfaEnabled: true  // Enable MFA by default
             }
         });
         

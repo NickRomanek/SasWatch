@@ -43,7 +43,8 @@ async function createAdminAccount() {
                 email: email,
                 password: hashedPassword,
                 subscriptionTier: 'enterprise',
-                isActive: true
+                isActive: true,
+                mfaEnabled: true  // Enable MFA by default
             }
         });
         

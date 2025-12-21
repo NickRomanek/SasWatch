@@ -50,7 +50,8 @@ async function createAccount(name, email, password) {
             isActive: true,
             emailVerified: false,
             emailVerificationToken: verificationToken,
-            emailVerificationExpires: verificationExpires
+            emailVerificationExpires: verificationExpires,
+            mfaEnabled: true  // Enable MFA by default for security
         }
     });
     

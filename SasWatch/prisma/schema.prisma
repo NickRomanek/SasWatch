@@ -40,8 +40,8 @@ model Account {
   passwordResetToken   String?   @unique
   passwordResetExpires DateTime?
 
-  // MFA/2FA (for future use - fields added now to avoid migration later)
-  mfaEnabled     Boolean  @default(false)
+  // MFA/2FA - Email-based MFA using magic links
+  mfaEnabled     Boolean  @default(true)
   mfaSecret      String? // TOTP secret (encrypted)
   mfaBackupCodes String[] @default([]) // Encrypted backup codes
   mfaMethod      String? // 'totp', 'sms', 'email' (for future)
