@@ -258,7 +258,13 @@ function setupAuthRoutes(app) {
             console.log('Authentication successful for account:', account.id);
             
             // In development, skip email verification and MFA - only require email and password
-            const isDevelopment = process.env.NODE_ENV !== 'production';
+            // Check NODE_ENV and also check if we're on Railway (Railway sets RAILWAY_ENVIRONMENT)
+            const nodeEnv = process.env.NODE_ENV || 'development';
+            const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
+            const isDevelopment = nodeEnv !== 'production' && !isRailway;
+            
+            // Debug logging for MFA enforcement
+            console.log(`[Login] Email: ${email}, NODE_ENV: ${nodeEnv}, isRailway: ${isRailway}, isDevelopment: ${isDevelopment}, mfaEnabled: ${account.mfaEnabled}`);
             
             // Check if email is verified (skip in development)
             if (!isDevelopment && !account.emailVerified) {
@@ -273,7 +279,10 @@ function setupAuthRoutes(app) {
             }
             
             // Check MFA requirement (skip in development)
-            if (!isDevelopment && account.mfaEnabled) {
+            // Force MFA in production or on Railway, regardless of NODE_ENV
+            const shouldEnforceMfa = (!isDevelopment || isRailway) && account.mfaEnabled;
+            
+            if (shouldEnforceMfa) {
                 // Generate MFA token (reuse emailVerificationToken fields)
                 const mfaToken = generateSecureToken();
                 const mfaExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
@@ -323,7 +332,9 @@ function setupAuthRoutes(app) {
             auditLog('LOGIN_SUCCESS', account.id, {
                 email: email,
                 emailVerificationSkipped: isDevelopment && !account.emailVerified,
-                mfaSkipped: isDevelopment && account.mfaEnabled
+                mfaSkipped: !shouldEnforceMfa && account.mfaEnabled,
+                nodeEnv: nodeEnv,
+                isRailway: isRailway
             }, req);
             
             // Create session
