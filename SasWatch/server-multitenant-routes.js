@@ -22,7 +22,7 @@ const {
     auditLog,
     generateSecureToken 
 } = require('./lib/security');
-const { sendSurveyEmail, sendVerificationEmail, sendPasswordResetEmail, SURVEY_EMAIL_REGEX } = require('./lib/email-sender');
+const { sendSurveyEmail, sendVerificationEmail, sendPasswordResetEmail, sendMfaEmail, SURVEY_EMAIL_REGEX } = require('./lib/email-sender');
 const multer = require('multer');
 const path = require('path');
 const { extractFromDocument, processMultipleAttachments, isSupportedFileType, getMimeTypeFromFilename } = require('./lib/document-extractor');
@@ -274,16 +274,49 @@ function setupAuthRoutes(app) {
             
             // Check MFA requirement (skip in development)
             if (!isDevelopment && account.mfaEnabled) {
-                // TODO: Implement MFA verification flow
-                // For now, MFA is disabled in development
-                auditLog('MFA_REQUIRED', account.id, { email }, req);
+                // Generate MFA token (reuse emailVerificationToken fields)
+                const mfaToken = generateSecureToken();
+                const mfaExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
                 
-                return res.render('login', {
-                    error: 'Multi-factor authentication is required. Please complete MFA verification.',
-                    message: null,
-                    showResendLink: false,
-                    email: email
+                // Store MFA token in account
+                await prisma.account.update({
+                    where: { id: account.id },
+                    data: {
+                        emailVerificationToken: mfaToken,
+                        emailVerificationExpires: mfaExpires
+                    }
                 });
+                
+                // Send MFA magic link email
+                try {
+                    await sendMfaEmail({ 
+                        to: account.email, 
+                        token: mfaToken, 
+                        accountName: account.name 
+                    });
+                    
+                    auditLog('MFA_EMAIL_SENT', account.id, { email: account.email }, req);
+                    
+                    return res.render('login', {
+                        message: 'We sent you a magic link via email. Click the link in your email to complete login.',
+                        error: null,
+                        showResendLink: false,
+                        email: email
+                    });
+                } catch (emailError) {
+                    console.error('Failed to send MFA email:', emailError);
+                    auditLog('MFA_EMAIL_FAILED', account.id, { 
+                        email: account.email, 
+                        error: emailError.message 
+                    }, req);
+                    
+                    return res.render('login', {
+                        error: 'Failed to send MFA email. Please try again later.',
+                        message: null,
+                        showResendLink: false,
+                        email: email
+                    });
+                }
             }
             
             // Log successful login
@@ -368,6 +401,70 @@ function setupAuthRoutes(app) {
             res.render('verification-result', {
                 success: false,
                 message: 'Verification failed. Please try again.'
+            });
+        }
+    });
+
+    // MFA Verification Route
+    app.get('/mfa/verify', async (req, res) => {
+        try {
+            const { token } = req.query;
+            
+            if (!token) {
+                return res.render('verification-result', {
+                    success: false,
+                    message: 'Invalid verification link'
+                });
+            }
+            
+            // Find account by MFA token (stored in emailVerificationToken field)
+            const account = await prisma.account.findUnique({
+                where: { emailVerificationToken: token }
+            });
+            
+            if (!account) {
+                return res.render('verification-result', {
+                    success: false,
+                    message: 'Invalid or expired verification link'
+                });
+            }
+            
+            // Check expiration
+            if (account.emailVerificationExpires && new Date() > account.emailVerificationExpires) {
+                return res.render('verification-result', {
+                    success: false,
+                    message: 'Verification link has expired. Please login again.'
+                });
+            }
+            
+            // Clear token and create session
+            await prisma.account.update({
+                where: { id: account.id },
+                data: {
+                    emailVerificationToken: null,
+                    emailVerificationExpires: null
+                }
+            });
+            
+            // Create session
+            req.session.accountId = account.id;
+            req.session.accountEmail = account.email;
+            
+            auditLog('MFA_VERIFIED', account.id, { email: account.email }, req);
+            
+            return res.render('verification-result', {
+                success: true,
+                message: 'Login successful! Redirecting to dashboard...'
+            });
+        } catch (error) {
+            console.error('MFA verification error:', error);
+            auditLog('MFA_VERIFICATION_ERROR', null, {
+                error: error.message
+            }, req);
+            
+            return res.render('verification-result', {
+                success: false,
+                message: 'An error occurred during verification. Please try again.'
             });
         }
     });

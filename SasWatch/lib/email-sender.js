@@ -315,6 +315,74 @@ async function sendPasswordResetEmail({ to, token, accountName }) {
     await sendGraphEmail(fromEmail, message, 'password-reset');
 }
 
+// MFA Email
+function buildMfaEmailBody(accountName, mfaLink) {
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: #4DD4A2; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+                .button { display: inline-block; background: #4DD4A2; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: 600; }
+                .button:hover { background: #2F6E5E; }
+                .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+                .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 6px; margin: 15px 0; color: #856404; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Complete Your Login</h1>
+                </div>
+                <div class="content">
+                    <h2>Hi ${accountName},</h2>
+                    <p>You've successfully entered your password. To complete your login, please click the button below:</p>
+                    <center>
+                        <a href="${mfaLink}" class="button">Complete Login</a>
+                    </center>
+                    <p>Or copy and paste this link into your browser:</p>
+                    <p style="word-break: break-all; color: #4DD4A2;">${mfaLink}</p>
+                    <div class="warning">
+                        <strong>⚠️ Security Notice:</strong> This link will expire in 15 minutes. If you didn't attempt to log in, please ignore this email and consider changing your password.
+                    </div>
+                    <p>If you didn't request this login, please ignore this email.</p>
+                </div>
+                <div class="footer">
+                    <p>© ${new Date().getFullYear()} SasWatch. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+}
+
+async function sendMfaEmail({ to, token, accountName }) {
+    if (!SURVEY_EMAIL_REGEX.test(to)) {
+        throw new Error('Invalid email address provided for MFA');
+    }
+
+    const fromEmail = getFromEmail('verification');
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const mfaLink = `${baseUrl}/mfa/verify?token=${token}`;
+
+    const message = {
+        message: {
+            subject: 'Complete Your Login - SasWatch',
+            body: {
+                contentType: 'HTML',
+                content: buildMfaEmailBody(accountName, mfaLink)
+            },
+            toRecipients: [{ emailAddress: { address: to } }]
+        },
+        saveToSentItems: false
+    };
+
+    await sendGraphEmail(fromEmail, message, 'mfa');
+}
+
 // Renewal Reminder Email
 function buildRenewalReminderEmailBody(subscription, daysUntil, accountName) {
     const costSection = subscription.cost 
@@ -446,6 +514,7 @@ module.exports = {
     sendSurveyEmail,
     sendVerificationEmail,
     sendPasswordResetEmail,
+    sendMfaEmail,
     sendRenewalReminderEmail,
     SURVEY_EMAIL_REGEX
 };
