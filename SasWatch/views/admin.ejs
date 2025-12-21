@@ -278,50 +278,122 @@
         .modal-overlay .modal {
             background: var(--bg-card);
             border-radius: 12px;
-            padding: 32px;
-            max-width: 500px;
+            padding: 0;
+            max-width: 520px;
             width: 90%;
             box-shadow: var(--shadow-lg);
             position: relative;
+            overflow: hidden;
         }
 
-        .modal-overlay .modal h2 {
-            margin: 0 0 24px 0;
+        .modal-overlay .modal .modal-header {
+            padding: 24px 32px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .modal-overlay .modal .modal-header h2 {
+            margin: 0;
             color: var(--text-primary);
             font-size: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-overlay .modal .modal-header .account-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin-top: 4px;
+        }
+
+        .modal-overlay .modal .modal-close {
+            background: transparent;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .modal-overlay .modal .modal-close:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .modal-overlay .modal .modal-body {
+            padding: 32px;
         }
 
         .modal-overlay .modal .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
+        }
+
+        .modal-overlay .modal .form-group:last-of-type {
+            margin-bottom: 0;
         }
 
         .modal-overlay .modal .form-group label {
             display: flex;
-            align-items: center;
-            gap: 8px;
+            align-items: flex-start;
+            gap: 12px;
             color: var(--text-primary);
             cursor: pointer;
             font-size: 0.95rem;
+            line-height: 1.5;
         }
 
         .modal-overlay .modal .form-group input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
             cursor: pointer;
+            margin-top: 2px;
+            accent-color: var(--accent-primary);
+        }
+
+        .modal-overlay .modal .form-group .label-text {
+            flex: 1;
+            font-weight: 500;
         }
 
         .modal-overlay .modal .password-hint {
-            font-size: 0.85rem;
+            font-size: 0.875rem;
             color: var(--text-secondary);
-            margin-top: 4px;
-            margin-left: 26px;
+            margin-top: 8px;
+            margin-left: 32px;
+            line-height: 1.5;
+        }
+
+        .modal-overlay .modal .password-hint .highlight {
+            color: var(--accent-primary);
+            font-weight: 500;
+        }
+
+        .modal-overlay .modal .modal-footer {
+            padding: 20px 32px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
         }
 
         .modal-overlay .modal .modal-actions {
             display: flex;
             gap: 12px;
             justify-content: flex-end;
-            margin-top: 24px;
         }
 
         .modal-overlay .modal .btn-primary,
@@ -683,11 +755,16 @@
         let editAccountId = null;
         function openEditModal(accountId, accountName, isActive, isPlatformAdmin) {
             editAccountId = accountId;
-            document.getElementById('edit-account-name').textContent = accountName;
+            const accountNameEl = document.getElementById('edit-account-name');
+            if (accountNameEl) {
+                accountNameEl.textContent = accountName;
+            }
             document.getElementById('edit-active').checked = !!isActive;
             document.getElementById('edit-platform-admin').checked = !!isPlatformAdmin;
             editModal = document.getElementById('editModal');
-            editModal.classList.add('active');
+            if (editModal) {
+                editModal.classList.add('active');
+            }
         }
         function closeEditModal() {
             if (editModal) editModal.classList.remove('active');
@@ -769,24 +846,33 @@
     <!-- Edit Account Modal -->
     <div class="modal-overlay" id="editModal">
         <div class="modal">
-            <h2>Edit Account</h2>
-            <p id="edit-account-name" style="font-weight: 600; margin-top: 0;"></p>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="edit-active">
-                    Active
-                </label>
+            <div class="modal-header">
+                <div>
+                    <h2>Edit Account</h2>
+                    <div class="account-name" id="edit-account-name"></div>
+                </div>
+                <button type="button" class="modal-close" onclick="closeEditModal()" aria-label="Close modal">×</button>
             </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="edit-platform-admin">
-                    Platform Admin (super admin)
-                </label>
-                <div class="password-hint">Platform Admin can manage all accounts</div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="edit-active">
+                        <span class="label-text">Active</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="edit-platform-admin">
+                        <span class="label-text">Platform Admin (super admin)</span>
+                    </label>
+                    <div class="password-hint">Platform Admin can manage <span class="highlight">all accounts</span></div>
+                </div>
             </div>
-            <div class="modal-actions">
-                <button type="button" class="btn-secondary" onclick="closeEditModal()">Cancel</button>
-                <button type="button" class="btn-primary" onclick="saveAccountChanges()">Save</button>
+            <div class="modal-footer">
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+                    <button type="button" class="btn-primary" onclick="saveAccountChanges()">Save</button>
+                </div>
             </div>
         </div>
     </div>
