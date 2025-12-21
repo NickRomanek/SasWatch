@@ -3220,6 +3220,59 @@ function setupAdminRoutes(app) {
         }
     });
 
+    // Update account (platform admin + active status)
+    app.post('/admin/accounts/:id/update', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const accountId = req.params.id;
+            const { isActive, platformAdmin } = req.body;
+
+            // Prevent disabling yourself
+            if (accountId === req.account.id && isActive === false) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Cannot disable your own account'
+                });
+            }
+
+            const account = await prisma.account.update({
+                where: { id: accountId },
+                data: {
+                    isActive: isActive === true || isActive === 'true',
+                    platformAdmin: platformAdmin === true || platformAdmin === 'true',
+                    isSuperAdmin: platformAdmin === true || platformAdmin === 'true' // keep legacy in sync
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    isActive: true,
+                    platformAdmin: true,
+                    isSuperAdmin: true
+                }
+            });
+
+            auditLog('ADMIN_ACCOUNT_UPDATE', req.account.id, {
+                targetAccountId: accountId,
+                targetEmail: account.email,
+                targetName: account.name,
+                isActive: account.isActive,
+                platformAdmin: account.platformAdmin
+            }, req);
+
+            res.json({
+                success: true,
+                account,
+                message: 'Account updated successfully'
+            });
+        } catch (error) {
+            console.error('Update account error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to update account'
+            });
+        }
+    });
+
     // Toggle platform admin status
     app.post('/admin/accounts/:id/toggle-platform-admin', auth.requireAuth, auth.requirePlatformAdmin, async (req, res) => {
         try {
