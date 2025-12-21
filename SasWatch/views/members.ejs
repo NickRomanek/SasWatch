@@ -384,7 +384,7 @@
                     <span>Account</span>
                 </a>
             </div>
-            <% if (!currentMember || (currentMember && (currentMember.role === 'admin' || currentMember.role === 'owner'))) { %>
+            <% if (typeof currentMember === 'undefined' || !currentMember || currentMember.role === 'admin' || currentMember.role === 'owner') { %>
             <div class="sidebar-nav-item">
                 <a href="/members" class="sidebar-nav-link active" data-tooltip="Team">
                     <span class="nav-icon">🧑‍🤝‍🧑</span>
