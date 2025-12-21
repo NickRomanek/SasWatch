@@ -401,20 +401,8 @@
                                 <button class="expand-btn" onclick="toggleActivity('<%= account.id %>')" data-account-id="<%= account.id %>">
                                     📊 View
                                 </button>
-                                <button 
-                                    class="toggle-active-btn <%= account.isActive ? 'active' : '' %>" 
-                                    onclick="toggleAccountActive('<%= account.id %>', <%= account.isActive %>)"
-                                    <%= account.id === currentAccount.id ? 'disabled title="Cannot disable your own account"' : '' %>
-                                >
-                                    <%= account.isActive ? 'Disable' : 'Enable' %>
-                                </button>
-                                <button 
-                                    class="toggle-active-btn <%= (account.platformAdmin || account.isSuperAdmin) ? '' : 'active' %>"
-                                    style="font-size: 0.7rem; padding: 4px 8px;"
-                                    onclick="togglePlatformAdmin('<%= account.id %>', <%= account.platformAdmin || account.isSuperAdmin %>)"
-                                    <%= account.id === currentAccount.id ? 'disabled title="Cannot modify your own admin status"' : '' %>
-                                >
-                                    <%= (account.platformAdmin || account.isSuperAdmin) ? '👑 Revoke' : '👑 Grant' %>
+                                <button class="toggle-active-btn active" onclick="openEditModal('<%= account.id %>', '<%= account.name %>', <%= account.isActive %>, <%= account.platformAdmin || account.isSuperAdmin %>)">
+                                    Edit
                                 </button>
                             </div>
                             <div class="activity-section" id="activity-<%= account.id %>">
@@ -593,6 +581,53 @@
             }
         }
 
+        // --- Edit modal ---
+        let editModal;
+        let editAccountId = null;
+        function openEditModal(accountId, accountName, isActive, isPlatformAdmin) {
+            editAccountId = accountId;
+            document.getElementById('edit-account-name').textContent = accountName;
+            document.getElementById('edit-active').checked = !!isActive;
+            document.getElementById('edit-platform-admin').checked = !!isPlatformAdmin;
+            editModal = document.getElementById('editModal');
+            editModal.classList.add('active');
+        }
+        function closeEditModal() {
+            if (editModal) editModal.classList.remove('active');
+            editAccountId = null;
+        }
+        async function saveAccountChanges() {
+            if (!editAccountId) return;
+            const isActive = document.getElementById('edit-active').checked;
+            const platformAdmin = document.getElementById('edit-platform-admin').checked;
+            try {
+                const response = await fetch(`/admin/accounts/${editAccountId}/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isActive, platformAdmin })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    if (typeof Toast !== 'undefined') {
+                        Toast.success('Account updated');
+                    } else {
+                        alert('Account updated');
+                    }
+                    setTimeout(() => window.location.reload(), 500);
+                } else {
+                    throw new Error(data.error || 'Failed to update account');
+                }
+            } catch (error) {
+                if (typeof Toast !== 'undefined') {
+                    Toast.error(error.message);
+                } else {
+                    alert(error.message);
+                }
+            } finally {
+                closeEditModal();
+            }
+        }
+
         // Sidebar toggle functionality
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -618,6 +653,31 @@
         // Expose to window for onclick handlers
         window.toggleSidebar = toggleSidebar;
     </script>
+
+    <!-- Edit Account Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal">
+            <h2>Edit Account</h2>
+            <p id="edit-account-name" style="font-weight: 600; margin-top: 0;"></p>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="edit-active">
+                    Active
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="edit-platform-admin">
+                    Platform Admin (super admin)
+                </label>
+                <div class="password-hint">Platform Admin can manage all accounts</div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button type="button" class="btn-primary" onclick="saveAccountChanges()">Save</button>
+            </div>
+        </div>
+    </div>
 
     <%- include('_survey-widget') %>
 </body>
