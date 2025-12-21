@@ -54,7 +54,21 @@ async function createMember(accountId, data, invitedById = null) {
         throw new Error('Invalid role');
     }
     
-    const hashedPassword = data.password ? await hashPassword(data.password) : null;
+    // For invited members (no password), generate a secure random password that will never be used
+    // They'll set their password when accepting the invitation
+    let hashedPassword;
+    const isInvitation = !data.password;
+    
+    if (data.password) {
+        hashedPassword = await hashPassword(data.password);
+    } else {
+        // Generate a secure random password that will never be used
+        // This satisfies the schema requirement but ensures they must set password via invitation
+        const crypto = require('crypto');
+        const tempPassword = crypto.randomBytes(32).toString('hex');
+        hashedPassword = await hashPassword(tempPassword);
+    }
+    
     const verificationToken = generateSecureToken();
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
@@ -62,17 +76,17 @@ async function createMember(accountId, data, invitedById = null) {
         data: {
             accountId,
             email: data.email.toLowerCase().trim(),
-            password: hashedPassword,
+            password: hashedPassword, // Always set, but for invitations it's a temp password
             name: data.name,
             role: data.role || 'viewer',
-            isActive: !!hashedPassword, // Active if password set, otherwise pending invitation
+            isActive: !isInvitation, // Active if password set, otherwise pending invitation
             emailVerified: false,
             emailVerificationToken: verificationToken,
             emailVerificationExpires: verificationExpires,
             mfaEnabled: true,
             invitedBy: invitedById,
-            invitationToken: hashedPassword ? null : generateSecureToken(), // Only for invites
-            invitationExpires: hashedPassword ? null : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+            invitationToken: isInvitation ? generateSecureToken() : null, // Only for invites
+            invitationExpires: isInvitation ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : null // 7 days
         }
     });
     
