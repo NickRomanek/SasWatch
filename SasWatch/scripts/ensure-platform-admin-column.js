@@ -49,9 +49,61 @@ async function ensureAccountMembersTable() {
         return true;
     } catch (error) {
         if (error.code === 'P2022' || error.message?.includes('does not exist')) {
-            console.log('[Migration Check] account_members table missing (will be created by migration)');
-            // Don't create it here - let the migration handle it
-            return false;
+            console.log('[Migration Check] ⚠️  account_members table missing, creating it...');
+            try {
+                await prisma.$executeRawUnsafe(`
+                    CREATE TABLE IF NOT EXISTS "account_members" (
+                        "id" TEXT NOT NULL,
+                        "accountId" TEXT NOT NULL,
+                        "email" TEXT NOT NULL,
+                        "password" TEXT NOT NULL,
+                        "name" TEXT NOT NULL,
+                        "role" TEXT NOT NULL DEFAULT 'viewer',
+                        "isActive" BOOLEAN NOT NULL DEFAULT true,
+                        "emailVerified" BOOLEAN NOT NULL DEFAULT false,
+                        "emailVerificationToken" TEXT,
+                        "emailVerificationExpires" TIMESTAMP(3),
+                        "passwordResetToken" TEXT,
+                        "passwordResetExpires" TIMESTAMP(3),
+                        "mfaEnabled" BOOLEAN NOT NULL DEFAULT true,
+                        "mfaSecret" TEXT,
+                        "mfaBackupCodes" TEXT[] DEFAULT ARRAY[]::TEXT[],
+                        "mfaMethod" TEXT,
+                        "lastLoginAt" TIMESTAMP(3),
+                        "invitedBy" TEXT,
+                        "invitationToken" TEXT,
+                        "invitationExpires" TIMESTAMP(3),
+                        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        "updatedAt" TIMESTAMP(3) NOT NULL,
+                        CONSTRAINT "account_members_pkey" PRIMARY KEY ("id")
+                    );
+
+                    CREATE UNIQUE INDEX IF NOT EXISTS "account_members_email_key" ON "account_members"("email");
+                    CREATE UNIQUE INDEX IF NOT EXISTS "account_members_emailVerificationToken_key" ON "account_members"("emailVerificationToken");
+                    CREATE UNIQUE INDEX IF NOT EXISTS "account_members_passwordResetToken_key" ON "account_members"("passwordResetToken");
+                    CREATE UNIQUE INDEX IF NOT EXISTS "account_members_invitationToken_key" ON "account_members"("invitationToken");
+                    CREATE INDEX IF NOT EXISTS "account_members_accountId_idx" ON "account_members"("accountId");
+                    CREATE INDEX IF NOT EXISTS "account_members_email_idx" ON "account_members"("email");
+                    CREATE INDEX IF NOT EXISTS "account_members_role_idx" ON "account_members"("role");
+
+                    DO $$ BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'account_members_accountId_fkey'
+                        ) THEN
+                            ALTER TABLE "account_members"
+                            ADD CONSTRAINT "account_members_accountId_fkey" FOREIGN KEY ("accountId")
+                            REFERENCES "accounts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+                        END IF;
+                    END $$;
+                `);
+
+                console.log('[Migration Check] ✓ Created account_members table');
+                return true;
+            } catch (createError) {
+                console.error('[Migration Check] ✗ Failed to create account_members table:', createError.message);
+                console.error('[Migration Check] Error details:', createError);
+                return false;
+            }
         }
         return true; // Table exists or different error
     }
@@ -68,10 +120,10 @@ async function main() {
         const accountMembersOk = await ensureAccountMembersTable();
         
         console.log('[Migration Check] ============================================');
-        if (platformAdminOk) {
+        if (platformAdminOk && accountMembersOk) {
             console.log('[Migration Check] ✓ Database schema is ready');
         } else {
-            console.log('[Migration Check] ⚠️  Some columns may be missing. Migration will attempt to fix this.');
+            console.log('[Migration Check] ⚠️  Some columns/tables may be missing. Migration will attempt to fix this.');
         }
         console.log('[Migration Check] ============================================');
         process.exit(0);
