@@ -934,9 +934,8 @@ async function attachAccount(req, res, next) {
         if (account) {
             req.account = account;
             req.accountId = account.id;
-            res.locals.account = account;
             
-            // Also attach member if exists
+            // If a member is logged in, use member's email instead of account owner's email
             if (req.session.memberId) {
                 const member = await getMemberById(req.session.memberId);
                 if (member) {
@@ -944,7 +943,20 @@ async function attachAccount(req, res, next) {
                     req.memberRole = member.role;
                     res.locals.member = member;
                     res.locals.currentMember = member;
+                    
+                    // Override account email with member email for display purposes
+                    // This ensures the UI shows the logged-in member's email, not the account owner's
+                    req.account = { ...account, email: member.email };
+                    res.locals.account = { ...account, email: member.email };
+                } else {
+                    // Member ID in session but member not found - clear it
+                    req.session.memberId = null;
+                    req.session.memberRole = null;
+                    res.locals.account = account;
                 }
+            } else {
+                // No member logged in, use account as-is
+                res.locals.account = account;
             }
         }
     }

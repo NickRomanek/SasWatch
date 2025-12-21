@@ -4480,20 +4480,51 @@ function setupMembersRoutes(app) {
             // Get member for session
             const member = await auth.getMemberById(result.memberId);
             
-            // Log member in
-            req.session.accountId = member.accountId;
-            req.session.accountEmail = member.email;
-            req.session.memberId = member.id;
-            req.session.memberRole = member.role;
+            if (!member) {
+                return res.render('invite-accept', {
+                    error: 'Failed to load member information',
+                    token: token,
+                    member: { name }
+                });
+            }
             
-            auditLog('MEMBER_INVITATION_ACCEPTED', member.accountId, {
-                memberId: member.id,
-                email: member.email
-            }, req);
-            
-            req.session.save((err) => {
-                if (err) console.error('Session save error:', err);
-                res.redirect('/');
+            // Clear any existing session data to prevent conflicts
+            req.session.regenerate((err) => {
+                if (err) {
+                    console.error('Session regenerate error:', err);
+                    return res.render('invite-accept', {
+                        error: 'Failed to create session. Please try again.',
+                        token: token,
+                        member: { name }
+                    });
+                }
+                
+                // Log member in with correct email
+                req.session.accountId = member.accountId;
+                req.session.accountEmail = member.email; // Use member's email, not account owner's
+                req.session.memberId = member.id;
+                req.session.memberRole = member.role;
+                
+                // Clear any cached account/member attachments
+                req.account = null;
+                req.member = null;
+                
+                auditLog('MEMBER_INVITATION_ACCEPTED', member.accountId, {
+                    memberId: member.id,
+                    email: member.email
+                }, req);
+                
+                req.session.save((err) => {
+                    if (err) {
+                        console.error('Session save error:', err);
+                        return res.render('invite-accept', {
+                            error: 'Failed to save session. Please try logging in.',
+                            token: null,
+                            member: null
+                        });
+                    }
+                    res.redirect('/');
+                });
             });
         } catch (error) {
             console.error('Error accepting invitation:', error);
