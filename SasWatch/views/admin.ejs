@@ -568,7 +568,7 @@
                 </a>
             </div>
             <% } %>
-            <% if (currentAccount && (currentAccount.isSuperAdmin || currentAccount.platformAdmin) && !currentMember) { %>
+            <% if (currentAccount && (currentAccount.isSuperAdmin || currentAccount.platformAdmin) && (typeof currentMember === 'undefined' || !currentMember)) { %>
             <div class="sidebar-nav-item">
                 <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
                     <span class="nav-icon">🛠️</span>

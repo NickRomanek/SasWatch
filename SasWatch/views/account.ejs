@@ -763,7 +763,7 @@
                 </a>
             </div>
             <% } %>
-            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin) && !member) { %>
+            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin) && (typeof member === 'undefined' || !member)) { %>
             <div class="sidebar-nav-item">
                 <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
                     <span class="nav-icon">🛠️</span>
