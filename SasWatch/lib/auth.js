@@ -83,38 +83,46 @@ async function createMember(accountId, data, invitedById = null) {
  * Authenticate a member by email and password
  */
 async function authenticateMember(email, password) {
-    const member = await prisma.accountMember.findUnique({
-        where: { email: email.toLowerCase().trim() },
-        include: { account: true }
-    });
-    
-    if (!member) {
-        return null;
+    try {
+        const member = await prisma.accountMember.findUnique({
+            where: { email: email.toLowerCase().trim() },
+            include: { account: true }
+        });
+        
+        if (!member) {
+            return null;
+        }
+        
+        if (!member.isActive) {
+            throw new Error('Member account is not active');
+        }
+        
+        if (!member.account.isActive) {
+            throw new Error('Organization account is not active');
+        }
+        
+        const isValid = await comparePassword(password, member.password);
+        
+        if (!isValid) {
+            return null;
+        }
+        
+        // Update last login
+        await prisma.accountMember.update({
+            where: { id: member.id },
+            data: { lastLoginAt: new Date() }
+        });
+        
+        // Return member without password
+        const { password: _, ...memberWithoutPassword } = member;
+        return memberWithoutPassword;
+    } catch (error) {
+        // If account_members table doesn't exist, return null (fall back to legacy auth)
+        if (error.code === 'P2022' && error.meta?.table === 'public.account_members') {
+            return null;
+        }
+        throw error;
     }
-    
-    if (!member.isActive) {
-        throw new Error('Member account is not active');
-    }
-    
-    if (!member.account.isActive) {
-        throw new Error('Organization account is not active');
-    }
-    
-    const isValid = await comparePassword(password, member.password);
-    
-    if (!isValid) {
-        return null;
-    }
-    
-    // Update last login
-    await prisma.accountMember.update({
-        where: { id: member.id },
-        data: { lastLoginAt: new Date() }
-    });
-    
-    // Return member without password
-    const { password: _, ...memberWithoutPassword } = member;
-    return memberWithoutPassword;
 }
 
 /**
@@ -450,37 +458,82 @@ async function authenticateAccount(email, password) {
     }
     
     // Fall back to legacy Account authentication
-    const account = await prisma.account.findUnique({
-        where: { email: email.toLowerCase().trim() }
-    });
-    
-    if (!account) {
-        return null;
+    try {
+        const account = await prisma.account.findUnique({
+            where: { email: email.toLowerCase().trim() }
+        });
+        
+        if (!account) {
+            return null;
+        }
+        
+        if (!account.isActive) {
+            throw new Error('Account is not active');
+        }
+        
+        if (!account.password) {
+            return null; // No legacy password set
+        }
+        
+        const isValid = await comparePassword(password, account.password);
+        
+        if (!isValid) {
+            return null;
+        }
+        
+        // Update last login (try without platformAdmin if column doesn't exist)
+        try {
+            await prisma.account.update({
+                where: { id: account.id },
+                data: { lastLoginAt: new Date() }
+            });
+        } catch (updateError) {
+            // If platformAdmin column missing, use raw SQL
+            if (updateError.code === 'P2022') {
+                await prisma.$executeRaw`
+                    UPDATE accounts SET "lastLoginAt" = NOW() WHERE id = ${account.id}
+                `;
+            } else {
+                throw updateError;
+            }
+        }
+        
+        // Return account without password (legacy format)
+        const { password: _, ...accountWithoutPassword } = account;
+        if (accountWithoutPassword.platformAdmin === undefined) {
+            accountWithoutPassword.platformAdmin = false;
+        }
+        return accountWithoutPassword;
+    } catch (error) {
+        // If platformAdmin column doesn't exist, use raw SQL query
+        if (error.code === 'P2022' && error.meta?.column === 'accounts.platformAdmin') {
+            const accounts = await prisma.$queryRaw`
+                SELECT id, name, email, password, "apiKey", "isActive", "isSuperAdmin", 
+                       "subscriptionTier", "createdAt", "updatedAt", "lastLoginAt",
+                       "emailVerified", "mfaEnabled"
+                FROM accounts WHERE email = ${email.toLowerCase().trim()}
+            `;
+            if (!accounts || accounts.length === 0) {
+                return null;
+            }
+            const account = accounts[0];
+            if (!account.isActive) {
+                throw new Error('Account is not active');
+            }
+            if (!account.password) {
+                return null;
+            }
+            const isValid = await comparePassword(password, account.password);
+            if (!isValid) {
+                return null;
+            }
+            await prisma.$executeRaw`
+                UPDATE accounts SET "lastLoginAt" = NOW() WHERE id = ${account.id}
+            `;
+            return { ...account, platformAdmin: false, password: undefined };
+        }
+        throw error;
     }
-    
-    if (!account.isActive) {
-        throw new Error('Account is not active');
-    }
-    
-    if (!account.password) {
-        return null; // No legacy password set
-    }
-    
-    const isValid = await comparePassword(password, account.password);
-    
-    if (!isValid) {
-        return null;
-    }
-    
-    // Update last login
-    await prisma.account.update({
-        where: { id: account.id },
-        data: { lastLoginAt: new Date() }
-    });
-    
-    // Return account without password (legacy format)
-    const { password: _, ...accountWithoutPassword } = account;
-    return accountWithoutPassword;
 }
 
 async function getAccountById(accountId) {
