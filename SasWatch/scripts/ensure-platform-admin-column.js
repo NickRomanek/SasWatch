@@ -53,16 +53,24 @@ async function ensureAccountMembersTable() {
 
 async function main() {
     console.log('[Migration Check] Checking database schema...');
+    console.log('[Migration Check] DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Missing');
     
-    const platformAdminOk = await ensurePlatformAdminColumn();
-    const accountMembersOk = await ensureAccountMembersTable();
-    
-    if (platformAdminOk) {
-        console.log('[Migration Check] ✓ Database schema is ready');
-        process.exit(0);
-    } else {
-        console.log('[Migration Check] ⚠️  Some columns may be missing. Migration should fix this.');
-        // Don't exit with error - let the app start and migration will fix it
+    try {
+        const platformAdminOk = await ensurePlatformAdminColumn();
+        const accountMembersOk = await ensureAccountMembersTable();
+        
+        if (platformAdminOk) {
+            console.log('[Migration Check] ✓ Database schema is ready');
+            process.exit(0);
+        } else {
+            console.log('[Migration Check] ⚠️  Some columns may be missing. Migration should fix this.');
+            // Don't exit with error - let the app start and migration will fix it
+            process.exit(0);
+        }
+    } catch (error) {
+        console.error('[Migration Check] ✗ Error:', error.message);
+        console.error('[Migration Check] Stack:', error.stack);
+        // Don't exit with error - let migration try to fix it
         process.exit(0);
     }
 }
