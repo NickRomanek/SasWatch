@@ -390,7 +390,7 @@
                     <span>Team</span>
                 </a>
             </div>
-            <% if (typeof currentAccount !== 'undefined' && currentAccount && (currentAccount.isSuperAdmin || currentAccount.platformAdmin)) { %>
+            <% if (typeof currentAccount !== 'undefined' && currentAccount && (currentAccount.isSuperAdmin || currentAccount.platformAdmin) && !currentMember) { %>
             <div class="sidebar-nav-item">
                 <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
                     <span class="nav-icon">🛠️</span>

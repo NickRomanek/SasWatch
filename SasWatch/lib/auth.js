@@ -1109,6 +1109,22 @@ async function requirePlatformAdmin(req, res, next) {
             return res.redirect('/login');
         }
         
+        // SECURITY: Members (team members) can NEVER have platform admin access
+        // Only account owners (direct login) can be platform admins
+        if (req.session.memberId) {
+            const { auditLog } = require('./security');
+            auditLog('PLATFORM_ADMIN_ACCESS_DENIED', req.session.accountId, {
+                path: req.path,
+                reason: 'Team members cannot access platform admin features',
+                memberId: req.session.memberId
+            }, req);
+            
+            if (req.path.startsWith('/api/')) {
+                return res.status(403).json({ error: 'Platform admin access not available for team members' });
+            }
+            return res.status(403).send('Access denied: Platform admin access is not available for team members');
+        }
+        
         const account = await getAccountById(req.session.accountId);
         if (!account) {
             if (req.path.startsWith('/api/')) {

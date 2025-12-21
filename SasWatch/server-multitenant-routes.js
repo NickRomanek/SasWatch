@@ -1613,7 +1613,7 @@ function setupDevRoutes(app) {
         return { tenantId: account.entraTenantId };
     }
 
-    app.get('/dev', auth.requireAuth, async (req, res) => {
+    app.get('/dev', auth.requireAuth, auth.requirePlatformAdmin, async (req, res) => {
         try {
             const account = await resolveAccount(req);
             res.render('dev', {

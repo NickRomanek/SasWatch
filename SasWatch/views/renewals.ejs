@@ -1058,15 +1058,13 @@
                     <span>Team</span>
                 </a>
             </div>
-            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin)) { %>
+            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin) && !member) { %>
             <div class="sidebar-nav-item">
                 <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
                     <span class="nav-icon">🛠️</span>
                     <span>Dev</span>
                 </a>
             </div>
-            <% } %>
-            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin)) { %>
             <div class="sidebar-nav-item">
                 <a href="/admin" class="sidebar-nav-link" data-tooltip="Platform Admin">
                     <span class="nav-icon">👑</span>
