@@ -484,30 +484,78 @@ async function authenticateAccount(email, password) {
 }
 
 async function getAccountById(accountId) {
-    const account = await prisma.account.findUnique({
-        where: { id: accountId }
-    });
-    
-    if (!account) {
-        return null;
+    try {
+        const account = await prisma.account.findUnique({
+            where: { id: accountId }
+        });
+        
+        if (!account) {
+            return null;
+        }
+        
+        // Return without password, ensure platformAdmin has a default if missing
+        const { password: _, ...accountWithoutPassword } = account;
+        if (accountWithoutPassword.platformAdmin === undefined) {
+            accountWithoutPassword.platformAdmin = false;
+        }
+        return accountWithoutPassword;
+    } catch (error) {
+        // If platformAdmin column doesn't exist, query without it
+        if (error.code === 'P2022' && error.meta?.column === 'accounts.platformAdmin') {
+            const account = await prisma.$queryRaw`
+                SELECT id, name, email, "apiKey", "isActive", "isSuperAdmin", 
+                       "subscriptionTier", "createdAt", "updatedAt", "lastLoginAt",
+                       "entraLastSyncAt", "entraTenantId", "entraConnectedAt",
+                       "entraSignInCursor", "entraSignInLastSyncAt", "hiddenLicenses",
+                       "licenseCosts", "emailVerified", "emailVerificationToken",
+                       "emailVerificationExpires", "passwordResetToken", "passwordResetExpires",
+                       "mfaEnabled", "mfaSecret", "mfaBackupCodes", "mfaMethod"
+                FROM accounts WHERE id = ${accountId}
+            `;
+            if (account && account.length > 0) {
+                return { ...account[0], platformAdmin: false }; // Default to false
+            }
+            return null;
+        }
+        throw error;
     }
-    
-    // Return without password
-    const { password: _, ...accountWithoutPassword } = account;
-    return accountWithoutPassword;
 }
 
 async function getAccountByApiKey(apiKey) {
-    const account = await prisma.account.findUnique({
-        where: { apiKey }
-    });
-    
-    if (!account || !account.isActive) {
-        return null;
+    try {
+        const account = await prisma.account.findUnique({
+            where: { apiKey }
+        });
+        
+        if (!account || !account.isActive) {
+            return null;
+        }
+        
+        const { password: _, ...accountWithoutPassword } = account;
+        if (accountWithoutPassword.platformAdmin === undefined) {
+            accountWithoutPassword.platformAdmin = false;
+        }
+        return accountWithoutPassword;
+    } catch (error) {
+        // If platformAdmin column doesn't exist, query without it
+        if (error.code === 'P2022' && error.meta?.column === 'accounts.platformAdmin') {
+            const account = await prisma.$queryRaw`
+                SELECT id, name, email, "apiKey", "isActive", "isSuperAdmin", 
+                       "subscriptionTier", "createdAt", "updatedAt", "lastLoginAt",
+                       "entraLastSyncAt", "entraTenantId", "entraConnectedAt",
+                       "entraSignInCursor", "entraSignInLastSyncAt", "hiddenLicenses",
+                       "licenseCosts", "emailVerified", "emailVerificationToken",
+                       "emailVerificationExpires", "passwordResetToken", "passwordResetExpires",
+                       "mfaEnabled", "mfaSecret", "mfaBackupCodes", "mfaMethod"
+                FROM accounts WHERE "apiKey" = ${apiKey}
+            `;
+            if (account && account.length > 0 && account[0].isActive) {
+                return { ...account[0], platformAdmin: false }; // Default to false
+            }
+            return null;
+        }
+        throw error;
     }
-    
-    const { password: _, ...accountWithoutPassword } = account;
-    return accountWithoutPassword;
 }
 
 async function regenerateApiKey(accountId) {
