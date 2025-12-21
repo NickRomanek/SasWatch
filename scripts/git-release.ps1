@@ -1272,12 +1272,40 @@ try {
         if ($schemaDiff -or $schemaInStatus) {
             $schemaChanged = $true
         }
+        
+        # Also check for new migration files
+        $migrationsPath = "SasWatch/prisma/migrations"
+        if (Test-Path $migrationsPath) {
+            $newMigrations = git status --short | Select-String "prisma/migrations"
+            if ($newMigrations) {
+                $schemaChanged = $true
+            }
+            # Check for uncommitted migrations
+            $uncommittedMigrations = git ls-files --others --exclude-standard "$migrationsPath/*/migration.sql"
+            if ($uncommittedMigrations) {
+                $schemaChanged = $true
+            }
+        }
     } elseif (Test-Path "prisma/schema.prisma") {
         $schemaPath = "prisma/schema.prisma"
         $schemaDiff = git diff HEAD $schemaPath 2>$null
         $schemaInStatus = git status --short | Select-String "schema.prisma"
         if ($schemaDiff -or $schemaInStatus) {
             $schemaChanged = $true
+        }
+        
+        # Also check for new migration files
+        $migrationsPath = "prisma/migrations"
+        if (Test-Path $migrationsPath) {
+            $newMigrations = git status --short | Select-String "prisma/migrations"
+            if ($newMigrations) {
+                $schemaChanged = $true
+            }
+            # Check for uncommitted migrations
+            $uncommittedMigrations = git ls-files --others --exclude-standard "$migrationsPath/*/migration.sql"
+            if ($uncommittedMigrations) {
+                $schemaChanged = $true
+            }
         }
     }
 
