@@ -157,6 +157,28 @@
             background: #16a34a;
         }
 
+        .delete-btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .delete-btn:hover {
+            background: #dc2626;
+        }
+
+        .delete-btn:disabled {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
         .activity-section {
             grid-column: 1 / -1;
             padding: 20px;
@@ -640,6 +662,13 @@
                                 <button class="toggle-active-btn active" onclick="openEditModal('<%= account.id %>', '<%= account.name %>', <%= account.isActive %>, <%= account.platformAdmin || account.isSuperAdmin %>)">
                                     Edit
                                 </button>
+                                <button 
+                                    class="delete-btn" 
+                                    onclick="openDeleteModal('<%= account.id %>', '<%= account.name %>', '<%= account.email %>', <%= account.platformAdmin || account.isSuperAdmin %>)"
+                                    <%= (account.platformAdmin || account.isSuperAdmin) ? 'disabled title="Cannot delete platform admin accounts"' : '' %>
+                                >
+                                    🗑️ Delete
+                                </button>
                             </div>
                             <div class="activity-section" id="activity-<%= account.id %>">
                                 <div class="activity-header">
@@ -903,11 +932,105 @@
             }
         });
 
+        // Delete account functionality
+        let deleteAccountId = null;
+        let deleteAccountName = null;
+        let deleteAccountEmail = null;
+
+        function openDeleteModal(accountId, accountName, accountEmail, isPlatformAdmin) {
+            if (isPlatformAdmin) {
+                if (typeof Toast !== 'undefined') {
+                    Toast.error('Cannot delete platform admin accounts. Revoke platform admin status first.');
+                } else {
+                    alert('Cannot delete platform admin accounts. Revoke platform admin status first.');
+                }
+                return;
+            }
+
+            deleteAccountId = accountId;
+            deleteAccountName = accountName;
+            deleteAccountEmail = accountEmail;
+            
+            const deleteAccountNameEl = document.getElementById('delete-account-name');
+            const deleteAccountEmailEl = document.getElementById('delete-account-email');
+            if (deleteAccountNameEl) {
+                deleteAccountNameEl.textContent = accountName;
+            }
+            if (deleteAccountEmailEl) {
+                deleteAccountEmailEl.textContent = accountEmail;
+            }
+            
+            const deleteModal = document.getElementById('deleteModal');
+            if (deleteModal) {
+                deleteModal.classList.add('active');
+            }
+        }
+
+        function closeDeleteModal() {
+            const deleteModal = document.getElementById('deleteModal');
+            if (deleteModal) {
+                deleteModal.classList.remove('active');
+            }
+            deleteAccountId = null;
+            deleteAccountName = null;
+            deleteAccountEmail = null;
+        }
+
+        async function confirmDeleteAccount() {
+            if (!deleteAccountId) return;
+
+            try {
+                const response = await fetch(`/admin/accounts/${deleteAccountId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    if (typeof Toast !== 'undefined') {
+                        Toast.success(data.message);
+                    } else {
+                        alert(data.message);
+                    }
+                    closeDeleteModal();
+                    // Reload page to reflect changes
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    throw new Error(data.error || 'Failed to delete account');
+                }
+            } catch (error) {
+                console.error('Delete account error:', error);
+                if (typeof Toast !== 'undefined') {
+                    Toast.error('Failed to delete account: ' + error.message);
+                } else {
+                    alert('Failed to delete account: ' + error.message);
+                }
+            }
+        }
+
+        // Close delete modal when clicking outside
+        document.addEventListener('DOMContentLoaded', () => {
+            const deleteModalElement = document.getElementById('deleteModal');
+            if (deleteModalElement) {
+                deleteModalElement.addEventListener('click', (e) => {
+                    if (e.target === deleteModalElement) {
+                        closeDeleteModal();
+                    }
+                });
+            }
+        });
+
         // Expose to window for onclick handlers
         window.toggleSidebar = toggleSidebar;
         window.openEditModal = openEditModal;
         window.closeEditModal = closeEditModal;
         window.saveAccountChanges = saveAccountChanges;
+        window.openDeleteModal = openDeleteModal;
+        window.closeDeleteModal = closeDeleteModal;
+        window.confirmDeleteAccount = confirmDeleteAccount;
     </script>
 
     <!-- Edit Account Modal -->
@@ -939,6 +1062,43 @@
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeEditModal()">Cancel</button>
                     <button type="button" class="btn-primary" onclick="saveAccountChanges()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Account Modal -->
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="header-content">
+                    <h2>⚠️ Delete Account</h2>
+                    <div class="account-name" id="delete-account-name"></div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 4px;" id="delete-account-email"></div>
+                </div>
+                <button type="button" class="modal-close" onclick="closeDeleteModal()" aria-label="Close modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="color: var(--text-primary); margin-bottom: 16px;">
+                    <p style="margin: 0 0 12px 0; font-weight: 500;">Are you sure you want to permanently delete this account?</p>
+                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
+                        This action <strong style="color: var(--danger);">cannot be undone</strong>. All data associated with this account will be permanently deleted, including:
+                    </p>
+                    <ul style="margin: 12px 0 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 0.875rem;">
+                        <li>All team members</li>
+                        <li>All users and usage data</li>
+                        <li>All subscriptions and renewals</li>
+                        <li>All applications and licenses</li>
+                        <li>All activity events</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                    <button type="button" class="btn-primary" onclick="confirmDeleteAccount()" style="background: var(--danger);">
+                        Delete Permanently
+                    </button>
                 </div>
             </div>
         </div>

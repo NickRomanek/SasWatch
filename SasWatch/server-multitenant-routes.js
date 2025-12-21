@@ -3323,6 +3323,70 @@ function setupAdminRoutes(app) {
         }
     });
 
+    // Delete account (permanently removes account and all associated data)
+    app.delete('/admin/accounts/:id', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const accountId = req.params.id;
+
+            // Prevent deleting yourself
+            if (accountId === req.account.id) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Cannot delete your own account'
+                });
+            }
+
+            // Get account info before deletion for audit log
+            const account = await prisma.account.findUnique({
+                where: { id: accountId },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    platformAdmin: true
+                }
+            });
+
+            if (!account) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Account not found'
+                });
+            }
+
+            // Prevent deleting other platform admins (safety check)
+            if (account.platformAdmin) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Cannot delete platform admin accounts. Revoke platform admin status first.'
+                });
+            }
+
+            // Delete account (cascade will handle related data)
+            await prisma.account.delete({
+                where: { id: accountId }
+            });
+
+            // Log admin action
+            auditLog('ADMIN_ACCOUNT_DELETED', req.account.id, {
+                deletedAccountId: accountId,
+                deletedEmail: account.email,
+                deletedName: account.name
+            }, req);
+
+            res.json({
+                success: true,
+                message: `Account "${account.name}" has been permanently deleted`
+            });
+        } catch (error) {
+            console.error('Delete account error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to delete account: ' + error.message
+            });
+        }
+    });
+
     // View single account details
     app.get('/admin/accounts/:id', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
         try {
