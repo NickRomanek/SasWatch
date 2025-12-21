@@ -384,12 +384,14 @@
                     <span>Account</span>
                 </a>
             </div>
+            <% if (!currentMember || (currentMember && (currentMember.role === 'admin' || currentMember.role === 'owner'))) { %>
             <div class="sidebar-nav-item">
                 <a href="/members" class="sidebar-nav-link active" data-tooltip="Team">
                     <span class="nav-icon">🧑‍🤝‍🧑</span>
                     <span>Team</span>
                 </a>
             </div>
+            <% } %>
             <% if (typeof currentAccount !== 'undefined' && currentAccount && (currentAccount.isSuperAdmin || currentAccount.platformAdmin) && !currentMember) { %>
             <div class="sidebar-nav-item">
                 <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">

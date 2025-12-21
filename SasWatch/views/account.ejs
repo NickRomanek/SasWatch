@@ -755,12 +755,14 @@
                     <span>Account</span>
                 </a>
             </div>
+            <% if (!member || (member && (member.role === 'admin' || member.role === 'owner'))) { %>
             <div class="sidebar-nav-item">
                 <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
                     <span class="nav-icon">🧑‍🤝‍🧑</span>
                     <span>Team</span>
                 </a>
             </div>
+            <% } %>
             <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin) && !member) { %>
             <div class="sidebar-nav-item">
                 <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">

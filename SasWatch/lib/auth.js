@@ -1016,9 +1016,9 @@ function requireRole(allowedRoles) {
                     });
                 }
                 return res.status(403).render('error', {
-                    title: 'Access Denied',
-                    message: 'You do not have permission to access this page',
-                    account: req.account
+                    error: 'Access Denied',
+                    message: 'You do not have permission to access this page. This feature requires admin or owner privileges.',
+                    requestId: req.id
                 });
             }
             
