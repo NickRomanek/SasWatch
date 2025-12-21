@@ -844,8 +844,23 @@ try {
     $currentBranch = git branch --show-current
     $status = git status --short
 
-    # Get current version/tag
-    $latestTag = git describe --tags --abbrev=0 2>$null
+    # Get current version/tag (filter to only version tags like v1.0.0 or 1.0.0)
+    # This filters out tags like "agent-v1" that don't match the version pattern
+    $versionTags = git tag -l | Where-Object { $_ -match '^v?\d+\.\d+\.\d+$' }
+    if ($versionTags) {
+        # Sort by version number and get the latest
+        $latestTag = $versionTags | Sort-Object { 
+            $ver = $_ -replace '^v', ''
+            try { [version]$ver } catch { [version]"0.0.0" }
+        } | Select-Object -Last 1
+    } else {
+        # No version tags found, use git describe as fallback
+        $latestTag = git describe --tags --abbrev=0 2>$null
+        # If the fallback tag doesn't match version pattern, ignore it
+        if ($latestTag -and $latestTag -notmatch '^v?\d+\.\d+\.\d+$') {
+            $latestTag = $null
+        }
+    }
 
     Write-Host "Current Status:" -ForegroundColor Cyan
     Write-Host "  Branch: " -NoNewline -ForegroundColor Gray
@@ -1387,6 +1402,11 @@ try {
     $currentVersion = "0.0.0"
     if ($latestTag) {
         $currentVersion = $latestTag -replace '^v', ''
+        # Validate version format (should be x.y.z)
+        if ($currentVersion -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Host "Warning: Latest tag '$latestTag' doesn't match version format. Starting from 0.0.0" -ForegroundColor Yellow
+            $currentVersion = "0.0.0"
+        }
     } else {
         # If no tags, start at 0.0.0 to correctly bump to 0.1.0, 0.0.1 etc.
         $currentVersion = "0.0.0"
@@ -1394,9 +1414,21 @@ try {
 
     # Parse and bump version
     $versionParts = $currentVersion.Split('.')
-    $major = [int]$versionParts[0]
-    $minor = [int]$versionParts[1]
-    $patch = [int]$versionParts[2]
+    if ($versionParts.Length -ne 3) {
+        Write-Host "Error: Invalid version format '$currentVersion'. Expected x.y.z" -ForegroundColor Red
+        Pop-Location
+        exit 1
+    }
+    
+    try {
+        $major = [int]$versionParts[0]
+        $minor = [int]$versionParts[1]
+        $patch = [int]$versionParts[2]
+    } catch {
+        Write-Host "Error: Failed to parse version '$currentVersion': $_" -ForegroundColor Red
+        Pop-Location
+        exit 1
+    }
 
     switch ($releaseType) {
         "patch" { $patch++ }
