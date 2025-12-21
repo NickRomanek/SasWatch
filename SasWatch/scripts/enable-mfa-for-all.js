@@ -8,29 +8,68 @@ const prisma = new PrismaClient();
 
 async function enableMfaForAll() {
     try {
-        console.log('Enabling MFA for all existing accounts...');
+        console.log('Enabling MFA for all existing accounts...\n');
+        
+        // First, list all accounts
+        const allAccounts = await prisma.account.findMany({
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                mfaEnabled: true,
+                isActive: true
+            },
+            orderBy: {
+                createdAt: 'asc'
+            }
+        });
+        
+        console.log(`📊 Found ${allAccounts.length} total account(s):\n`);
+        allAccounts.forEach((account, index) => {
+            const mfaStatus = account.mfaEnabled ? '✅ Enabled' : '❌ Disabled';
+            const activeStatus = account.isActive ? 'Active' : 'Inactive';
+            console.log(`  ${index + 1}. ${account.name || 'Unnamed'} (${account.email})`);
+            console.log(`     MFA: ${mfaStatus} | Status: ${activeStatus}`);
+        });
+        
+        console.log('\n');
         
         // Update all accounts that don't have MFA enabled
+        const accountsToUpdate = allAccounts.filter(a => !a.mfaEnabled && a.isActive);
+        console.log(`🔄 Updating ${accountsToUpdate.length} account(s) that need MFA enabled...\n`);
+        
+        if (accountsToUpdate.length > 0) {
+            accountsToUpdate.forEach(account => {
+                console.log(`  - Enabling MFA for: ${account.name || 'Unnamed'} (${account.email})`);
+            });
+        }
+        
         const result = await prisma.account.updateMany({
             where: { 
-                mfaEnabled: false 
+                mfaEnabled: false,
+                isActive: true  // Only update active accounts
             },
             data: { 
                 mfaEnabled: true 
             }
         });
         
-        console.log(`✅ Enabled MFA for ${result.count} account(s)`);
+        console.log(`\n✅ Enabled MFA for ${result.count} account(s)`);
         
-        // Get total count of accounts with MFA enabled
+        // Get updated counts
         const totalWithMfa = await prisma.account.count({
             where: { mfaEnabled: true }
         });
         
         const totalAccounts = await prisma.account.count();
+        const activeAccounts = await prisma.account.count({
+            where: { isActive: true }
+        });
         
-        console.log(`📊 Total accounts: ${totalAccounts}`);
-        console.log(`🔐 Accounts with MFA enabled: ${totalWithMfa}`);
+        console.log(`\n📊 Summary:`);
+        console.log(`   Total accounts: ${totalAccounts}`);
+        console.log(`   Active accounts: ${activeAccounts}`);
+        console.log(`   Accounts with MFA enabled: ${totalWithMfa}`);
         
         return result;
     } catch (error) {
