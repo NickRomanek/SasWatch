@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Headless Connections - SasWatch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .connector-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .connector-info h3 {
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .vendor-badge {
+            background: var(--accent-primary);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .status-pill {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+
+        .status-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .status-pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+        }
+
+        .sync-progress {
+            margin-top: 12px;
+            background: var(--bg-tertiary);
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar {
+            background: var(--accent-primary);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .last-sync {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <%- include('partials/sidebar') %>
+
+        <main class="main-content">
+            <div class="account-container">
+                <div class="account-header">
+                    <h1>
+                        <span class="header-icon">🤖</span>
+                        <span class="header-title-text">Automated Vendor Logins</span>
+                    </h1>
+                    <p>Pull data from platforms without APIs using headless browser automation.</p>
+                </div>
+
+                <div class="account-section">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2>Connected Vendors</h2>
+                        <button class="btn-connect" onclick="showConnectModal()">+ Connect Vendor</button>
+                    </div>
+
+                    <% if (connectors && connectors.length> 0) { %>
+                        <% connectors.forEach(connector=> { %>
+                            <div class="connector-card" id="connector-<%= connector.vendor %>">
+                                <div class="connector-info">
+                                    <h3>
+                                        <%= connector.vendor %>
+                                            <span class="status-pill status-<%= connector.status %>">
+                                                <%= connector.status.toUpperCase() %>
+                                            </span>
+                                    </h3>
+                                    <div class="last-sync">
+                                        Last Sync: <%= connector.lastSyncAt ? new
+                                            Date(connector.lastSyncAt).toLocaleString() : 'Never' %>
+                                    </div>
+                                    <% if (connector.errorMessage) { %>
+                                        <div style="color: var(--danger); font-size: 0.8rem; margin-top: 4px;">
+                                            Error: <%= connector.errorMessage %>
+                                        </div>
+                                        <% } %>
+                                            <div class="sync-progress" id="progress-container-<%= connector.vendor %>">
+                                                <div class="progress-bar" id="progress-bar-<%= connector.vendor %>">
+                                                </div>
+                                                <div id="sync-message-<%= connector.vendor %>"
+                                                    style="font-size: 0.75rem; margin-top: 4px;"></div>
+                                            </div>
+                                </div>
+                                <div class="connector-actions">
+                                    <button class="btn-copy" onclick="triggerSync('<%= connector.vendor %>')">🔄 Sync
+                                        Now</button>
+                                    <button class="btn-regenerate" onclick="reconnect('<%= connector.vendor %>')">🔌
+                                        Reconnect</button>
+                                </div>
+                            </div>
+                            <% }); %>
+                                <% } else { %>
+                                    <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                        No automated logins configured yet. Click "Connect Vendor" to get started.
+                                    </div>
+                                    <% } %>
+                </div>
+
+                <div class="account-section">
+                    <h2>How it works</h2>
+                    <p>Some SaaS vendors don't provide APIs to export user and license data. Our system solves this by:
+                    </p>
+                    <ol style="margin-left: 20px; line-height: 1.6;">
+                        <li>Capturing a secure browser session (you log in once).</li>
+                        <li>Encrypting the session tokens using AES-256-GCM.</li>
+                        <li>Periodically running a headless browser to "scrape" the admin console safely.</li>
+                    </ol>
+                    <div class="warning-box" style="margin-top: 20px;">
+                        <span class="warning-icon">🔒</span>
+                        <div>
+                            <strong>Security First:</strong> We never store your raw password unless you explicitly
+                            choose
+                            to. We only store encrypted session cookies that allow us to access the specific admin
+                            console
+                            pages needed.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <script src="/js/ui-components.js"></script>
+        <script>
+            async function triggerSync(vendor) {
+                try {
+                    const res = await fetch('/api/headless/sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ vendor })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        Toast.success(`Sync started for ${vendor}`);
+                        startPollingStatus(vendor);
+                    } else {
+                        Toast.error(data.error);
+                    }
+                } catch (err) {
+                    Toast.error(err.message);
+                }
+            }
+
+            function startPollingStatus(vendor) {
+                const container = document.getElementById(`progress-container-${vendor}`);
+                const bar = document.getElementById(`progress-bar-${vendor}`);
+                const msg = document.getElementById(`sync-message-${vendor}`);
+
+                container.style.display = 'block';
+
+                const poll = setInterval(async () => {
+                    const res = await fetch('/api/headless/status');
+                    const status = await res.json();
+
+                    if (status.active) {
+                        bar.style.width = `${status.progress}%`;
+                        msg.textContent = status.message;
+                    } else {
+                        clearInterval(poll);
+                        container.style.display = 'none';
+                        if (status.error) {
+                            Toast.error(status.message);
+                        } else {
+                            Toast.success(`Sync completed for ${vendor}`);
+                            setTimeout(() => window.location.reload(), 2000);
+                        }
+                    }
+                }, 2000);
+            }
+
+            async function reconnect(vendor) {
+                const confirmed = await ConfirmModal.show({
+                    title: `Reconnect ${vendor}?`,
+                    message: 'This will require you to log in again to refresh the session tokens.',
+                    confirmText: 'Reconnect',
+                    type: 'warning'
+                });
+
+                if (!confirmed) return;
+
+                try {
+                    const res = await fetch('/api/headless/connect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ vendor })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        Toast.success(data.message);
+                        setTimeout(() => window.location.reload(), 3000);
+                    } else {
+                        Toast.error(data.error);
+                    }
+                } catch (err) {
+                    Toast.error(err.message);
+                }
+            }
+
+            async function showConnectModal() {
+                // Simple prompt for now to allow "Mock" or "Adobe"
+                const vendor = prompt("Enter vendor name (e.g., 'Adobe' or 'Mock'):", "Adobe");
+                if (vendor) {
+                    reconnect(vendor);
+                }
+            }
+        </script>
+</body>
+
+</html>

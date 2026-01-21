@@ -7,8 +7,9 @@
 
 const cron = require('node-cron');
 const prisma = require('./prisma');
-const { sendRenewalReminderEmail } = require('./email-sender');
+const { sendRenewalReminderEmail, sendInactivityAlertEmail } = require('./email-sender');
 const { startEmailPolling, stopEmailPolling, pollInboxForSubscriptions } = require('./email-ingestion');
+const { getInactiveUsers } = require('./database-multitenant');
 
 // Track if scheduler is running to prevent duplicate starts
 let isSchedulerRunning = false;
@@ -172,7 +173,7 @@ function startRenewalScheduler() {
     
     console.log('[Renewal Scheduler] Starting scheduler (daily at 8:00 AM)');
     
-    // Schedule for 8:00 AM every day
+    // Schedule renewal reminders for 8:00 AM every day
     // Cron format: minute hour day month weekday
     cron.schedule('0 8 * * *', async () => {
         console.log('[Renewal Scheduler] Running scheduled check...');
@@ -180,6 +181,20 @@ function startRenewalScheduler() {
             await processRenewalReminders();
         } catch (error) {
             console.error('[Renewal Scheduler] Scheduled run failed:', error);
+        }
+    }, {
+        scheduled: true,
+        timezone: 'America/New_York' // Adjust as needed
+    });
+    
+    // Schedule inactivity alerts for 9:00 AM every Monday
+    // Sends weekly digest of inactive users to accounts that have alerts enabled
+    cron.schedule('0 9 * * 1', async () => {
+        console.log('[Inactivity Alerts] Running scheduled check...');
+        try {
+            await processInactivityAlerts();
+        } catch (error) {
+            console.error('[Inactivity Alerts] Scheduled run failed:', error);
         }
     }, {
         scheduled: true,
@@ -206,6 +221,100 @@ function stopSchedulers() {
 }
 
 /**
+ * Process inactivity alerts for all accounts with alerts enabled
+ */
+async function processInactivityAlerts() {
+    console.log('[Inactivity Alerts] Starting inactivity alert check...');
+    
+    try {
+        // Get all accounts with inactivity alerts enabled
+        const accounts = await prisma.account.findMany({
+            where: {
+                inactivityAlertEnabled: true,
+                isActive: true
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                inactivityAlertThreshold: true,
+                inactivityAlertLastSent: true,
+                inactivityAlertEmail: true
+            }
+        });
+        
+        console.log(`[Inactivity Alerts] Found ${accounts.length} accounts with alerts enabled`);
+        
+        let emailsSent = 0;
+        let errors = 0;
+        
+        for (const account of accounts) {
+            try {
+                // Check if we've already sent an alert today
+                if (account.inactivityAlertLastSent) {
+                    const lastSent = new Date(account.inactivityAlertLastSent);
+                    const now = new Date();
+                    const daysSinceLastAlert = Math.floor((now - lastSent) / (1000 * 60 * 60 * 24));
+                    
+                    // Only send alerts once per week max
+                    if (daysSinceLastAlert < 7) {
+                        console.log(`[Inactivity Alerts] Skipping ${account.name} - already alerted ${daysSinceLastAlert} days ago`);
+                        continue;
+                    }
+                }
+                
+                // Get inactive users for this account
+                const inactiveUsers = await getInactiveUsers(account.id, account.inactivityAlertThreshold);
+                
+                if (inactiveUsers.length === 0) {
+                    console.log(`[Inactivity Alerts] No inactive users for ${account.name}`);
+                    continue;
+                }
+                
+                const recipientEmail = account.inactivityAlertEmail || account.email;
+                
+                if (!recipientEmail) {
+                    console.warn(`[Inactivity Alerts] No email for account "${account.name}"`);
+                    continue;
+                }
+                
+                console.log(`[Inactivity Alerts] Sending alert for ${account.name} - ${inactiveUsers.length} inactive users`);
+                
+                // Send the email
+                await sendInactivityAlertEmail({
+                    to: recipientEmail,
+                    accountName: account.name,
+                    inactiveUsers,
+                    daysThreshold: account.inactivityAlertThreshold
+                });
+                
+                // Update lastAlertSent timestamp
+                await prisma.account.update({
+                    where: { id: account.id },
+                    data: { inactivityAlertLastSent: new Date() }
+                });
+                
+                emailsSent++;
+                
+                // Small delay between emails to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+            } catch (error) {
+                console.error(`[Inactivity Alerts] Error processing account "${account.name}":`, error.message);
+                errors++;
+            }
+        }
+        
+        console.log(`[Inactivity Alerts] Completed. Sent ${emailsSent} emails, ${errors} errors.`);
+        return { emailsSent, errors };
+        
+    } catch (error) {
+        console.error('[Inactivity Alerts] Fatal error:', error);
+        throw error;
+    }
+}
+
+/**
  * Manually trigger renewal check (for testing/admin purposes)
  */
 async function triggerRenewalCheck() {
@@ -221,12 +330,22 @@ async function triggerEmailPoll() {
     return await pollInboxForSubscriptions();
 }
 
+/**
+ * Manually trigger inactivity alert check (for testing/admin purposes)
+ */
+async function triggerInactivityAlerts() {
+    console.log('[Inactivity Alerts] Manual trigger requested');
+    return await processInactivityAlerts();
+}
+
 module.exports = {
     startRenewalScheduler,
     stopSchedulers,
     processRenewalReminders,
+    processInactivityAlerts,
     triggerRenewalCheck,
-    triggerEmailPoll
+    triggerEmailPoll,
+    triggerInactivityAlerts
 };
 
 

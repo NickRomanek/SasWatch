@@ -101,7 +101,7 @@ function resolveAppMetadataFromEvent(event = {}) {
 
         const fallbackName = toTitleCase(rawUrl.replace(/\.exe$/i, '').replace(/[._-]+/g, ' '));
         const name = fallbackName || 'Adobe Desktop App';
-        const vendor = name === 'System' ? 'SubTracker' : 'Adobe';
+        const vendor = name === 'System' ? 'SasWatch' : 'Adobe';
 
         return {
             vendor,
@@ -487,6 +487,64 @@ async function deleteUsersBulk(accountId, emails) {
     });
     
     return result.count;
+}
+
+/**
+ * Get users with no activity in the specified number of days
+ * Useful for license optimization - identifying users who may not need licenses
+ * 
+ * @param {string} accountId - The account ID (multi-tenant scoping)
+ * @param {number} daysInactive - Number of days of inactivity (default: 30)
+ * @returns {Promise<Array>} Array of inactive users with daysSinceActivity
+ */
+async function getInactiveUsers(accountId, daysInactive = 30) {
+    try {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - daysInactive);
+        
+        const users = await prisma.user.findMany({
+            where: {
+                accountId, // Account scoped for multi-tenant isolation
+                OR: [
+                    { lastActivity: null }, // Never had activity
+                    { lastActivity: { lt: cutoffDate } } // Activity older than cutoff
+                ]
+            },
+            include: {
+                windowsUsernames: true
+            },
+            orderBy: {
+                lastActivity: 'asc' // Most inactive first (nulls come first)
+            }
+        });
+        
+        // Transform to standard format with daysSinceActivity calculation
+        return users.map(user => {
+            const now = new Date();
+            let daysSinceActivity = null;
+            
+            if (user.lastActivity) {
+                const diffMs = now.getTime() - new Date(user.lastActivity).getTime();
+                daysSinceActivity = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            }
+            
+            return {
+                id: user.id, // Include ID for reclamation workflows
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                licenses: user.licenses || [],
+                entraLicenses: user.entraLicenses || [],
+                lastActivity: user.lastActivity,
+                activityCount: user.activityCount,
+                daysSinceActivity, // null means never active
+                windowsUsernames: user.windowsUsernames.map(wu => wu.username)
+            };
+        });
+    } catch (error) {
+        console.error('Error getting inactive users:', error);
+        return [];
+    }
 }
 
 async function addUsernameMapping(accountId, username, email) {
@@ -2530,6 +2588,7 @@ module.exports = {
     deleteAllUsers,
     mergeUsers,
     deleteUsersBulk,
+    getInactiveUsers, // License optimization - users with no recent activity
     addUsernameMapping,
     addUnmappedUsername,
     

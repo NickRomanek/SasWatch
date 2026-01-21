@@ -33,32 +33,32 @@ async function comparePassword(password, hash) {
  */
 async function createMember(accountId, data, invitedById = null) {
     const { generateSecureToken } = require('./security');
-    
+
     // Check if email already exists (globally unique)
     const existing = await prisma.accountMember.findUnique({
         where: { email: data.email }
     });
-    
+
     if (existing) {
         throw new Error('A member with this email already exists');
     }
-    
+
     // Verify account exists
     const account = await prisma.account.findUnique({ where: { id: accountId } });
     if (!account) {
         throw new Error('Account not found');
     }
-    
+
     // Validate role
     if (data.role && !permissions.isValidRole(data.role)) {
         throw new Error('Invalid role');
     }
-    
+
     // For invited members (no password), generate a secure random password that will never be used
     // They'll set their password when accepting the invitation
     let hashedPassword;
     const isInvitation = !data.password;
-    
+
     if (data.password) {
         hashedPassword = await hashPassword(data.password);
     } else {
@@ -68,10 +68,10 @@ async function createMember(accountId, data, invitedById = null) {
         const tempPassword = crypto.randomBytes(32).toString('hex');
         hashedPassword = await hashPassword(tempPassword);
     }
-    
+
     const verificationToken = generateSecureToken();
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    
+
     const member = await prisma.accountMember.create({
         data: {
             accountId,
@@ -89,7 +89,7 @@ async function createMember(accountId, data, invitedById = null) {
             invitationExpires: isInvitation ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : null // 7 days
         }
     });
-    
+
     return member;
 }
 
@@ -102,31 +102,31 @@ async function authenticateMember(email, password) {
             where: { email: email.toLowerCase().trim() },
             include: { account: true }
         });
-        
+
         if (!member) {
             return null;
         }
-        
+
         if (!member.isActive) {
             throw new Error('Member account is not active');
         }
-        
+
         if (!member.account.isActive) {
             throw new Error('Organization account is not active');
         }
-        
+
         const isValid = await comparePassword(password, member.password);
-        
+
         if (!isValid) {
             return null;
         }
-        
+
         // Update last login
         await prisma.accountMember.update({
             where: { id: member.id },
             data: { lastLoginAt: new Date() }
         });
-        
+
         // Return member without password
         const { password: _, ...memberWithoutPassword } = member;
         return memberWithoutPassword;
@@ -147,11 +147,11 @@ async function getMemberById(memberId) {
         where: { id: memberId },
         include: { account: true }
     });
-    
+
     if (!member) {
         return null;
     }
-    
+
     const { password: _, ...memberWithoutPassword } = member;
     return memberWithoutPassword;
 }
@@ -164,11 +164,11 @@ async function getMemberByEmail(email) {
         where: { email: email.toLowerCase().trim() },
         include: { account: true }
     });
-    
+
     if (!member) {
         return null;
     }
-    
+
     const { password: _, ...memberWithoutPassword } = member;
     return memberWithoutPassword;
 }
@@ -196,7 +196,7 @@ async function getAccountMembers(accountId) {
             { createdAt: 'asc' }
         ]
     });
-    
+
     return members;
 }
 
@@ -207,31 +207,31 @@ async function updateMemberRole(memberId, newRole, actorMember) {
     if (!permissions.isValidRole(newRole)) {
         throw new Error('Invalid role');
     }
-    
+
     const targetMember = await prisma.accountMember.findUnique({
         where: { id: memberId }
     });
-    
+
     if (!targetMember) {
         throw new Error('Member not found');
     }
-    
+
     // Check if actor can modify this member
     if (!permissions.canModifyRole(actorMember.role, targetMember.role)) {
         throw new Error('You do not have permission to modify this member');
     }
-    
+
     // Check if actor can assign this role
     const assignableRoles = permissions.getAssignableRoles(actorMember.role);
     if (!assignableRoles.includes(newRole) && newRole !== targetMember.role) {
         throw new Error('You cannot assign this role');
     }
-    
+
     // Can't demote yourself
     if (memberId === actorMember.id && permissions.ROLE_HIERARCHY.indexOf(newRole) < permissions.ROLE_HIERARCHY.indexOf(actorMember.role)) {
         throw new Error('You cannot demote yourself');
     }
-    
+
     return await prisma.accountMember.update({
         where: { id: memberId },
         data: { role: newRole }
@@ -245,30 +245,30 @@ async function removeMember(memberId, actorMember) {
     const targetMember = await prisma.accountMember.findUnique({
         where: { id: memberId }
     });
-    
+
     if (!targetMember) {
         throw new Error('Member not found');
     }
-    
+
     // Can't remove yourself
     if (memberId === actorMember.id) {
         throw new Error('You cannot remove yourself');
     }
-    
+
     // Can't remove owner
     if (targetMember.role === 'owner') {
         throw new Error('Cannot remove the account owner');
     }
-    
+
     // Check permissions
     if (!permissions.canActOnMember(actorMember, targetMember, 'remove')) {
         throw new Error('You do not have permission to remove this member');
     }
-    
+
     await prisma.accountMember.delete({
         where: { id: memberId }
     });
-    
+
     return true;
 }
 
@@ -279,17 +279,17 @@ async function acceptInvitation(token, name, password) {
     const member = await prisma.accountMember.findUnique({
         where: { invitationToken: token }
     });
-    
+
     if (!member) {
         return { success: false, message: 'Invalid or expired invitation link' };
     }
-    
+
     if (member.invitationExpires && new Date() > member.invitationExpires) {
         return { success: false, message: 'Invitation has expired. Please request a new invitation.' };
     }
-    
+
     const hashedPassword = await hashPassword(password);
-    
+
     await prisma.accountMember.update({
         where: { id: member.id },
         data: {
@@ -301,7 +301,7 @@ async function acceptInvitation(token, name, password) {
             invitationExpires: null
         }
     });
-    
+
     return { success: true, memberId: member.id };
 }
 
@@ -310,20 +310,20 @@ async function acceptInvitation(token, name, password) {
  */
 async function requestMemberPasswordReset(email) {
     const { generateSecureToken } = require('./security');
-    
+
     const member = await prisma.accountMember.findUnique({
         where: { email: email.toLowerCase().trim() }
     });
-    
+
     // Don't reveal if member exists
     if (!member) {
         console.log('Password reset requested for non-existent member email:', email);
         return { success: true };
     }
-    
+
     const resetToken = generateSecureToken();
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    
+
     await prisma.accountMember.update({
         where: { id: member.id },
         data: {
@@ -331,7 +331,7 @@ async function requestMemberPasswordReset(email) {
             passwordResetExpires: resetExpires
         }
     });
-    
+
     return {
         success: true,
         memberId: member.id,
@@ -348,21 +348,21 @@ async function resetMemberPassword(token, newPassword) {
     if (!token) {
         return { success: false, message: 'Reset token is required' };
     }
-    
+
     const member = await prisma.accountMember.findUnique({
         where: { passwordResetToken: token }
     });
-    
+
     if (!member) {
         return { success: false, message: 'Invalid or expired reset link' };
     }
-    
+
     if (member.passwordResetExpires && new Date() > member.passwordResetExpires) {
         return { success: false, message: 'Reset link has expired. Please request a new one.' };
     }
-    
+
     const hashedPassword = await hashPassword(newPassword);
-    
+
     await prisma.accountMember.update({
         where: { id: member.id },
         data: {
@@ -372,7 +372,7 @@ async function resetMemberPassword(token, newPassword) {
             emailVerified: true // Auto-verify
         }
     });
-    
+
     return { success: true, memberId: member.id, email: member.email };
 }
 
@@ -383,28 +383,28 @@ async function resetMemberPassword(token, newPassword) {
 async function createAccount(name, email, password) {
     const hashedPassword = await hashPassword(password);
     const { generateSecureToken } = require('./security');
-    
+
     // Check if email already exists
     const existing = await prisma.account.findUnique({
         where: { email }
     });
-    
+
     if (existing) {
         throw new Error('Account with this email already exists');
     }
-    
+
     // Check if first account (make it platform admin)
     const accountCount = await prisma.account.count();
     const isFirstAccount = accountCount === 0;
-    
+
     // Check if this email matches PLATFORM_ADMIN_EMAIL env var
     const platformAdminEmail = (process.env.PLATFORM_ADMIN_EMAIL || '').toLowerCase().trim();
-    const isPlatformAdmin = isFirstAccount || (platformAdminEmail && email.toLowerCase().trim() === platformAdminEmail);
-    
+    const isPlatformAdmin = isFirstAccount || (!!platformAdminEmail && email.toLowerCase().trim() === platformAdminEmail);
+
     // Generate email verification token
     const verificationToken = generateSecureToken();
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    
+
     // Create account with auto-generated API key
     const account = await prisma.account.create({
         data: {
@@ -421,7 +421,7 @@ async function createAccount(name, email, password) {
             mfaEnabled: true
         }
     });
-    
+
     // Also create an AccountMember as owner
     await prisma.accountMember.create({
         data: {
@@ -437,11 +437,11 @@ async function createAccount(name, email, password) {
             mfaEnabled: true
         }
     });
-    
+
     if (isPlatformAdmin) {
         console.log(`[Auth] Account ${email} created as platform admin (${isFirstAccount ? 'first account' : 'env match'})`);
     }
-    
+
     return account;
 }
 
@@ -470,31 +470,31 @@ async function authenticateAccount(email, password) {
         }
         // Otherwise fall through to legacy auth
     }
-    
+
     // Fall back to legacy Account authentication
     try {
         const account = await prisma.account.findUnique({
             where: { email: email.toLowerCase().trim() }
         });
-        
+
         if (!account) {
             return null;
         }
-        
+
         if (!account.isActive) {
             throw new Error('Account is not active');
         }
-        
+
         if (!account.password) {
             return null; // No legacy password set
         }
-        
+
         const isValid = await comparePassword(password, account.password);
-        
+
         if (!isValid) {
             return null;
         }
-        
+
         // Update last login (try without platformAdmin if column doesn't exist)
         try {
             await prisma.account.update({
@@ -511,7 +511,7 @@ async function authenticateAccount(email, password) {
                 throw updateError;
             }
         }
-        
+
         // Return account without password (legacy format)
         const { password: _, ...accountWithoutPassword } = account;
         if (accountWithoutPassword.platformAdmin === undefined) {
@@ -555,11 +555,11 @@ async function getAccountById(accountId) {
         const account = await prisma.account.findUnique({
             where: { id: accountId }
         });
-        
+
         if (!account) {
             return null;
         }
-        
+
         // Return without password, ensure platformAdmin has a default if missing
         const { password: _, ...accountWithoutPassword } = account;
         if (accountWithoutPassword.platformAdmin === undefined) {
@@ -593,11 +593,11 @@ async function getAccountByApiKey(apiKey) {
         const account = await prisma.account.findUnique({
             where: { apiKey }
         });
-        
+
         if (!account || !account.isActive) {
             return null;
         }
-        
+
         const { password: _, ...accountWithoutPassword } = account;
         if (accountWithoutPassword.platformAdmin === undefined) {
             accountWithoutPassword.platformAdmin = false;
@@ -652,16 +652,16 @@ async function verifyEmail(token) {
     const member = await prisma.accountMember.findUnique({
         where: { emailVerificationToken: token }
     });
-    
+
     if (member) {
         if (member.emailVerified) {
             return { success: false, message: 'Email already verified' };
         }
-        
+
         if (member.emailVerificationExpires && new Date() > member.emailVerificationExpires) {
             return { success: false, message: 'Verification link has expired. Please request a new one.' };
         }
-        
+
         await prisma.accountMember.update({
             where: { id: member.id },
             data: {
@@ -670,7 +670,7 @@ async function verifyEmail(token) {
                 emailVerificationExpires: null
             }
         });
-        
+
         return { success: true, memberId: member.id, email: member.email };
     }
 
@@ -709,20 +709,20 @@ async function verifyEmail(token) {
 
 async function resendVerificationEmail(email) {
     const { generateSecureToken } = require('./security');
-    
+
     // Try member first
     const member = await prisma.accountMember.findUnique({
         where: { email: email.toLowerCase().trim() }
     });
-    
+
     if (member) {
         if (member.emailVerified) {
             throw new Error('Email is already verified');
         }
-        
+
         const verificationToken = generateSecureToken();
         const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        
+
         return await prisma.accountMember.update({
             where: { id: member.id },
             data: {
@@ -765,7 +765,7 @@ async function resendVerificationEmail(email) {
 
 async function requestPasswordReset(email) {
     const { generateSecureToken } = require('./security');
-    
+
     // Try member first
     const memberResult = await requestMemberPasswordReset(email);
     if (memberResult.memberId) {
@@ -800,7 +800,7 @@ async function requestPasswordReset(email) {
                 passwordResetExpires: resetExpires
             }
         });
-        
+
         console.log('Password reset token generated for account:', account.id);
     } catch (error) {
         console.error('Error updating account with password reset token:', error);
@@ -823,7 +823,7 @@ async function resetPassword(token, newPassword) {
     if (!token) {
         return { success: false, message: 'Reset token is required' };
     }
-    
+
     // Try member first
     const memberResult = await resetMemberPassword(token, newPassword);
     if (memberResult.memberId) {
@@ -856,7 +856,7 @@ async function resetPassword(token, newPassword) {
             emailVerificationExpires: null
         }
     });
-    
+
     // Also update corresponding member if exists
     const member = await prisma.accountMember.findFirst({
         where: { accountId: account.id, email: account.email }
@@ -870,7 +870,7 @@ async function resetPassword(token, newPassword) {
             }
         });
     }
-    
+
     console.log(`[Auth] Password reset successful for ${account.email}, email auto-verified`);
 
     return {
@@ -888,7 +888,7 @@ async function resetPassword(token, newPassword) {
 function requireAuth(req, res, next) {
     console.log('requireAuth check - session:', req.session ? 'exists' : 'missing');
     console.log('requireAuth check - accountId:', req.session?.accountId);
-    
+
     if (!req.session || !req.session.accountId) {
         console.log('Authentication required - redirecting to login');
         if (req.path.startsWith('/api/')) {
@@ -896,7 +896,7 @@ function requireAuth(req, res, next) {
         }
         return res.redirect('/login');
     }
-    
+
     console.log('Authentication successful, proceeding');
     next();
 }
@@ -904,27 +904,91 @@ function requireAuth(req, res, next) {
 // Middleware to require API key (for PowerShell scripts)
 async function requireApiKey(req, res, next) {
     const apiKey = req.headers['x-api-key'] || req.query.api_key;
-    
+
     if (!apiKey) {
-        return res.status(401).json({ 
+        return res.status(401).json({
             error: 'API key required',
             message: 'Please provide API key in X-API-Key header'
         });
     }
-    
+
     const account = await getAccountByApiKey(apiKey);
-    
+
     if (!account) {
-        return res.status(401).json({ 
+        return res.status(401).json({
             error: 'Invalid API key',
             message: 'API key is invalid or account is not active'
         });
     }
-    
+
     req.account = account;
     req.accountId = account.id;
-    
+
     next();
+}
+
+// Middleware to require Partner API key (for Partner/MSP API access)
+async function requirePartnerApiKey(req, res, next) {
+    const partnerApiKey = req.headers['x-partner-api-key'];
+
+    if (!partnerApiKey) {
+        return res.status(401).json({
+            success: false,
+            error: {
+                code: 'PARTNER_AUTH_REQUIRED',
+                message: 'Partner API key required. Please provide X-Partner-API-Key header.'
+            }
+        });
+    }
+
+    try {
+        const partnerAccount = await prisma.partnerAccount.findUnique({
+            where: { partnerApiKey },
+            include: {
+                account: true,
+                linkedAccounts: {
+                    where: { isActive: true },
+                    include: { linkedAccount: true }
+                }
+            }
+        });
+
+        if (!partnerAccount || !partnerAccount.isActive) {
+            return res.status(401).json({
+                success: false,
+                error: {
+                    code: 'INVALID_PARTNER_API_KEY',
+                    message: 'Partner API key is invalid or partner account is not active'
+                }
+            });
+        }
+
+        if (!partnerAccount.account.isActive) {
+            return res.status(401).json({
+                success: false,
+                error: {
+                    code: 'INVALID_PARTNER_API_KEY',
+                    message: 'Associated account is not active'
+                }
+            });
+        }
+
+        // Attach partner info to request
+        req.partnerAccount = partnerAccount;
+        req.partnerAccountId = partnerAccount.id;
+        req.linkedAccountIds = partnerAccount.linkedAccounts.map(link => link.linkedAccountId);
+
+        next();
+    } catch (error) {
+        console.error('requirePartnerApiKey error:', error);
+        return res.status(500).json({
+            success: false,
+            error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Internal server error during authentication'
+            }
+        });
+    }
 }
 
 // Middleware to attach account AND member info to request
@@ -934,7 +998,7 @@ async function attachAccount(req, res, next) {
         if (account) {
             req.account = account;
             req.accountId = account.id;
-            
+
             // If a member is logged in, use member's email instead of account owner's email
             if (req.session.memberId) {
                 const member = await getMemberById(req.session.memberId);
@@ -943,7 +1007,7 @@ async function attachAccount(req, res, next) {
                     req.memberRole = member.role;
                     res.locals.member = member;
                     res.locals.currentMember = member;
-                    
+
                     // Override account email with member email for display purposes
                     // This ensures the UI shows the logged-in member's email, not the account owner's
                     req.account = { ...account, email: member.email };
@@ -982,10 +1046,10 @@ function requireRole(allowedRoles) {
                 }
                 return res.redirect('/login');
             }
-            
+
             // Get member role from session or fetch
             let role = req.session.memberRole;
-            
+
             if (!role && req.session.memberId) {
                 const member = await getMemberById(req.session.memberId);
                 if (member) {
@@ -993,12 +1057,12 @@ function requireRole(allowedRoles) {
                     req.member = member;
                 }
             }
-            
+
             // Legacy: if no member, assume owner role for backward compatibility
             if (!role) {
                 role = 'owner';
             }
-            
+
             // Check if role is allowed
             if (!allowedRoles.includes(role)) {
                 const { auditLog } = require('./security');
@@ -1007,9 +1071,9 @@ function requireRole(allowedRoles) {
                     requiredRoles: allowedRoles,
                     actualRole: role
                 }, req);
-                
+
                 if (req.path.startsWith('/api/')) {
-                    return res.status(403).json({ 
+                    return res.status(403).json({
                         error: 'Insufficient permissions',
                         required: allowedRoles,
                         current: role
@@ -1021,7 +1085,7 @@ function requireRole(allowedRoles) {
                     requestId: req.id
                 });
             }
-            
+
             req.memberRole = role;
             next();
         } catch (error) {
@@ -1047,9 +1111,9 @@ function requirePermission(permission) {
                 }
                 return res.redirect('/login');
             }
-            
+
             let role = req.session.memberRole || req.memberRole;
-            
+
             if (!role && req.session.memberId) {
                 const member = await getMemberById(req.session.memberId);
                 if (member) {
@@ -1057,12 +1121,12 @@ function requirePermission(permission) {
                     req.member = member;
                 }
             }
-            
+
             // Legacy: assume owner for backward compatibility
             if (!role) {
                 role = 'owner';
             }
-            
+
             if (!permissions.hasPermission(role, permission)) {
                 const { auditLog } = require('./security');
                 auditLog('PERMISSION_DENIED', req.session.accountId, {
@@ -1070,9 +1134,9 @@ function requirePermission(permission) {
                     requiredPermission: permission,
                     role: role
                 }, req);
-                
+
                 if (req.path.startsWith('/api/')) {
-                    return res.status(403).json({ 
+                    return res.status(403).json({
                         error: 'Permission denied',
                         required: permission
                     });
@@ -1083,7 +1147,7 @@ function requirePermission(permission) {
                     account: req.account
                 });
             }
-            
+
             req.memberRole = role;
             next();
         } catch (error) {
@@ -1108,23 +1172,28 @@ async function requirePlatformAdmin(req, res, next) {
             }
             return res.redirect('/login');
         }
-        
-        // SECURITY: Members (team members) can NEVER have platform admin access
-        // Only account owners (direct login) can be platform admins
+
+        // SECURITY: Members (team members) should generally not have platform admin access
+        // BUT allow Account Owners to proceed (they are effectively the account)
         if (req.session.memberId) {
-            const { auditLog } = require('./security');
-            auditLog('PLATFORM_ADMIN_ACCESS_DENIED', req.session.accountId, {
-                path: req.path,
-                reason: 'Team members cannot access platform admin features',
-                memberId: req.session.memberId
-            }, req);
-            
-            if (req.path.startsWith('/api/')) {
-                return res.status(403).json({ error: 'Platform admin access not available for team members' });
+            const memberRole = req.session.memberRole;
+            if (memberRole !== 'owner') {
+                const { auditLog } = require('./security');
+                auditLog('PLATFORM_ADMIN_ACCESS_DENIED', req.session.accountId, {
+                    path: req.path,
+                    reason: 'Team members (non-owners) cannot access platform admin features',
+                    memberId: req.session.memberId,
+                    role: memberRole
+                }, req);
+
+                if (req.path.startsWith('/api/')) {
+                    return res.status(403).json({ error: 'Platform admin access not available for team members' });
+                }
+                return res.status(403).send('Access denied: Platform admin access is not available for team members');
             }
-            return res.status(403).send('Access denied: Platform admin access is not available for team members');
+            // If owner, proceed to check account.platformAdmin
         }
-        
+
         const account = await getAccountById(req.session.accountId);
         if (!account) {
             if (req.path.startsWith('/api/')) {
@@ -1132,37 +1201,37 @@ async function requirePlatformAdmin(req, res, next) {
             }
             return res.redirect('/login');
         }
-        
+
         // New system: check platformAdmin flag
         let isPlatformAdmin = account.platformAdmin === true;
-        
+
         // Legacy fallback: check env variable + isSuperAdmin
         if (!isPlatformAdmin) {
             const adminEmails = (process.env.SUPER_ADMIN_EMAILS || process.env.PLATFORM_ADMIN_EMAIL || '')
                 .split(',')
                 .map(e => e.trim().toLowerCase())
                 .filter(e => e.length > 0);
-            
-            const isInAllowlist = adminEmails.length > 0 && 
+
+            const isInAllowlist = adminEmails.length > 0 &&
                 adminEmails.includes(account.email.toLowerCase());
             const hasLegacyFlag = account.isSuperAdmin === true;
-            
+
             isPlatformAdmin = isInAllowlist && hasLegacyFlag;
         }
-        
+
         if (!isPlatformAdmin) {
             const { auditLog } = require('./security');
             auditLog('PLATFORM_ADMIN_ACCESS_DENIED', account.id, {
                 path: req.path,
                 email: account.email
             }, req);
-            
+
             if (req.path.startsWith('/api/')) {
                 return res.status(403).json({ error: 'Platform admin access required' });
             }
             return res.status(403).send('Access denied: Platform admin privileges required');
         }
-        
+
         req.account = account;
         req.isPlatformAdmin = true;
         next();
@@ -1207,7 +1276,7 @@ module.exports = {
     // Password
     hashPassword,
     comparePassword,
-    
+
     // Account Member operations (RBAC)
     createMember,
     authenticateMember,
@@ -1219,32 +1288,33 @@ module.exports = {
     acceptInvitation,
     requestMemberPasswordReset,
     resetMemberPassword,
-    
+
     // Legacy Account operations
     createAccount,
     authenticateAccount,
     getAccountById,
     getAccountByApiKey,
     regenerateApiKey,
-    
+
     // Email verification
     verifyEmail,
     resendVerificationEmail,
-    
+
     // Password reset
     requestPasswordReset,
     resetPassword,
-    
+
     // Middleware
     requireAuth,
     requireApiKey,
+    requirePartnerApiKey,
     attachAccount,
     optionalAuth,
     requireRole,
     requirePermission,
     requirePlatformAdmin,
     requireSuperAdmin, // Legacy alias
-    
+
     // Utilities
     generateRandomPassword,
     sanitizeAccountForClient,

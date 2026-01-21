@@ -1,268 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - SasWatch</title>
+    <meta name="description"
+        content="Create a SasWatch account to start tracking your organization's SaaS license usage and reduce overhead.">
+
+    <!-- Performance: Preconnect to Font domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="/css/style.css">
-    <style>
-        body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
-        }
-
-        .auth-container {
-            max-width: 440px;
-            width: 100%;
-            margin: 20px;
-            padding: 48px;
-            background: var(--bg-card);
-            border-radius: 16px;
-            box-shadow: var(--shadow-lg);
-            border: 1px solid var(--border-color);
-            animation: slideUp 0.4s ease;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .auth-header {
-            text-align: center;
-            margin-bottom: 32px;
-        }
-
-        .auth-logo {
-            width: 80px;
-            height: 80px;
-            object-fit: contain;
-            display: block;
-            margin: 0 auto 16px;
-        }
-
-        .auth-header h1 {
-            margin-bottom: 8px;
-            color: var(--text-primary);
-            font-size: 1.75rem;
-            font-weight: 700;
-        }
-
-        .auth-header p {
-            color: var(--text-secondary);
-            font-size: 0.938rem;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-            font-weight: 500;
-            font-size: 0.875rem;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 0.938rem;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            transition: all 0.2s;
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: var(--accent-primary);
-            box-shadow: 0 0 0 3px var(--accent-light);
-        }
-
-        .form-group small {
-            display: block;
-            margin-top: 6px;
-            color: var(--text-tertiary);
-            font-size: 0.813rem;
-        }
-
-        .btn-primary {
-            width: 100%;
-            padding: 14px;
-            background: var(--success);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s;
-            margin-top: 8px;
-        }
-
-        .btn-primary:hover {
-            background: #059669;
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .btn-primary:active {
-            transform: translateY(0);
-        }
-
-        .auth-footer {
-            text-align: center;
-            margin-top: 24px;
-            padding-top: 24px;
-            border-top: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-        }
-
-        .auth-footer a {
-            color: var(--accent-primary);
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .auth-footer a:hover {
-            text-decoration: underline;
-        }
-
-        .error-message {
-            background: var(--danger-light);
-            color: var(--danger);
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 24px;
-            font-size: 0.875rem;
-            border: 1px solid var(--danger);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        [data-theme="dark"] .error-message {
-            background: rgba(239, 68, 68, 0.1);
-        }
-
-        .field-error {
-            color: var(--danger);
-            font-size: 0.813rem;
-            margin-top: 6px;
-            display: none;
-        }
-
-        .field-error.show {
-            display: block;
-        }
-
-        .form-group input.invalid {
-            border-color: var(--danger);
-        }
-
-        .form-group input.valid {
-            border-color: var(--success);
-        }
-
-        .password-strength {
-            margin-top: 6px;
-            font-size: 0.813rem;
-        }
-
-        .strength-bar {
-            height: 4px;
-            background: var(--border-color);
-            border-radius: 2px;
-            overflow: hidden;
-            margin-top: 6px;
-        }
-
-        .strength-bar-fill {
-            height: 100%;
-            transition: width 0.3s, background-color 0.3s;
-            width: 0%;
-            background: var(--danger);
-        }
-
-        .strength-bar-fill.weak {
-            width: 33%;
-            background: var(--danger);
-        }
-
-        .strength-bar-fill.medium {
-            width: 66%;
-            background: var(--warning);
-        }
-
-        .strength-bar-fill.strong {
-            width: 100%;
-            background: var(--success);
-        }
-    </style>
+    <link rel="stylesheet" href="/css/auth.css">
 </head>
+
 <body data-theme="dark">
     <div class="auth-container">
         <div class="auth-header">
-            <img src="/images/logoTransp.png" alt="SasWatch" class="auth-logo">
+            <img src="/images/logoTransp.png" alt="SasWatch Logo" class="auth-logo" width="80" height="80">
             <h1>SasWatch</h1>
             <p>Create your account</p>
         </div>
 
-        <% if (typeof error !== 'undefined' && error) { %>
+        <% if (typeof error !=='undefined' && error) { %>
             <div class="error-message">
                 <span>⚠️</span>
-                <span><%= error %></span>
+                <span>
+                    <%= error %>
+                </span>
             </div>
-        <% } %>
-        
-        <form method="POST" action="/signup">
-            <div class="form-group">
-                <label for="name">Organization Name</label>
-                <input type="text" id="name" name="name" required autofocus>
-                <small>Your company or organization name</small>
-            </div>
-            
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required>
-                <small>This will be your login email</small>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required minlength="8">
-                <div class="strength-bar">
-                    <div class="strength-bar-fill" id="strength-bar"></div>
-                </div>
-                <small id="password-hint">At least 8 characters</small>
-                <div class="field-error" id="password-error"></div>
-            </div>
+            <% } %>
 
-            <div class="form-group">
-                <label for="confirmPassword">Confirm Password</label>
-                <input type="password" id="confirmPassword" name="confirmPassword" required>
-                <div class="field-error" id="confirm-error"></div>
-            </div>
-            
-            <button type="submit" class="btn-primary">Create Account</button>
-        </form>
-        
-        <div class="auth-footer">
-            Already have an account? <a href="/login">Sign in</a>
-        </div>
+                <form method="POST" action="/signup">
+                    <div class="form-group">
+                        <label for="name">Organization Name</label>
+                        <input type="text" id="name" name="name" required autofocus>
+                        <small>Your company or organization name</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" required>
+                        <small>This will be your login email</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required minlength="8">
+                        <div class="strength-bar">
+                            <div class="strength-bar-fill" id="strength-bar"></div>
+                        </div>
+                        <small id="password-hint">At least 8 characters</small>
+                        <div class="field-error" id="password-error"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password</label>
+                        <input type="password" id="confirmPassword" name="confirmPassword" required>
+                        <div class="field-error" id="confirm-error"></div>
+                    </div>
+
+                    <button type="submit" class="btn-primary">Create Account</button>
+                </form>
+
+                <div class="auth-footer">
+                    Already have an account? <a href="/login">Sign in</a>
+                </div>
     </div>
 
     <script src="/js/ui-components.js"></script>
@@ -280,7 +86,7 @@
         }
 
         // Real-time password validation
-        document.getElementById('password').addEventListener('input', function(e) {
+        document.getElementById('password').addEventListener('input', function (e) {
             const password = e.target.value;
             const strengthBar = document.getElementById('strength-bar');
             const hint = document.getElementById('password-hint');
@@ -319,7 +125,7 @@
         });
 
         // Confirm password validation
-        document.getElementById('confirmPassword').addEventListener('input', function(e) {
+        document.getElementById('confirmPassword').addEventListener('input', function (e) {
             const password = document.getElementById('password').value;
             const confirmPassword = e.target.value;
             const errorDiv = document.getElementById('confirm-error');
@@ -344,7 +150,7 @@
         });
 
         // Form submission validation
-        document.querySelector('form').addEventListener('submit', function(e) {
+        document.querySelector('form').addEventListener('submit', function (e) {
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
             const passwordError = document.getElementById('password-error');
@@ -379,5 +185,5 @@
         });
     </script>
 </body>
-</html>
 
+</html>

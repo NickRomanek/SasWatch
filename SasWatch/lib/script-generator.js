@@ -9,7 +9,7 @@ function generateMonitorScript(apiKey, apiUrl, nodeEnv = 'production') {
     const checkInterval = (nodeEnv === 'development' || nodeEnv === 'testing') ? 5 : 300;
     const intervalDescription = (nodeEnv === 'development' || nodeEnv === 'testing') ? '5 seconds (TESTING MODE)' : '5 minutes';
 
-    return `# Adobe Usage Monitor - Auto-configured for your SubTracker account
+    return `# Adobe Usage Monitor - Auto-configured for your SasWatch account
 # Generated: ${new Date().toISOString()}
 # Environment: ${nodeEnv.toUpperCase()}
 
@@ -232,7 +232,7 @@ function Monitor-AdobeUsage {
 
 try {
     Write-MonitorLog "================================================" "INFO"
-    Write-MonitorLog "Adobe Usage Monitor - SubTracker" "INFO"
+    Write-MonitorLog "Adobe Usage Monitor - SasWatch" "INFO"
     Write-MonitorLog "================================================" "INFO"
     Write-MonitorLog "" "INFO"
     
@@ -274,7 +274,7 @@ function generateDeploymentInstructions(apiKey, apiUrl) {
     // Remove trailing slash from API URL if present
     const cleanApiUrl = apiUrl.replace(/\/$/, '');
     
-    return `# SubTracker - Deployment Instructions
+    return `# SasWatch - Deployment Instructions
 
 ## 🚀 Quick Deployment Guide
 
@@ -302,7 +302,7 @@ function generateDeploymentInstructions(apiKey, apiUrl) {
    - Set as "Required"
 
 3. **Monitor:**
-   - Check SubTracker dashboard for incoming data
+   - Check SasWatch dashboard for incoming data
    - Users will report usage within 5 minutes
 
 ### Option 2: Group Policy (GPO)
@@ -351,7 +351,7 @@ PowerShell.exe -ExecutionPolicy Bypass -File .\\Monitor-AdobeUsage.ps1
 
 ### Verify in Dashboard:
 
-1. Log in to SubTracker
+1. Log in to SasWatch
 2. Go to Dashboard
 3. Check for usage events from test computer
 4. Should appear within 5 minutes
@@ -378,7 +378,7 @@ PowerShell.exe -ExecutionPolicy Bypass -File .\\Monitor-AdobeUsage.ps1
 ### API Key Issues:
 
 If you regenerate your API key, you must:
-1. Download new script from SubTracker
+1. Download new script from SasWatch
 2. Redeploy to all computers
 3. Old scripts will stop working immediately
 
@@ -422,7 +422,7 @@ If you regenerate your API key, you must:
 
 ## 📞 Support:
 
-Having issues? Check your SubTracker dashboard for:
+Having issues? Check your SasWatch dashboard for:
 - Account settings
 - API key status
 - Usage statistics

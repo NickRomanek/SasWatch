@@ -1,0 +1,373 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-01-19",
+  "description": "SasWatch strategic product roadmap based on competitive analysis and market trends",
+  "competitivePosition": {
+    "uniqueValue": [
+      "Adobe-specific deep tracking (actual app usage, not just logins)",
+      "Agent-based monitoring (enterprise-grade but affordable)",
+      "Open source and self-hostable (AGPL v3)",
+      "SMB-friendly pricing (competitors start at $50k+/year)"
+    ],
+    "targetMarket": "SMB and mid-market organizations with Adobe Creative Cloud licenses",
+    "competitors": [
+      {
+        "name": "Zylo",
+        "focus": "Enterprise procurement, contract management, spend governance",
+        "pricing": "$50k+/year",
+        "strengths": ["Renewal intelligence", "Benchmark data", "Contract management"]
+      },
+      {
+        "name": "Torii",
+        "focus": "IT automation, real-time Shadow IT discovery",
+        "pricing": "Enterprise",
+        "strengths": ["Gartner Leader 2025", "No-code automation", "Shadow AI detection"]
+      },
+      {
+        "name": "Productiv",
+        "focus": "Finance/HR, employee engagement metrics",
+        "pricing": "Enterprise",
+        "strengths": ["Usage-based intelligence", "ROI tracking", "Employee adoption"]
+      },
+      {
+        "name": "Flexera",
+        "focus": "Hybrid IT governance, on-prem + cloud",
+        "pricing": "Enterprise",
+        "strengths": ["Audit compliance", "Legacy SAM", "Multi-cloud"]
+      },
+      {
+        "name": "Zluri",
+        "focus": "Mid-market Shadow IT detection",
+        "pricing": "Mid-market",
+        "strengths": ["Nine discovery methods", "Thorough detection"]
+      },
+      {
+        "name": "Substly",
+        "focus": "SMB SaaS management",
+        "pricing": "SMB-friendly",
+        "strengths": ["Simplified interface", "Offboarding", "Cost management"]
+      }
+    ]
+  },
+  "marketTrends": {
+    "2026": [
+      {
+        "trend": "Shadow AI Discovery",
+        "description": "Track unauthorized AI tool usage (Copilot, ChatGPT, Gemini)",
+        "urgency": "critical",
+        "marketData": "78% of enterprises report Shadow AI incidents"
+      },
+      {
+        "trend": "Automated License Reclamation",
+        "description": "60-day inactivity auto-harvest workflows",
+        "urgency": "high",
+        "marketData": "Industry standard '60-day harvest rule' saves 20-30% on licenses"
+      },
+      {
+        "trend": "Usage-Based Pricing Tracking",
+        "description": "Monitor consumption credits (Adobe Firefly, etc.)",
+        "urgency": "high",
+        "marketData": "85% of companies have adopted usage-based pricing"
+      },
+      {
+        "trend": "Zero Trust Integration",
+        "description": "SSO/IdP integration for continuous verification",
+        "urgency": "medium",
+        "marketData": "Core tenet of 2025+ SaaS security"
+      }
+    ],
+    "2027": [
+      {
+        "trend": "Autonomous Agents",
+        "description": "Self-healing license management with agentic AI",
+        "urgency": "medium",
+        "marketData": "40% of enterprise apps will feature autonomous task agents by 2026"
+      },
+      {
+        "trend": "Predictive Finance",
+        "description": "Forecast usage-based billing fluctuations",
+        "urgency": "low",
+        "marketData": "CFOs need proactive cost modeling"
+      }
+    ]
+  },
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Foundation",
+      "timeline": "Current - Q2 2026",
+      "priority": "Security hardening and core feature completion",
+      "features": [
+        {
+          "id": "inactivity-alerts",
+          "title": "Automated Inactivity Alerts",
+          "description": "Email alerts when users haven't used Adobe in 30/60/90 days",
+          "priority": 1,
+          "complexity": "low",
+          "businessValue": "high",
+          "marketJustification": "Core value proposition - all competitors have this",
+          "securityImpact": "low",
+          "filesToModify": ["lib/email-sender.js", "lib/renewal-scheduler.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "license-reclamation",
+          "title": "License Reclamation Workflows",
+          "description": "Flag inactive licenses, one-click reassignment UI",
+          "priority": 1,
+          "complexity": "medium",
+          "businessValue": "high",
+          "marketJustification": "60-day harvest rule is industry standard - saves 20-30%",
+          "securityImpact": "low",
+          "filesToModify": ["views/licenses.ejs", "server-multitenant-routes.js", "public/js/licenses.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "export-functionality",
+          "title": "Export Functionality (CSV/PDF)",
+          "description": "Export users, activity, and licenses to CSV and PDF reports",
+          "priority": 1,
+          "complexity": "low",
+          "businessValue": "medium",
+          "marketJustification": "Enterprise buyers require reports for audits and compliance",
+          "securityImpact": "low",
+          "filesToModify": ["lib/export.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "advanced-analytics",
+          "title": "Advanced Usage Analytics",
+          "description": "Detailed usage patterns, trends, and insights dashboard",
+          "priority": 1,
+          "complexity": "medium",
+          "businessValue": "high",
+          "marketJustification": "Decision makers need data visualization for ROI",
+          "securityImpact": "low",
+          "filesToModify": ["views/index.ejs", "public/js/app.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "email-notifications",
+          "title": "Email Notification System",
+          "description": "Configurable email alerts for renewals, inactivity, and events",
+          "priority": 1,
+          "complexity": "medium",
+          "businessValue": "high",
+          "marketJustification": "Automated alerts prevent missed renewals and reduce waste",
+          "securityImpact": "low",
+          "filesToModify": ["lib/email-sender.js", "lib/renewal-scheduler.js"],
+          "protectedFilesRequired": false
+        }
+      ]
+    },
+    {
+      "id": "phase-2",
+      "name": "Expansion",
+      "timeline": "Q2-Q3 2026",
+      "priority": "Multi-vendor and AI features",
+      "features": [
+        {
+          "id": "shadow-ai-detection",
+          "title": "Shadow AI Detection",
+          "description": "Track access to AI domains (openai.com, copilot.microsoft.com, etc.)",
+          "priority": 1,
+          "complexity": "high",
+          "businessValue": "very-high",
+          "marketJustification": "Fastest-growing security concern - 78% incident rate",
+          "securityImpact": "medium",
+          "filesToModify": ["extension/background.js", "lib/shadow-ai.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "google-workspace-integration",
+          "title": "Google Workspace Integration",
+          "description": "Track Google Workspace app usage via API",
+          "priority": 2,
+          "complexity": "medium",
+          "businessValue": "high",
+          "marketJustification": "Customers have 112+ SaaS apps on average",
+          "securityImpact": "medium",
+          "filesToModify": ["lib/google-workspace.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "m365-deep-tracking",
+          "title": "Microsoft 365 Deep Tracking",
+          "description": "Expand Entra integration with detailed M365 app usage",
+          "priority": 2,
+          "complexity": "medium",
+          "businessValue": "high",
+          "marketJustification": "M365 is second most common enterprise SaaS",
+          "securityImpact": "medium",
+          "filesToModify": ["lib/entra-sync.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "firefly-credit-tracking",
+          "title": "Adobe Firefly Credit Tracking",
+          "description": "Monitor Adobe Firefly AI credit consumption",
+          "priority": 2,
+          "complexity": "medium",
+          "businessValue": "medium",
+          "marketJustification": "Usage-based AI credits can cause unexpected overages ($3-7k/year)",
+          "securityImpact": "low",
+          "filesToModify": ["lib/adobe-api.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "ai-rightsizing",
+          "title": "AI Right-Sizing Recommendations",
+          "description": "ML-powered suggestions for All Apps vs Single App licenses",
+          "priority": 2,
+          "complexity": "high",
+          "businessValue": "high",
+          "marketJustification": "Right-sizing saves ~50% per seat on over-provisioned users",
+          "securityImpact": "low",
+          "filesToModify": ["lib/ai-recommendations.js", "views/licenses.ejs"],
+          "protectedFilesRequired": false
+        }
+      ]
+    },
+    {
+      "id": "phase-3",
+      "name": "Automation",
+      "timeline": "Q3-Q4 2026",
+      "priority": "Autonomous operations",
+      "features": [
+        {
+          "id": "automated-offboarding",
+          "title": "Automated Offboarding Workflows",
+          "description": "Auto-revoke licenses when users leave (via Entra/HR integration)",
+          "priority": 1,
+          "complexity": "high",
+          "businessValue": "very-high",
+          "marketJustification": "Orphaned accounts are top security risk and cost center",
+          "securityImpact": "high",
+          "filesToModify": ["lib/offboarding.js", "lib/entra-sync.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": true,
+          "approvalNotes": "Requires careful security review - touches auth flow"
+        },
+        {
+          "id": "self-healing-licenses",
+          "title": "Self-Healing License Management",
+          "description": "Autonomous license reclamation and reallocation",
+          "priority": 2,
+          "complexity": "high",
+          "businessValue": "high",
+          "marketJustification": "60% of large firms will use self-healing systems by 2026",
+          "securityImpact": "medium",
+          "filesToModify": ["lib/autonomous-agent.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "webhook-integrations",
+          "title": "Webhook Integrations",
+          "description": "Outbound webhooks for events (license change, inactivity, etc.)",
+          "priority": 2,
+          "complexity": "medium",
+          "businessValue": "medium",
+          "marketJustification": "Enables integration with customer workflows",
+          "securityImpact": "medium",
+          "filesToModify": ["lib/webhooks.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "slack-teams-notifications",
+          "title": "Slack/Teams Notifications",
+          "description": "Push notifications to Slack and Microsoft Teams",
+          "priority": 2,
+          "complexity": "low",
+          "businessValue": "medium",
+          "marketJustification": "IT teams live in chat tools",
+          "securityImpact": "low",
+          "filesToModify": ["lib/slack-integration.js", "lib/teams-integration.js"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "api-v2",
+          "title": "API v2 with Webhooks",
+          "description": "REST API v2 with webhook subscriptions and better documentation",
+          "priority": 2,
+          "complexity": "medium",
+          "businessValue": "high",
+          "marketJustification": "API-first enables integrations and partner ecosystem",
+          "securityImpact": "medium",
+          "filesToModify": ["server-multitenant-routes.js", "lib/api-v2.js"],
+          "protectedFilesRequired": false
+        }
+      ]
+    },
+    {
+      "id": "phase-4",
+      "name": "Enterprise",
+      "timeline": "2027",
+      "priority": "Enterprise readiness",
+      "features": [
+        {
+          "id": "sso-saml",
+          "title": "SSO/SAML Integration",
+          "description": "Enterprise SSO with SAML 2.0 and OIDC support",
+          "priority": 1,
+          "complexity": "high",
+          "businessValue": "high",
+          "marketJustification": "Enterprise requirement for security and compliance",
+          "securityImpact": "high",
+          "filesToModify": ["lib/auth.js", "lib/sso.js", "server-multitenant-routes.js"],
+          "protectedFilesRequired": true,
+          "approvalNotes": "Major auth changes - requires security audit"
+        },
+        {
+          "id": "audit-logging",
+          "title": "Audit Logging and Compliance",
+          "description": "Comprehensive audit trail for all actions and data access",
+          "priority": 1,
+          "complexity": "medium",
+          "businessValue": "high",
+          "marketJustification": "Required for SOC2, HIPAA, and enterprise compliance",
+          "securityImpact": "high",
+          "filesToModify": ["lib/audit-log.js", "lib/security.js"],
+          "protectedFilesRequired": true,
+          "approvalNotes": "Touches security layer - requires review"
+        },
+        {
+          "id": "soc2-toolkit",
+          "title": "SOC2 Compliance Toolkit",
+          "description": "Pre-built reports and controls for SOC2 audits",
+          "priority": 2,
+          "complexity": "high",
+          "businessValue": "medium",
+          "marketJustification": "Table stakes for enterprise sales",
+          "securityImpact": "medium",
+          "filesToModify": ["lib/compliance.js", "views/compliance.ejs"],
+          "protectedFilesRequired": false
+        },
+        {
+          "id": "white-label",
+          "title": "White-Label/Reseller Support",
+          "description": "Customizable branding for MSP and reseller partners",
+          "priority": 3,
+          "complexity": "high",
+          "businessValue": "medium",
+          "marketJustification": "MSP channel can accelerate growth",
+          "securityImpact": "low",
+          "filesToModify": ["views/", "public/css/", "lib/branding.js"],
+          "protectedFilesRequired": false
+        }
+      ]
+    }
+  ],
+  "metrics": {
+    "successCriteria": [
+      "Monthly active accounts growth > 20%",
+      "Customer license savings > 20% average",
+      "Time to value < 1 hour",
+      "NPS > 50"
+    ],
+    "trackingRequired": [
+      "Feature usage analytics",
+      "API endpoint hit rates",
+      "Customer feedback scores",
+      "Support ticket categories"
+    ]
+  }
+}

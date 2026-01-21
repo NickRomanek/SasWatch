@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Note**: For Cursor Agent Mode, see `.cursor/rules/` directory for detailed rules and guidelines. This file provides high-level project context.
+
 ## Project Overview
 
 SasWatch is a **multi-tenant SaaS platform** for tracking Adobe Creative Cloud license usage across organizations. Each organization (account) gets complete data isolation with a unique API key for automated usage tracking via PowerShell scripts and Chrome extension.
@@ -32,6 +34,20 @@ npm run db:test      # Test database connection
 ```bash
 npm start            # Production mode
 npm run dev          # Development mode with nodemon
+```
+
+### Testing
+```bash
+# Unit & Integration Tests (Vitest)
+npm test                    # Run all unit/integration tests
+npm run test:watch          # Watch mode
+npm run test:coverage       # With coverage report
+
+# E2E Browser Tests (Playwright)
+npm run test:e2e            # Run headless (requires server running)
+npm run test:e2e:headed     # Run with visible browser
+npm run test:e2e:ui         # Interactive Playwright UI
+npm run test:e2e:debug      # Debug mode with step-through
 ```
 
 ## Architecture Overview
@@ -222,6 +238,66 @@ API_URL=https://your-domain.railway.app  # Or http://localhost:3000
 NODE_ENV=production  # or development
 ```
 
+## Testing
+
+### Test Structure
+```
+SasWatch/__tests__/
+├── unit/              # Vitest - Fast isolated tests
+│   └── lib/          # Test lib/*.js functions
+├── integration/       # Vitest - API tests with real DB
+│   └── api/          # Test API endpoints
+└── e2e/
+    └── playwright/   # Playwright - Browser automation tests
+        └── login.spec.js
+```
+
+### Running Tests
+
+**Vitest (Unit & Integration)**
+```bash
+npm test              # All unit/integration tests
+npm run test:watch    # Watch mode
+npm run test:coverage # Coverage report
+```
+
+**Playwright (E2E Browser Tests)**
+```bash
+# Start server first!
+npm run dev           # Terminal 1
+
+# Then run E2E tests
+npm run test:e2e           # Headless
+npm run test:e2e:headed    # Visible browser
+npm run test:e2e:ui        # Interactive UI
+npm run test:e2e:debug     # Step-through debug
+```
+
+### Test Credentials
+```bash
+TEST_EMAIL=nick@romatekai.com
+TEST_PASSWORD=password
+TEST_BASE_URL=http://localhost:3000
+```
+
+### Writing Playwright Tests
+```javascript
+import { test, expect } from '@playwright/test';
+
+test('should login', async ({ page }) => {
+    await page.goto('/login');
+    await page.locator('#email').fill('nick@romatekai.com');
+    await page.locator('#password').fill('password');
+    await page.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL('/');
+});
+```
+
+### Test Files
+- `vitest.config.js` - Vitest configuration
+- `playwright.config.js` - Playwright configuration
+- `__tests__/setup.js` - Vitest setup file
+
 ## Testing Multi-Tenant Isolation
 
 Always verify data isolation when making changes:
@@ -303,3 +379,14 @@ Optional: Chrome extension also tracks Adobe.com website usage.
 - HTTPS-only cookies in production (`secure: true`)
 - All queries account-scoped to prevent cross-tenant access
 - No sensitive data collected (no file names, content, or personal info)
+
+## Detailed Rules (Auto-loaded by Claude Code)
+
+The following rule files contain detailed guidelines for specific areas. Claude Code will automatically include these via the @ syntax:
+
+@.cursor/rules/general.md
+@.cursor/rules/database.md
+@.cursor/rules/security.md
+@.cursor/rules/testing.md
+@.cursor/rules/forbidden.md
+@.cursor/rules/autonomous-workflow.md

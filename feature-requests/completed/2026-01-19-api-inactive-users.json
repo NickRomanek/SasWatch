@@ -1,0 +1,36 @@
+{
+  "id": "api-inactive-users",
+  "title": "API Endpoint for Inactive Users",
+  "description": "Expose getInactiveUsers() via REST API endpoint for frontend integration",
+  "completedDate": "2026-01-19",
+  "status": "completed",
+  "filesChanged": [
+    "SasWatch/server-multitenant-routes.js",
+    "SasWatch/__tests__/integration/api/inactive-users-api.test.js",
+    "feature-requests/backlog.json"
+  ],
+  "protectedFilesModified": [],
+  "acceptanceCriteria": {
+    "GET /api/users/inactive returns inactive users": true,
+    "Supports optional ?days query parameter (default: 30)": true,
+    "Returns JSON with count and users array": true,
+    "Respects accountId scoping (auth.requireAuth)": true,
+    "Has integration tests": true
+  },
+  "testResults": {
+    "command": "npm test -- inactive-users-api",
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "duration": "1.83s"
+  },
+  "lessonsLearned": [
+    "Express app can be created in tests without server.js",
+    "Account scoping validated via session injection in tests",
+    "Integration tests can target specific endpoint with Vitest pattern"
+  ],
+  "nextSteps": [
+    "Add UI page or widget that consumes /api/users/inactive",
+    "Consider adding CSV export for inactive users"
+  ]
+}

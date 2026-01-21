@@ -1,0 +1,70 @@
+name: Test SasWatch
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'SasWatch/**'
+      - '.github/workflows/test-saswatch.yml'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'SasWatch/**'
+      - '.github/workflows/test-saswatch.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: saswatch_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: SasWatch/package-lock.json
+
+      - name: Install dependencies
+        working-directory: SasWatch
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: SasWatch
+        run: npm run db:generate
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/saswatch_test
+
+      - name: Push database schema
+        working-directory: SasWatch
+        run: npm run db:push
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/saswatch_test
+
+      - name: Run tests
+        working-directory: SasWatch
+        run: npm test
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/saswatch_test

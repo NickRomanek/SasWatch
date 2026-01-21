@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run db:generate:*)",
+      "Bash(npm run db:push:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npm test:*)",
+      "Bash(timeout 5 npm run dev)"
+    ]
+  }
+}

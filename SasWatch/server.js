@@ -7,14 +7,15 @@ require('dotenv').config();
 const { startBackgroundSync } = require('./lib/background-sync');
 const { initializeSocketIO, setupNamespaceReferences } = require('./lib/socket-handler');
 const { startRenewalScheduler } = require('./lib/renewal-scheduler');
-const { 
-    setupHelmet, 
-    requireHTTPS, 
-    addRequestId, 
+const {
+    setupHelmet,
+    requireHTTPS,
+    addRequestId,
     validateSessionSecret,
-    auditLog 
+    auditLog
 } = require('./lib/security');
 const { errorResponse } = require('./lib/error-handler');
+const partnerRoutes = require('./lib/partner-routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -55,9 +56,24 @@ app.use(compression());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
+
+// Performance: Cache control for static assets (long-term caching for images/css/js)
+const staticOptions = {
+    maxAge: '1d', // 1 day for general assets
+    setHeaders: (res, path) => {
+        if (path.match(/\.(jpg|jpeg|png|gif|webp|svg|ico)$/)) {
+            res.setHeader('Cache-Control', 'public, max-age=604800, immutable'); // 7 days for images
+        } else if (path.match(/\.(css|js)$/)) {
+            res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate'); // 1 day for code
+        }
+    }
+};
+app.use(express.static('public', staticOptions));
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+// Swagger configuration moved after session setup
 
 // ============================================
 // Multi-Tenant Routes Integration
@@ -75,13 +91,65 @@ const {
     setupAppsRoutes,
     setupDevRoutes,
     setupAdminRoutes,
+    setupPartnerManagementRoutes,
     setupDataRoutes,
     setupRenewalsRoutes,
-    setupMembersRoutes
+    setupMembersRoutes,
+    setupHeadlessRoutes
 } = require('./server-multitenant-routes');
 
 // Initialize session management (must be before routes)
 const sessionStore = setupSession(app);
+
+// ============================================
+// API Documentation (Swagger/OpenAPI)
+// ============================================
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
+const { requireAuth } = require('./lib/auth'); // Import auth middleware for security
+
+const swaggerOptions = {
+    definition: {
+        openapi: '3.0.0',
+        info: {
+            title: 'SasWatch API',
+            version: '1.0.0',
+            description: 'API documentation for the SasWatch platform.',
+        },
+        servers: [
+            {
+                url: process.env.NODE_ENV === 'production' ? 'https://app.saswatch.com' : `http://localhost:${PORT}`,
+                description: process.env.NODE_ENV === 'production' ? 'Production' : 'Development',
+            },
+        ],
+        components: {
+            securitySchemes: {
+                cookieAuth: {
+                    type: 'apiKey',
+                    in: 'cookie',
+                    name: 'connect.sid',
+                },
+                apiKey: {
+                    type: 'apiKey',
+                    in: 'header',
+                    name: 'X-API-Key',
+                }
+            },
+        },
+        security: [
+            { cookieAuth: [] },
+        ],
+    },
+    apis: ['./server-multitenant-routes.js'], // Path to the API docs
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+
+// Protect API docs - only logged in users can view
+app.use('/api-docs', requireAuth, swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }', // Hide topbar for cleaner look
+    customSiteTitle: "SasWatch API Documentation"
+}));
 
 // Setup all route modules
 setupAuthRoutes(app);
@@ -94,8 +162,17 @@ setupDataRoutes(app);
 setupAppsRoutes(app);
 setupDevRoutes(app);
 setupAdminRoutes(app);
+setupPartnerManagementRoutes(app);
 setupRenewalsRoutes(app);
 setupMembersRoutes(app);
+setupHeadlessRoutes(app);
+
+// ============================================
+// Partner API Routes (Versioned)
+// ============================================
+
+// Mount Partner API routes at /api/v1/partner
+app.use('/api/v1/partner', partnerRoutes);
 
 // ============================================
 // Health Check Endpoints
@@ -122,9 +199,9 @@ app.get('/api/health', (req, res) => {
 
 // 404 Handler - Must be after all routes
 app.use((req, res, next) => {
-    const isApiRequest = req.path.startsWith('/api/') || 
-                         req.headers.accept?.includes('application/json');
-    
+    const isApiRequest = req.path.startsWith('/api/') ||
+        req.headers.accept?.includes('application/json');
+
     if (isApiRequest) {
         res.status(404).json({
             success: false,
@@ -152,7 +229,7 @@ app.use((err, req, res, next) => {
         url: req.originalUrl,
         method: req.method
     });
-    
+
     // Use centralized error response
     errorResponse(res, err, req);
 });
@@ -179,16 +256,16 @@ process.on('unhandledRejection', (reason, promise) => {
         promise: promise,
         timestamp: new Date().toISOString()
     });
-    
+
     // Log memory state during rejection
     logMemoryUsage();
-    
+
     // Log to audit system
     auditLog('UNHANDLED_REJECTION', null, {
         reason: reason?.toString(),
         stack: reason?.stack
     });
-    
+
     // In production, we continue running. In development, we might want to crash.
     if (process.env.NODE_ENV !== 'production') {
         console.error('💥 Unhandled rejection in development mode. Consider fixing this.');
@@ -202,16 +279,16 @@ process.on('uncaughtException', (error) => {
         stack: error.stack,
         timestamp: new Date().toISOString()
     });
-    
+
     // Log to audit system
     auditLog('UNCAUGHT_EXCEPTION', null, {
         message: error.message,
         stack: error.stack
     });
-    
+
     // Uncaught exceptions are serious - we should exit gracefully
     console.error('💥 Server will shut down due to uncaught exception.');
-    
+
     // Give time for logs to flush
     setTimeout(() => {
         process.exit(1);
@@ -264,10 +341,14 @@ server.listen(PORT, () => {
     console.log('   3. Start tracking Adobe usage!');
     console.log('');
     console.log('═══════════════════════════════════════════════════');
-    
+
     // Start background sync for Entra sign-ins
     startBackgroundSync();
-    
+
     // Start renewal reminder scheduler
     startRenewalScheduler();
+
+    // Start headless connector scheduler
+    const { startHeadlessScheduler } = require('./lib/headless-scheduler');
+    startHeadlessScheduler();
 });

@@ -1,12 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %></title>
+    <title>
+        <%= title %> - SasWatch
+    </title>
+    <meta name="description" content="Manage your SaaS subscription renewals and track upcoming costs with SasWatch.">
+
+    <!-- Performance: Preconnect to Font domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="/css/style.css">
     <!-- FullCalendar CSS -->
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+    <!-- Icons as SVG for professional look -->
+    <style>
+        .svg-icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
     <style>
         /* Improve stat card visibility in light mode */
         [data-theme]:not([data-theme="dark"]) .stat-card,
@@ -15,13 +35,13 @@
             box-shadow: 0 4px 12px rgba(11, 31, 23, 0.1), 0 2px 4px rgba(11, 31, 23, 0.06);
             background: #FFFFFF;
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .stat-card:hover,
         :not([data-theme]) .stat-card:hover {
             border-color: rgba(29, 91, 79, 0.3);
             box-shadow: 0 8px 20px rgba(11, 31, 23, 0.12), 0 4px 8px rgba(11, 31, 23, 0.08);
         }
-        
+
         /* Renewal-specific styles */
         .renewals-container {
             display: grid;
@@ -29,13 +49,13 @@
             gap: 1.5rem;
             margin-top: 1.5rem;
         }
-        
+
         @media (max-width: 1200px) {
             .renewals-container {
                 grid-template-columns: 1fr;
             }
         }
-        
+
         .calendar-section {
             background: var(--card-bg);
             border-radius: 12px;
@@ -43,14 +63,14 @@
             border: 1px solid var(--border-color);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
         }
-        
+
         /* Improve visibility in light mode */
         [data-theme]:not([data-theme="dark"]) .calendar-section,
         :not([data-theme]) .calendar-section {
             border: 1.5px solid rgba(29, 91, 79, 0.15);
             box-shadow: 0 4px 12px rgba(11, 31, 23, 0.08), 0 2px 4px rgba(11, 31, 23, 0.04);
         }
-        
+
         .upcoming-section {
             background: var(--card-bg);
             border-radius: 12px;
@@ -60,14 +80,14 @@
             overflow-y: auto;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
         }
-        
+
         /* Improve visibility in light mode */
         [data-theme]:not([data-theme="dark"]) .upcoming-section,
         :not([data-theme]) .upcoming-section {
             border: 1.5px solid rgba(29, 91, 79, 0.15);
             box-shadow: 0 4px 12px rgba(11, 31, 23, 0.08), 0 2px 4px rgba(11, 31, 23, 0.04);
         }
-        
+
         .upcoming-section h3 {
             margin: 0 0 1rem 0;
             font-size: 1.1rem;
@@ -76,7 +96,7 @@
             align-items: center;
             gap: 0.5rem;
         }
-        
+
         .renewal-item {
             padding: 1rem;
             border-radius: 8px;
@@ -88,7 +108,7 @@
             border: 1px solid var(--border-color);
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
-        
+
         /* Improve visibility in light mode */
         [data-theme]:not([data-theme="dark"]) .renewal-item,
         :not([data-theme]) .renewal-item {
@@ -97,46 +117,46 @@
             box-shadow: 0 2px 4px rgba(11, 31, 23, 0.06);
             background: #FFFFFF;
         }
-        
+
         .renewal-item:hover {
             transform: translateX(4px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         }
-        
+
         /* Improve hover in light mode */
         [data-theme]:not([data-theme="dark"]) .renewal-item:hover,
         :not([data-theme]) .renewal-item:hover {
             box-shadow: 0 4px 12px rgba(11, 31, 23, 0.12), 0 2px 6px rgba(11, 31, 23, 0.08);
             border-color: rgba(29, 91, 79, 0.2);
         }
-        
+
         .renewal-item.urgent {
             border-left-color: #ef4444;
             background: rgba(239, 68, 68, 0.08);
         }
-        
+
         .renewal-item.warning {
             border-left-color: #f59e0b;
             background: rgba(245, 158, 11, 0.08);
         }
-        
+
         .renewal-item.normal {
             border-left-color: #10b981;
         }
-        
+
         .renewal-item-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             margin-bottom: 0.5rem;
         }
-        
+
         .renewal-item-name {
             font-weight: 600;
             color: var(--text-primary);
             font-size: 0.95rem;
         }
-        
+
         .renewal-item-vendor {
             font-size: 0.8rem;
             color: var(--text-secondary);
@@ -144,7 +164,7 @@
             padding: 0.15rem 0.5rem;
             border-radius: 4px;
         }
-        
+
         .renewal-item-details {
             display: flex;
             justify-content: space-between;
@@ -152,18 +172,18 @@
             font-size: 0.85rem;
             color: var(--text-secondary);
         }
-        
+
         .renewal-item-date {
             display: flex;
             align-items: center;
             gap: 0.35rem;
         }
-        
+
         .renewal-item-cost {
             font-weight: 600;
             color: var(--text-primary);
         }
-        
+
         .days-badge {
             display: inline-flex;
             align-items: center;
@@ -172,22 +192,22 @@
             font-size: 0.75rem;
             font-weight: 600;
         }
-        
+
         .days-badge.urgent {
             background: #fee2e2;
             color: #dc2626;
         }
-        
+
         .days-badge.warning {
             background: #fef3c7;
             color: #d97706;
         }
-        
+
         .days-badge.normal {
             background: #d1fae5;
             color: #059669;
         }
-        
+
         /* FullCalendar theme overrides */
         .fc {
             --fc-border-color: var(--border-color);
@@ -200,7 +220,7 @@
             --fc-event-bg-color: var(--accent-color);
             --fc-event-border-color: var(--accent-color);
         }
-        
+
         /* Improve calendar navigation buttons in light mode */
         [data-theme]:not([data-theme="dark"]) .fc-button,
         :not([data-theme]) .fc-button {
@@ -210,19 +230,19 @@
             font-weight: 500;
             box-shadow: 0 1px 3px rgba(11, 31, 23, 0.1);
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .fc-button:hover,
         :not([data-theme]) .fc-button:hover {
             background-color: rgba(29, 91, 79, 0.08) !important;
             border-color: rgba(29, 91, 79, 0.35) !important;
             box-shadow: 0 2px 6px rgba(11, 31, 23, 0.15);
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .fc-button:active,
         :not([data-theme]) .fc-button:active {
             background-color: rgba(29, 91, 79, 0.12) !important;
         }
-        
+
         /* Style the custom Add Subscription button */
         [data-theme]:not([data-theme="dark"]) .fc-button-addSubscription,
         :not([data-theme]) .fc-button-addSubscription {
@@ -232,14 +252,14 @@
             font-weight: 600;
             padding: 0.5rem 1rem;
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .fc-button-addSubscription:hover,
         :not([data-theme]) .fc-button-addSubscription:hover {
             background-color: var(--accent-hover) !important;
             border-color: var(--accent-hover) !important;
             box-shadow: 0 2px 8px rgba(29, 91, 79, 0.25);
         }
-        
+
         /* Improve calendar title (month/year) visibility in light mode */
         [data-theme]:not([data-theme="dark"]) .fc-toolbar-title,
         :not([data-theme]) .fc-toolbar-title {
@@ -248,20 +268,20 @@
             font-size: 1.35rem;
             text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
         }
-        
+
         /* Improve calendar button text/icons */
         [data-theme]:not([data-theme="dark"]) .fc-button .fc-icon,
         :not([data-theme]) .fc-button .fc-icon {
             color: var(--sw-ink) !important;
             font-weight: 600;
         }
-        
+
         /* Improve calendar toolbar text visibility */
         [data-theme]:not([data-theme="dark"]) .fc-toolbar-chunk,
         :not([data-theme]) .fc-toolbar-chunk {
             color: var(--text-primary);
         }
-        
+
         /* Ensure calendar header buttons are visible */
         [data-theme]:not([data-theme="dark"]) .fc-button-primary:not(:disabled),
         :not([data-theme]) .fc-button-primary:not(:disabled) {
@@ -269,13 +289,13 @@
             border: 1.5px solid rgba(29, 91, 79, 0.25) !important;
             color: var(--sw-ink) !important;
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .fc-button-primary:not(:disabled):hover,
         :not([data-theme]) .fc-button-primary:not(:disabled):hover {
             background-color: rgba(29, 91, 79, 0.1) !important;
             border-color: rgba(29, 91, 79, 0.4) !important;
         }
-        
+
         /* Style the custom Add Subscription button */
         [data-theme]:not([data-theme="dark"]) .fc-button-addSubscription,
         :not([data-theme]) .fc-button-addSubscription {
@@ -285,35 +305,36 @@
             font-weight: 600;
             padding: 0.5rem 1rem;
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .fc-button-addSubscription:hover,
         :not([data-theme]) .fc-button-addSubscription:hover {
             background-color: var(--accent-hover) !important;
             border-color: var(--accent-hover) !important;
             box-shadow: 0 2px 8px rgba(29, 91, 79, 0.25);
         }
-        
+
         /* Dark mode styling for Add Subscription button */
         [data-theme="dark"] .fc-button-addSubscription {
             background-color: var(--accent-primary) !important;
             border-color: var(--accent-primary) !important;
             color: #FFFFFF !important;
         }
-        
+
         [data-theme="dark"] .fc-button-addSubscription:hover {
             background-color: var(--accent-hover) !important;
             border-color: var(--accent-hover) !important;
         }
-        
-        
-        .fc-theme-standard td, .fc-theme-standard th {
+
+
+        .fc-theme-standard td,
+        .fc-theme-standard th {
             border-color: var(--border-color);
         }
-        
+
         .fc-col-header-cell {
             background: var(--bg-secondary);
         }
-        
+
         /* Improve calendar visibility in light mode */
         [data-theme]:not([data-theme="dark"]) .fc-theme-standard td,
         [data-theme]:not([data-theme="dark"]) .fc-theme-standard th,
@@ -321,27 +342,27 @@
         :not([data-theme]) .fc-theme-standard th {
             border-color: rgba(29, 91, 79, 0.15);
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .fc-col-header-cell,
         :not([data-theme]) .fc-col-header-cell {
             background: #FFFFFF;
             border-bottom: 2px solid rgba(29, 91, 79, 0.15);
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .fc-daygrid-day,
         :not([data-theme]) .fc-daygrid-day {
             background: #FFFFFF;
         }
-        
+
         .fc-daygrid-day-number {
             color: var(--text-primary);
         }
-        
+
         /* Highlight today's date */
         .fc-day-today {
             background-color: rgba(79, 209, 197, 0.15) !important;
         }
-        
+
         .fc-day-today .fc-daygrid-day-number {
             font-weight: 700;
             color: var(--accent-primary);
@@ -355,76 +376,76 @@
             justify-content: center;
             margin: 0.25rem;
         }
-        
+
         /* Improve today highlight in light mode */
         [data-theme]:not([data-theme="dark"]) .fc-day-today,
         :not([data-theme]) .fc-day-today {
             background-color: rgba(29, 91, 79, 0.12) !important;
             border: 2px solid var(--accent-primary) !important;
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .fc-day-today .fc-daygrid-day-number,
         :not([data-theme]) .fc-day-today .fc-daygrid-day-number {
             background-color: var(--accent-primary) !important;
             color: #FFFFFF !important;
             font-weight: 700;
         }
-        
+
         /* Dark mode today highlight */
         [data-theme="dark"] .fc-day-today {
             background-color: rgba(79, 209, 197, 0.2) !important;
             border: 2px solid var(--accent-primary) !important;
         }
-        
+
         [data-theme="dark"] .fc-day-today .fc-daygrid-day-number {
             background-color: var(--accent-primary) !important;
             color: #FFFFFF !important;
             font-weight: 700;
         }
-        
+
         .fc-event {
             cursor: pointer;
             font-size: 0.8rem;
             padding: 2px 4px;
             border-radius: 4px;
         }
-        
+
         .fc-event.fc-event-urgent {
             background-color: #ef4444 !important;
             border-color: #ef4444 !important;
         }
-        
+
         .fc-event.fc-event-warning {
             background-color: #f59e0b !important;
             border-color: #f59e0b !important;
         }
-        
+
         .fc-event.fc-event-normal {
             background-color: #10b981 !important;
             border-color: #10b981 !important;
         }
-        
+
         /* Modal styles */
         .renewal-modal .modal-content {
             max-width: 800px;
         }
-        
+
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 1rem;
         }
-        
+
         @media (max-width: 600px) {
             .form-row {
                 grid-template-columns: 1fr;
             }
         }
-        
+
         .form-group {
             margin-bottom: 1rem;
         }
-        
+
         .form-group label {
             display: block;
             margin-bottom: 0.4rem;
@@ -432,7 +453,7 @@
             color: var(--text-primary);
             font-size: 0.9rem;
         }
-        
+
         .form-group input,
         .form-group select,
         .form-group textarea {
@@ -444,7 +465,7 @@
             color: var(--text-primary);
             font-size: 0.95rem;
         }
-        
+
         .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
@@ -452,24 +473,24 @@
             border-color: var(--accent-color);
             box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15);
         }
-        
+
         .form-group textarea {
             resize: vertical;
             min-height: 80px;
         }
-        
+
         .form-hint {
             font-size: 0.8rem;
             color: var(--text-secondary);
             margin-top: 0.3rem;
         }
-        
+
         .alert-days-group {
             display: flex;
             gap: 0.5rem;
             flex-wrap: wrap;
         }
-        
+
         .alert-day-checkbox {
             display: flex;
             align-items: center;
@@ -480,22 +501,22 @@
             cursor: pointer;
             font-size: 0.85rem;
         }
-        
+
         .alert-day-checkbox input {
             width: auto;
         }
-        
+
         .empty-state {
             text-align: center;
             padding: 2rem;
             color: var(--text-secondary);
         }
-        
+
         .empty-state-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
         }
-        
+
         /* Pending Imports Section */
         .pending-imports-section {
             background: var(--card-bg);
@@ -505,20 +526,20 @@
             border: 2px dashed rgba(245, 158, 11, 0.4);
             background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(239, 68, 68, 0.03) 100%);
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .pending-imports-section,
         :not([data-theme]) .pending-imports-section {
             border: 2px dashed rgba(245, 158, 11, 0.5);
             box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
         }
-        
+
         .pending-imports-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1rem;
         }
-        
+
         .pending-imports-title {
             display: flex;
             align-items: center;
@@ -527,7 +548,7 @@
             font-weight: 600;
             color: var(--text-primary);
         }
-        
+
         .pending-badge {
             background: #f59e0b;
             color: white;
@@ -536,13 +557,13 @@
             font-size: 0.75rem;
             font-weight: 600;
         }
-        
+
         .pending-cards {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 1rem;
         }
-        
+
         .pending-card {
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
@@ -551,26 +572,26 @@
             position: relative;
             transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .pending-card,
         :not([data-theme]) .pending-card {
             border: 1.5px solid rgba(29, 91, 79, 0.15);
             box-shadow: 0 2px 8px rgba(11, 31, 23, 0.08);
             background: #FFFFFF;
         }
-        
+
         .pending-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
         }
-        
+
         .pending-card-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             margin-bottom: 0.75rem;
         }
-        
+
         .pending-vendor {
             font-size: 0.85rem;
             color: var(--text-secondary);
@@ -578,36 +599,36 @@
             padding: 0.2rem 0.5rem;
             border-radius: 4px;
         }
-        
+
         .pending-confidence {
             font-size: 0.75rem;
             padding: 0.2rem 0.5rem;
             border-radius: 4px;
             font-weight: 600;
         }
-        
+
         .pending-confidence.high {
             background: #d1fae5;
             color: #059669;
         }
-        
+
         .pending-confidence.medium {
             background: #fef3c7;
             color: #d97706;
         }
-        
+
         .pending-confidence.low {
             background: #fee2e2;
             color: #dc2626;
         }
-        
+
         .pending-card-name {
             font-size: 1rem;
             font-weight: 600;
             color: var(--text-primary);
             margin-bottom: 0.5rem;
         }
-        
+
         .pending-card-details {
             display: flex;
             flex-wrap: wrap;
@@ -616,13 +637,13 @@
             color: var(--text-secondary);
             margin-bottom: 0.75rem;
         }
-        
+
         .pending-card-detail {
             display: flex;
             align-items: center;
             gap: 0.25rem;
         }
-        
+
         .pending-source {
             font-size: 0.75rem;
             color: var(--text-secondary);
@@ -631,7 +652,7 @@
             align-items: center;
             gap: 0.25rem;
         }
-        
+
         .pending-card-actions {
             display: flex;
             gap: 0.5rem;
@@ -639,7 +660,7 @@
             padding-top: 0.75rem;
             border-top: 1px solid var(--border-color);
         }
-        
+
         .pending-btn {
             flex: 1;
             padding: 0.5rem 0.75rem;
@@ -650,28 +671,28 @@
             cursor: pointer;
             transition: all 0.15s ease;
         }
-        
+
         .pending-btn-approve {
             background: var(--accent-primary);
             color: white;
         }
-        
+
         .pending-btn-approve:hover {
             background: var(--accent-hover);
         }
-        
+
         .pending-btn-reject {
             background: var(--bg-secondary);
             color: var(--text-secondary);
             border: 1px solid var(--border-color);
         }
-        
+
         .pending-btn-reject:hover {
             background: #fee2e2;
             color: #dc2626;
             border-color: #fecaca;
         }
-        
+
         /* Upload Zone */
         .upload-zone {
             border: 2px dashed var(--border-color);
@@ -683,19 +704,19 @@
             transition: all 0.2s ease;
             margin-bottom: 1rem;
         }
-        
+
         .upload-zone:hover,
         .upload-zone.dragover {
             border-color: var(--accent-primary);
             background: rgba(var(--accent-rgb), 0.05);
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .upload-zone,
         :not([data-theme]) .upload-zone {
             border: 2px dashed rgba(29, 91, 79, 0.25);
             background: #FAFAFA;
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .upload-zone:hover,
         [data-theme]:not([data-theme="dark"]) .upload-zone.dragover,
         :not([data-theme]) .upload-zone:hover,
@@ -703,48 +724,48 @@
             border-color: var(--accent-primary);
             background: rgba(29, 91, 79, 0.04);
         }
-        
+
         .upload-zone-icon {
             font-size: 2.5rem;
             margin-bottom: 0.75rem;
         }
-        
+
         .upload-zone-text {
             color: var(--text-secondary);
             font-size: 0.95rem;
         }
-        
+
         .upload-zone-text strong {
             color: var(--accent-primary);
         }
-        
+
         .upload-zone-hint {
             font-size: 0.8rem;
             color: var(--text-secondary);
             margin-top: 0.5rem;
             opacity: 0.8;
         }
-        
+
         .upload-zone input[type="file"] {
             display: none;
         }
-        
+
         .upload-progress {
             display: none;
             margin-top: 1rem;
         }
-        
+
         .upload-progress.active {
             display: block;
         }
-        
+
         .upload-progress-bar {
             height: 4px;
             background: var(--bg-tertiary);
             border-radius: 2px;
             overflow: hidden;
         }
-        
+
         .upload-progress-fill {
             height: 100%;
             background: var(--accent-primary);
@@ -752,27 +773,37 @@
             transition: width 0.3s ease;
             animation: progress-indeterminate 1.5s ease-in-out infinite;
         }
-        
+
         @keyframes progress-indeterminate {
-            0% { transform: translateX(-100%); width: 30%; }
-            50% { width: 50%; }
-            100% { transform: translateX(400%); width: 30%; }
+            0% {
+                transform: translateX(-100%);
+                width: 30%;
+            }
+
+            50% {
+                width: 50%;
+            }
+
+            100% {
+                transform: translateX(400%);
+                width: 30%;
+            }
         }
-        
+
         .upload-status {
             font-size: 0.85rem;
             color: var(--text-secondary);
             margin-top: 0.5rem;
             text-align: center;
         }
-        
+
         /* Table view toggle */
         .view-toggle {
             display: flex;
             gap: 0.5rem;
             margin-bottom: 1rem;
         }
-        
+
         .view-toggle-btn {
             padding: 0.5rem 1rem;
             border: 1px solid var(--border-color);
@@ -784,7 +815,7 @@
             transition: all 0.15s ease;
             font-weight: 500;
         }
-        
+
         /* Improve visibility in light mode */
         [data-theme]:not([data-theme="dark"]) .view-toggle-btn,
         :not([data-theme]) .view-toggle-btn {
@@ -793,21 +824,21 @@
             color: var(--text-primary);
             box-shadow: 0 1px 3px rgba(11, 31, 23, 0.08);
         }
-        
+
         [data-theme]:not([data-theme="dark"]) .view-toggle-btn:hover,
         :not([data-theme]) .view-toggle-btn:hover {
             border-color: rgba(29, 91, 79, 0.3);
             box-shadow: 0 2px 6px rgba(11, 31, 23, 0.12);
             background: #FFFFFF;
         }
-        
+
         .view-toggle-btn.active {
             background: var(--accent-color);
             color: white;
             border-color: var(--accent-color);
             font-weight: 600;
         }
-        
+
         /* Ensure active button is visible in light mode */
         [data-theme]:not([data-theme="dark"]) .view-toggle-btn.active,
         :not([data-theme]) .view-toggle-btn.active {
@@ -815,53 +846,53 @@
             border-color: var(--accent-primary);
             box-shadow: 0 2px 8px rgba(29, 91, 79, 0.25);
         }
-        
+
         .table-view {
             display: none;
         }
-        
+
         .table-view.active {
             display: block;
         }
-        
+
         .calendar-view {
             display: block;
         }
-        
+
         .calendar-view.hidden {
             display: none;
         }
-        
+
         /* ============================================
            DARK MODE STYLES FOR RENEWALS PAGE
            ============================================ */
-        
+
         /* Stat cards in dark mode */
         [data-theme="dark"] .stat-card {
             background: var(--bg-card);
             border: 1px solid var(--card-border);
             box-shadow: var(--shadow-sm);
         }
-        
+
         [data-theme="dark"] .stat-card:hover {
             border-color: var(--border-hover);
             box-shadow: var(--shadow-md);
         }
-        
+
         /* Calendar section in dark mode */
         [data-theme="dark"] .calendar-section {
             background: var(--bg-card);
             border: 1px solid var(--card-border);
             box-shadow: var(--shadow-sm);
         }
-        
+
         /* Upcoming section in dark mode */
         [data-theme="dark"] .upcoming-section {
             background: var(--bg-card);
             border: 1px solid var(--card-border);
             box-shadow: var(--shadow-sm);
         }
-        
+
         /* Renewal items in dark mode */
         [data-theme="dark"] .renewal-item {
             background: var(--bg-secondary);
@@ -869,32 +900,32 @@
             border-left: 4px solid var(--accent-primary);
             box-shadow: var(--shadow-sm);
         }
-        
+
         [data-theme="dark"] .renewal-item:hover {
             background: var(--bg-hover);
             border-color: var(--border-hover);
             box-shadow: var(--shadow-md);
         }
-        
+
         /* Calendar in dark mode */
         [data-theme="dark"] .fc-theme-standard td,
         [data-theme="dark"] .fc-theme-standard th {
             border-color: var(--border-color);
         }
-        
+
         [data-theme="dark"] .fc-col-header-cell {
             background: var(--bg-secondary);
             border-bottom: 2px solid var(--border-color);
         }
-        
+
         [data-theme="dark"] .fc-daygrid-day {
             background: var(--bg-card);
         }
-        
+
         [data-theme="dark"] .fc-daygrid-day-number {
             color: var(--text-primary);
         }
-        
+
         /* Calendar buttons in dark mode */
         [data-theme="dark"] .fc-button,
         [data-theme="dark"] .fc-button-primary,
@@ -904,7 +935,7 @@
             color: var(--text-primary) !important;
             box-shadow: none !important;
         }
-        
+
         [data-theme="dark"] .fc-button:hover,
         [data-theme="dark"] .fc-button-primary:hover,
         [data-theme="dark"] .fc-button-group .fc-button:hover {
@@ -912,88 +943,88 @@
             border-color: var(--border-hover) !important;
             color: var(--text-primary) !important;
         }
-        
+
         [data-theme="dark"] .fc-button:active,
         [data-theme="dark"] .fc-button-primary:active,
         [data-theme="dark"] .fc-button-group .fc-button:active {
             background-color: var(--bg-tertiary) !important;
             border-color: var(--border-hover) !important;
         }
-        
+
         [data-theme="dark"] .fc-toolbar-title {
             color: var(--text-primary) !important;
         }
-        
+
         [data-theme="dark"] .fc-button .fc-icon,
         [data-theme="dark"] .fc-button-primary .fc-icon {
             color: var(--text-primary) !important;
         }
-        
+
         [data-theme="dark"] .fc-toolbar-chunk {
             color: var(--text-primary) !important;
         }
-        
+
         /* Pending imports section in dark mode */
         [data-theme="dark"] .pending-imports-section {
             background: var(--bg-card);
             border: 2px dashed rgba(245, 158, 11, 0.3);
             box-shadow: var(--shadow-sm);
         }
-        
+
         /* Pending cards in dark mode */
         [data-theme="dark"] .pending-card {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             box-shadow: var(--shadow-sm);
         }
-        
+
         [data-theme="dark"] .pending-card:hover {
             background: var(--bg-hover);
             border-color: var(--border-hover);
             box-shadow: var(--shadow-md);
         }
-        
+
         /* Pending confidence badges in dark mode */
         [data-theme="dark"] .pending-confidence.high {
             background: rgba(77, 212, 162, 0.2);
             color: #4DD4A2;
         }
-        
+
         [data-theme="dark"] .pending-confidence.medium {
             background: rgba(229, 168, 106, 0.2);
             color: #E5A86A;
         }
-        
+
         [data-theme="dark"] .pending-confidence.low {
             background: rgba(255, 141, 123, 0.2);
             color: #FF8D7B;
         }
-        
+
         /* Upload zone in dark mode */
         [data-theme="dark"] .upload-zone {
             background: var(--bg-secondary);
             border: 2px dashed var(--border-color);
         }
-        
+
         [data-theme="dark"] .upload-zone:hover,
         [data-theme="dark"] .upload-zone.dragover {
             background: var(--bg-hover);
             border-color: var(--accent-primary);
         }
-        
+
         /* View toggle buttons in dark mode */
         [data-theme="dark"] .view-toggle-btn {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             color: var(--text-secondary);
         }
-        
+
         [data-theme="dark"] .view-toggle-btn:hover {
             background: var(--bg-hover);
             border-color: var(--border-hover);
             color: var(--text-primary);
         }
-        
+
         [data-theme="dark"] .view-toggle-btn.active {
             background: var(--accent-primary);
             border-color: var(--accent-primary);
@@ -1002,6 +1033,7 @@
         }
     </style>
 </head>
+
 <body>
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
@@ -1011,79 +1043,128 @@
                 <span>SasWatch</span>
             </div>
             <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
-                <span id="sidebar-toggle-icon">◀</span>
+                <span id="sidebar-toggle-icon">
+                    <svg class="svg-icon" viewBox="0 0 24 24">
+                        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                    </svg>
+                </span>
             </button>
         </div>
-        
+
         <nav class="sidebar-nav">
             <div class="sidebar-nav-item">
                 <a href="/" class="sidebar-nav-link active" data-tooltip="Renewals">
-                    <span class="nav-icon">📅</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z" />
+                        </svg>
+                    </span>
                     <span>Renewals</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/users" class="sidebar-nav-link" data-tooltip="Users">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                        </svg>
+                    </span>
                     <span>Users</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/licenses" class="sidebar-nav-link" data-tooltip="Licenses">
-                    <span class="nav-icon">📜</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                        </svg>
+                    </span>
                     <span>Licenses</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
-                    <span class="nav-icon">📦</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5l3.5 3.5-3.5 3.5z" />
+                        </svg>
+                    </span>
                     <span>Apps</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                        </svg>
+                    </span>
                     <span>Activity</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/account" class="sidebar-nav-link" data-tooltip="Account">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                        </svg>
+                    </span>
                     <span>Account</span>
                 </a>
             </div>
-            <% if (typeof member === 'undefined' || !member || member.role === 'admin' || member.role === 'owner') { %>
             <div class="sidebar-nav-item">
-                <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
-                    <span class="nav-icon">🧑‍🤝‍🧑</span>
-                    <span>Team</span>
+                <a href="/headless-connect" class="sidebar-nav-link" data-tooltip="Automated Logins">
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z" />
+                        </svg>
+                    </span>
+                    <span>Automated Logins</span>
                 </a>
             </div>
-            <% } %>
-            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin) && (typeof member === 'undefined' || !member)) { %>
-            <div class="sidebar-nav-item">
-                <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
-                    <span class="nav-icon">🛠️</span>
-                    <span>Dev</span>
-                </a>
-            </div>
-            <div class="sidebar-nav-item">
-                <a href="/admin" class="sidebar-nav-link" data-tooltip="Platform Admin">
-                    <span class="nav-icon">👑</span>
-                    <span>Platform Admin</span>
-                </a>
-            </div>
-            <% } %>
+            <% if (typeof member==='undefined' || !member || member.role==='admin' || member.role==='owner' ) { %>
+
+                <div class="sidebar-nav-item">
+                    <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
+                        <span class="nav-icon">
+                            <svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M16.5 13c-1.2 0-3.07.34-4.5 1-1.43-.67-3.3-1-4.5-1C5.33 13 1 14.08 1 16.25V19h15v-2.75c0-2.17-4.33-3.25-6.5-3.25zm-9-2c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm10 2c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm3 3.25c0-2.17-4.33-3.25-6.5-3.25-.33 0-.71.02-1.1.06 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.75z" />
+                            </svg>
+                        </span>
+                        <span>Team</span>
+                    </a>
+                </div>
+                <% } %>
         </nav>
-        
+
         <div class="sidebar-footer">
             <div class="sidebar-footer-actions">
                 <a href="/logout" class="sidebar-footer-link">
-                    <span class="nav-icon">🚪</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                        </svg>
+                    </span>
                     <span>Logout</span>
                 </a>
-                <button class="sidebar-footer-link" onclick="toggleTheme()" style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;" title="Toggle theme">
-                    <span class="nav-icon" id="theme-icon">☀️</span>
+                <button class="sidebar-footer-link" onclick="toggleTheme()"
+                    style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;"
+                    title="Toggle theme">
+                    <span class="nav-icon" id="theme-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41zm-12.37 12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41z" />
+                        </svg>
+                    </span>
                     <span>Theme</span>
                 </button>
             </div>
@@ -1125,14 +1206,14 @@
                         <span>Account</span>
                     </a>
                 </div>
-                <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
-                <div class="mobile-nav-item">
-                    <a href="/dev" class="mobile-nav-link">
-                        <span>🛠️</span>
-                        <span>Dev</span>
-                    </a>
-                </div>
-                <% } %>
+                <% if (typeof account !=='undefined' && account && account.isSuperAdmin) { %>
+                    <div class="mobile-nav-item">
+                        <a href="/dev" class="mobile-nav-link">
+                            <span>🛠️</span>
+                            <span>Dev</span>
+                        </a>
+                    </div>
+                    <% } %>
             </nav>
 
             <header>
@@ -1150,7 +1231,12 @@
                     <div class="stat-content">
                         <div class="stat-value">
                             <span id="stat-total">0</span>
-                            <span class="stat-icon">📋</span>
+                            <span class="stat-icon" style="background: transparent; box-shadow: none;">
+                                <svg class="svg-icon" style="width: 28px; height: 28px;" viewBox="0 0 24 24">
+                                    <path
+                                        d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+                                </svg>
+                            </span>
                         </div>
                         <div class="stat-label">Total Subscriptions</div>
                     </div>
@@ -1159,7 +1245,12 @@
                     <div class="stat-content">
                         <div class="stat-value">
                             <span id="stat-this-month">0</span>
-                            <span class="stat-icon">⏰</span>
+                            <span class="stat-icon" style="background: transparent; box-shadow: none;">
+                                <svg class="svg-icon" style="width: 28px; height: 28px;" viewBox="0 0 24 24">
+                                    <path
+                                        d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" />
+                                </svg>
+                            </span>
                         </div>
                         <div class="stat-label">This Month</div>
                     </div>
@@ -1168,7 +1259,12 @@
                     <div class="stat-content">
                         <div class="stat-value">
                             $<span id="stat-upcoming-cost">0</span>
-                            <span class="stat-icon">💰</span>
+                            <span class="stat-icon" style="background: transparent; box-shadow: none;">
+                                <svg class="svg-icon" style="width: 28px; height: 28px;" viewBox="0 0 24 24">
+                                    <path
+                                        d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z" />
+                                </svg>
+                            </span>
                         </div>
                         <div class="stat-label">Upcoming Spend (90 days)</div>
                     </div>
@@ -1177,7 +1273,11 @@
                     <div class="stat-content">
                         <div class="stat-value">
                             <span id="stat-past-due">0</span>
-                            <span class="stat-icon">⚠️</span>
+                            <span class="stat-icon" style="background: transparent; box-shadow: none;">
+                                <svg class="svg-icon" style="width: 28px; height: 28px;" viewBox="0 0 24 24">
+                                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+                                </svg>
+                            </span>
                         </div>
                         <div class="stat-label">Past Due</div>
                     </div>
@@ -1196,9 +1296,10 @@
                         📄 Upload Invoice
                     </button>
                 </div>
-                
+
                 <!-- Upload Zone (hidden by default) -->
-                <div class="upload-zone" id="upload-zone" style="display: none;" onclick="document.getElementById('file-input').click()">
+                <div class="upload-zone" id="upload-zone" style="display: none;"
+                    onclick="document.getElementById('file-input').click()">
                     <div class="upload-zone-icon">📄</div>
                     <div class="upload-zone-text">
                         <strong>Click to upload</strong> or drag & drop
@@ -1206,7 +1307,8 @@
                     <div class="upload-zone-hint">
                         PDF, PNG, JPG up to 30MB · Invoices, contracts, renewal notices
                     </div>
-                    <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt" multiple onchange="handleFileUpload(this.files)">
+                    <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt" multiple
+                        onchange="handleFileUpload(this.files)">
                     <div class="upload-progress" id="upload-progress">
                         <div class="upload-progress-bar">
                             <div class="upload-progress-fill"></div>
@@ -1214,7 +1316,7 @@
                         <div class="upload-status" id="upload-status">Processing...</div>
                     </div>
                 </div>
-                
+
                 <!-- Pending Cards -->
                 <div class="pending-cards" id="pending-cards">
                     <!-- Cards populated by JavaScript -->
@@ -1230,7 +1332,8 @@
                 <div class="upload-zone-hint">
                     Forward documents to <strong>bills@saswatch.com</strong> or upload here · PDF, PNG, JPG up to 30MB
                 </div>
-                <input type="file" id="main-file-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt" multiple onchange="handleFileUpload(this.files)">
+                <input type="file" id="main-file-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt" multiple
+                    onchange="handleFileUpload(this.files)">
                 <div class="upload-progress" id="main-upload-progress">
                     <div class="upload-progress-bar">
                         <div class="upload-progress-fill"></div>
@@ -1275,7 +1378,8 @@
                             </thead>
                             <tbody id="renewals-table-body">
                                 <tr>
-                                    <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                    <td colspan="8"
+                                        style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                                         Loading...
                                     </td>
                                 </tr>
@@ -1298,7 +1402,7 @@
             <div class="modal-body" style="padding: 1.5rem;">
                 <form id="subscription-form" onsubmit="saveSubscription(event)">
                     <input type="hidden" id="subscription-id">
-                    
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="sub-name">Subscription Name *</label>
@@ -1320,7 +1424,7 @@
                             </datalist>
                         </div>
                     </div>
-                    
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="sub-renewal-date">Renewal Date *</label>
@@ -1332,7 +1436,7 @@
                             <p class="form-hint">Last day to cancel without penalty</p>
                         </div>
                     </div>
-                    
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="sub-cost" id="sub-cost-label">Cost ($)</label>
@@ -1348,7 +1452,7 @@
                             </select>
                         </div>
                     </div>
-                    
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="sub-seats">Number of Seats/Licenses</label>
@@ -1356,11 +1460,12 @@
                         </div>
                         <div class="form-group">
                             <label for="sub-account-number">Reference Number</label>
-                            <input type="text" id="sub-account-number" placeholder="Optional - account/contract/invoice number">
+                            <input type="text" id="sub-account-number"
+                                placeholder="Optional - account/contract/invoice number">
                             <p class="form-hint">For reference only</p>
                         </div>
                     </div>
-                    
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="sub-owner">Owner</label>
@@ -1372,7 +1477,7 @@
                             <p class="form-hint">Where renewal reminders will be sent</p>
                         </div>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>Alert Days Before Renewal</label>
                         <div class="alert-days-group">
@@ -1393,25 +1498,30 @@
                             </label>
                         </div>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="sub-notes">Notes</label>
-                        <textarea id="sub-notes" placeholder="Any additional notes about this subscription..."></textarea>
+                        <textarea id="sub-notes"
+                            placeholder="Any additional notes about this subscription..."></textarea>
                     </div>
-                    
-                    <div class="modal-footer" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between;">
+
+                    <div class="modal-footer"
+                        style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between;">
                         <div>
-                            <button type="button" class="btn btn-danger" id="delete-btn" onclick="deleteSubscription()" style="display: none;">
+                            <button type="button" class="btn btn-danger" id="delete-btn" onclick="deleteSubscription()"
+                                style="display: none;">
                                 🗑️ Delete
                             </button>
-                            <button type="button" class="btn btn-danger" id="reject-pending-btn" onclick="rejectPending()" style="display: none;" data-pending-id="">
+                            <button type="button" class="btn btn-danger" id="reject-pending-btn"
+                                onclick="rejectPending()" style="display: none;" data-pending-id="">
                                 ✕ Reject Import
                             </button>
-                            <% if (process.env.NODE_ENV !== 'production') { %>
-                            <button type="button" class="btn btn-secondary" id="test-alert-btn" onclick="testAlert()" style="display: none;">
-                                📧 Test Alert
-                            </button>
-                            <% } %>
+                            <% if (process.env.NODE_ENV !=='production' ) { %>
+                                <button type="button" class="btn btn-secondary" id="test-alert-btn"
+                                    onclick="testAlert()" style="display: none;">
+                                    📧 Test Alert
+                                </button>
+                                <% } %>
                         </div>
                         <div style="display: flex; gap: 0.75rem;">
                             <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -1424,13 +1534,12 @@
     </div>
 
     <!-- FullCalendar JS -->
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
-    <script src="/js/theme.js"></script>
-    <script src="/js/ui-components.js"></script>
-    <script src="/js/renewals.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js" defer></script>
+    <script src="/js/theme.js" defer></script>
+    <script src="/js/ui-components.js" defer></script>
+    <script src="/js/renewals.js" defer></script>
 
     <%- include('_survey-widget') %>
 </body>
+
 </html>
-
-

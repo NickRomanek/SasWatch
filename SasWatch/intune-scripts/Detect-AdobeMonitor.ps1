@@ -16,7 +16,7 @@ $ErrorActionPreference = "SilentlyContinue"
 # Configuration
 $INSTALL_DIR = "C:\ProgramData\AdobeMonitor"
 $SCRIPT_NAME = "Monitor-AdobeUsage.ps1"
-$TASK_NAME = "Adobe Usage Monitor - SubTracker"
+$TASK_NAME = "Adobe Usage Monitor - SasWatch"
 $RUN_KEY_NAME = "AdobeUsageMonitor"
 
 # Check #1: Verify monitoring script file exists

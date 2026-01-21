@@ -1,0 +1,85 @@
+{
+  "id": "inactivity-alerts",
+  "title": "Automated Inactivity Alerts",
+  "description": "Email alerts when users haven't used Adobe in configurable days",
+  "completedDate": "2026-01-20",
+  "status": "completed",
+  "filesChanged": [
+    "SasWatch/prisma/schema.prisma",
+    "SasWatch/server-multitenant-routes.js",
+    "SasWatch/lib/email-sender.js",
+    "SasWatch/lib/renewal-scheduler.js",
+    "SasWatch/__tests__/integration/api/alert-settings.test.js",
+    "feature-requests/backlog.json"
+  ],
+  "protectedFilesModified": [],
+  "acceptanceCriteria": {
+    "Account can configure inactivity threshold": true,
+    "Account can enable/disable alerts": true,
+    "GET /api/account/alert-settings returns settings": true,
+    "PUT /api/account/alert-settings updates settings": true,
+    "Scheduled job runs weekly on Monday 9AM": true,
+    "Email template shows inactive users": true,
+    "Has integration tests": true
+  },
+  "implementation": {
+    "schema": {
+      "fields": [
+        "inactivityAlertEnabled (Boolean, default false)",
+        "inactivityAlertThreshold (Int, default 30)",
+        "inactivityAlertLastSent (DateTime, nullable)",
+        "inactivityAlertEmail (String, nullable - override)"
+      ]
+    },
+    "endpoints": [
+      {
+        "path": "/api/account/alert-settings",
+        "method": "GET",
+        "description": "Get current alert settings"
+      },
+      {
+        "path": "/api/account/alert-settings",
+        "method": "PUT",
+        "description": "Update alert settings",
+        "validation": "threshold must be 7, 14, 30, 60, or 90"
+      }
+    ],
+    "emailTemplate": {
+      "function": "sendInactivityAlertEmail",
+      "features": [
+        "Shows count of inactive users",
+        "Table with top 10 users (name, licenses, days since activity)",
+        "Color-coded urgency (>60 days red, >30 days yellow)",
+        "Link to review users in SasWatch",
+        "Link to account settings to modify alerts"
+      ]
+    },
+    "scheduler": {
+      "function": "processInactivityAlerts",
+      "schedule": "Every Monday at 9:00 AM (America/New_York)",
+      "features": [
+        "Finds accounts with alerts enabled",
+        "Skips if alert sent within 7 days",
+        "Gets inactive users using threshold",
+        "Sends email and updates lastSent timestamp"
+      ]
+    }
+  },
+  "testResults": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0,
+    "testFile": "__tests__/integration/api/alert-settings.test.js"
+  },
+  "lessonsLearned": [
+    "Reused existing email sender patterns (Microsoft Graph API)",
+    "Added scheduled job to existing renewal-scheduler.js for consistency",
+    "Threshold validation prevents invalid configurations",
+    "Weekly frequency prevents alert fatigue while keeping admins informed"
+  ],
+  "nextSteps": [
+    "Add UI for alert settings in Account page",
+    "Add manual trigger button to send test alert",
+    "Add alert history log"
+  ]
+}

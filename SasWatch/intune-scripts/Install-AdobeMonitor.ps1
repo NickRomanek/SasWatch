@@ -23,7 +23,7 @@ if (-not $isAdmin) {
 # Configuration
 $INSTALL_DIR = "C:\ProgramData\AdobeMonitor"
 $SCRIPT_NAME = "Monitor-AdobeUsage.ps1"
-$TASK_NAME = "Adobe Usage Monitor - SubTracker"
+$TASK_NAME = "Adobe Usage Monitor - SasWatch"
 $RUN_KEY_NAME = "AdobeUsageMonitor"
 $LAUNCHER_NAME = "MonitorLauncher.vbs"
 $LOG_FILE = "$INSTALL_DIR\install.log"

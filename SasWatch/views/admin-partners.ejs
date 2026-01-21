@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        <%= title %> - SasWatch
+    </title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .admin-header h1 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 2rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .partners-table {
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+        }
+
+        .table-header {
+            background: var(--bg-secondary);
+            padding: 16px 24px;
+            border-bottom: 2px solid var(--border-color);
+            font-weight: 600;
+            color: var(--text-primary);
+            display: grid;
+            grid-template-columns: 2fr 2fr 2fr 1fr 1fr 200px;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .table-row {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: grid;
+            grid-template-columns: 2fr 2fr 2fr 1fr 1fr 200px;
+            gap: 16px;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .table-row:hover {
+            background: var(--bg-hover);
+        }
+
+        .partner-company {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .partner-email {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .api-key-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-secondary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .copy-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px;
+            color: var(--accent-primary);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: var(--success);
+            color: white;
+        }
+
+        .status-inactive {
+            background: var(--danger);
+            color: white;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 500px;
+            padding: 32px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Sidebar (Simplified from admin.ejs) -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <img src="/images/logoTransp.png" alt="SasWatch" class="logo-image" width="32" height="32">
+                <span>SasWatch</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="sidebar-nav-item">
+                <a href="/admin" class="sidebar-nav-link">
+                    <span class="nav-icon">📊</span>
+                    <span>Direct Accounts</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/admin/partners" class="sidebar-nav-link active">
+                    <span class="nav-icon">🤝</span>
+                    <span>Partner Management</span>
+                </a>
+            </div>
+            <div class="sidebar-nav-item">
+                <a href="/" class="sidebar-nav-link">
+                    <span class="nav-icon">🏠</span>
+                    <span>Back to Site</span>
+                </a>
+            </div>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <div class="admin-container">
+            <div class="admin-header">
+                <h1>
+                    <span>🤝</span>
+                    <span>Partner Management</span>
+                </h1>
+                <button class="btn btn-primary" onclick="openCreateModal()">+ Create Partner</button>
+            </div>
+
+            <% if (partners.length===0) { %>
+                <div class="empty-state">
+                    <div class="empty-state-icon">🤝</div>
+                    <h2>No partners found</h2>
+                    <p>Start by creating a partner from an existing account.</p>
+                </div>
+                <% } else { %>
+                    <div class="partners-table">
+                        <div class="table-header">
+                            <div>Partner Company</div>
+                            <div>Associated Account</div>
+                            <div>API Key</div>
+                            <div>Links</div>
+                            <div>Status</div>
+                            <div>Actions</div>
+                        </div>
+                        <% partners.forEach(partner=> { %>
+                            <div class="table-row">
+                                <div>
+                                    <div class="partner-company">
+                                        <%= partner.companyName || 'Unnamed Partner' %>
+                                    </div>
+                                    <div class="partner-id" style="font-size: 0.7rem; color: var(--text-secondary);">
+                                        <%= partner.id %>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="account-name">
+                                        <%= partner.account.name %>
+                                    </div>
+                                    <div class="partner-email">
+                                        <%= partner.account.email %>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="api-key-container">
+                                        <span id="key-<%= partner.id %>">••••••••</span>
+                                        <button class="copy-btn"
+                                            onclick="toggleKey('<%= partner.id %>', '<%= partner.partnerApiKey %>')"
+                                            title="Show/Hide Key">👁️</button>
+                                        <button class="copy-btn"
+                                            onclick="copyToClipboard('<%= partner.partnerApiKey %>')"
+                                            title="Copy Key">📋</button>
+                                        <button class="copy-btn" onclick="regenerateKey('<%= partner.id %>')"
+                                            title="Regenerate Key">🔄</button>
+                                    </div>
+                                </div>
+                                <div class="stat-number">
+                                    <%= partner._count.linkedAccounts %>
+                                </div>
+                                <div>
+                                    <span
+                                        class="status-badge <%= partner.isActive ? 'status-active' : 'status-inactive' %>">
+                                        <%= partner.isActive ? 'Active' : 'Inactive' %>
+                                    </span>
+                                </div>
+                                <div class="action-btns">
+                                    <button class="btn btn-secondary" onclick="manageLinks('<%= partner.id %>')">🔗
+                                        Links</button>
+                                    <button class="btn btn-secondary"
+                                        onclick="toggleStatus('<%= partner.id %>', <%= partner.isActive %>)">
+                                        <%= partner.isActive ? 'Disable' : 'Enable' %>
+                                    </button>
+                                </div>
+                            </div>
+                            <% }) %>
+                    </div>
+                    <% } %>
+        </div>
+    </main>
+
+    <!-- Create Partner Modal -->
+    <div id="createModal" class="modal-overlay">
+        <div class="modal">
+            <h2>Create New Partner</h2>
+            <form id="createForm">
+                <div class="form-group">
+                    <label>Select Account</label>
+                    <select name="accountId" required>
+                        <option value="">-- Select an account --</option>
+                        <% accounts.forEach(acc=> { %>
+                            <option value="<%= acc.id %>">
+                                <%= acc.name %> (<%= acc.email %>)
+                            </option>
+                            <% }) %>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Company Name (Optional)</label>
+                    <input type="text" name="companyName" placeholder="e.g. Acme Managed Services">
+                </div>
+                <div class="form-group">
+                    <label>Max Linked Accounts</label>
+                    <input type="number" name="maxLinkedAccounts" value="100">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Partner</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Links Modal -->
+    <div id="linksModal" class="modal-overlay">
+        <div class="modal" style="max-width: 700px;">
+            <h2>Linked Accounts</h2>
+            <div id="linksList" style="margin-bottom: 24px;">
+                <!-- Links will be loaded here -->
+            </div>
+
+            <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
+
+            <h3>Link New Account</h3>
+            <form id="linkForm">
+                <div class="form-group">
+                    <label>Select Account</label>
+                    <select name="linkedAccountId" required>
+                        <option value="">-- Select an account --</option>
+                        <% accounts.forEach(acc=> { %>
+                            <option value="<%= acc.id %>">
+                                <%= acc.name %> (<%= acc.email %>)
+                            </option>
+                            <% }) %>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Nickname (Optional)</label>
+                    <input type="text" name="nickname" placeholder="e.g. Client-A">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('linksModal')">Close</button>
+                    <button type="submit" class="btn btn-primary">Link Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/theme.js"></script>
+    <script>
+        function openCreateModal() {
+            document.getElementById('createModal').classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function toggleKey(id, key) {
+            const el = document.getElementById(`key-${id}`);
+            if (el.textContent === '••••••••') {
+                el.textContent = key;
+            } else {
+                el.textContent = '••••••••';
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('API Key copied to clipboard');
+            });
+        }
+
+        document.getElementById('createForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+
+            const response = await fetch('/api/admin/partners', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                const err = await response.json();
+                alert('Error: ' + err.error);
+            }
+        };
+
+        async function toggleStatus(id, currentStatus) {
+            if (!confirm(`Are you sure you want to ${currentStatus ? 'disable' : 'enable'} this partner?`)) return;
+
+            const response = await fetch(`/api/admin/partners/${id}/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isActive: !currentStatus })
+            });
+
+            if (response.ok) {
+                window.location.reload();
+            }
+        }
+
+        async function manageLinks(id) {
+            const modal = document.getElementById('linksModal');
+            const list = document.getElementById('linksList');
+            list.innerHTML = '<div>Loading links...</div>';
+            modal.classList.add('active');
+            modal.dataset.partnerId = id;
+
+            try {
+                const response = await fetch(`/admin/partners/${id}/details`);
+                const data = await response.json();
+
+                if (data.success) {
+                    let html = `
+                        <div class="table-header" style="grid-template-columns: 2fr 1.5fr 100px; padding: 12px 16px;">
+                            <div>Account</div>
+                            <div>Nickname</div>
+                            <div>Actions</div>
+                        </div>
+                    `;
+                    data.partner.linkedAccounts.forEach(link => {
+                        html += `
+                            <div class="table-row" style="grid-template-columns: 2fr 1.5fr 100px; padding: 12px 16px;">
+                                <div>
+                                    <div style="font-weight: 600;">${link.linkedAccount.name}</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">${link.linkedAccount.email}</div>
+                                </div>
+                                <div style="color: var(--text-secondary);">${link.nickname || '-'}</div>
+                                <button class="btn btn-secondary" style="color: var(--danger); padding: 4px 8px;" onclick="unlinkAccount('${id}', '${link.linkedAccountId}')">Unlink</button>
+                            </div>
+                        `;
+                    });
+                    if (data.partner.linkedAccounts.length === 0) {
+                        html = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No accounts linked yet.</div>';
+                    }
+                    list.innerHTML = html;
+                }
+            } catch (err) {
+                list.innerHTML = '<div style="color: var(--danger);">Error loading link details.</div>';
+            }
+        }
+
+        async function unlinkAccount(partnerId, accountId) {
+            if (!confirm('Are you sure you want to unlink this account?')) return;
+            const response = await fetch(`/api/admin/partners/${partnerId}/unlink`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ linkedAccountId: accountId })
+            });
+            if (response.ok) manageLinks(partnerId);
+        }
+
+        document.getElementById('linkForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const partnerId = document.getElementById('linksModal').dataset.partnerId;
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+
+            const response = await fetch(`/api/admin/partners/${partnerId}/link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                e.target.reset();
+                manageLinks(partnerId);
+            } else {
+                const err = await response.json();
+                alert('Error: ' + err.error);
+            }
+        };
+
+        async function regenerateKey(id) {
+            if (!confirm('Are you sure you want to regenerate the API key? The old key will stop working immediately.')) return;
+
+            try {
+                const response = await fetch(`/api/admin/partners/${id}/key`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert('API Key regenerated successfully.');
+                    window.location.reload();
+                } else {
+                    const err = await response.json();
+                    alert('Error: ' + (err.error || 'Failed to regenerate key'));
+                }
+            } catch (e) {
+                alert('Network error occurred.');
+            }
+        }
+    </script>
+</body>
+
+</html>

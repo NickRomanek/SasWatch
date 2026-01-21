@@ -1,4 +1,4 @@
-// Prisma Schema for SubTracker - Multi-Tenant
+// Prisma Schema for SasWatch - Multi-Tenant
 // PostgreSQL database for Railway deployment
 
 generator client {
@@ -32,6 +32,15 @@ model Account {
   hiddenLicenses        String[]  @default([]) // Licenses to hide from user display
   licenseCosts          Json?     @default("{}") // License pricing: { "licenseName": { costPerLicense, totalLicenses, totalCost } }
 
+  // Inactivity Alert Settings
+  inactivityAlertEnabled   Boolean   @default(false) // Enable automatic inactivity alerts
+  inactivityAlertThreshold Int       @default(30)    // Days of inactivity before alert (30, 60, 90)
+  inactivityAlertLastSent  DateTime?                 // Last time an inactivity alert was sent
+  inactivityAlertEmail     String?                   // Override email for alerts (defaults to account email)
+
+  // Notification Preferences (JSON object for flexible notification settings)
+  notificationPreferences  Json?     @default("{}")
+
   // Email Verification (DEPRECATED - use AccountMember fields)
   emailVerified            Boolean   @default(false)
   emailVerificationToken   String?   @unique
@@ -52,15 +61,62 @@ model Account {
   users                User[]
   usageEvents          UsageEvent[]
   unmappedUsernames    UnmappedUsername[]
+  scheduledReports     ScheduledReport[] // Automated report schedules
+  auditLogs            AuditLog[]        // Admin action history
   appOverrides         AppOverride[]
   applications         Application[]
   entraSignIns         EntraSignIn[]
   subscriptions        Subscription[]
   pendingSubscriptions PendingSubscription[]
+  partnerAccount       PartnerAccount?      @relation("PartnerAccountLink")
+  partnerLinks         PartnerAccountLink[] @relation("PartnerLinkedAccount")
+  headlessConnectors   HeadlessConnector[]
+
 
   @@index([email])
   @@index([apiKey])
   @@map("accounts")
+}
+
+// AuditLog model - tracks admin actions for compliance
+model AuditLog {
+  id          String   @id @default(uuid())
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  actorId     String?  // Member who performed the action (null for system actions)
+  action      String   // e.g., 'license.reclaim', 'user.update', 'settings.change'
+  targetType  String   // e.g., 'user', 'license', 'account'
+  targetId    String?  // ID of the affected entity
+  details     Json?    // Additional context about the action
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([accountId])
+  @@index([accountId, action])
+  @@index([accountId, createdAt])
+  @@map("audit_logs")
+}
+
+// ScheduledReport model - configurable automated email reports
+model ScheduledReport {
+  id          String   @id @default(uuid())
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name        String
+  frequency   String   // 'weekly' or 'monthly'
+  reportType  String   // 'usage-summary', 'license-utilization', 'inactive-users'
+  dayOfWeek   String?  // For weekly: 'monday', 'tuesday', etc.
+  dayOfMonth  Int?     // For monthly: 1-28
+  recipients  String[] // Email addresses
+  enabled     Boolean  @default(true)
+  lastSentAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([accountId])
+  @@index([accountId, enabled])
+  @@map("scheduled_reports")
 }
 
 // AccountMember model - people who can log into an account (RBAC)
@@ -341,3 +397,58 @@ model PendingSubscription {
   @@index([accountId, status])
   @@map("pending_subscriptions")
 }
+
+// Partner Account - links an Account to Partner API capabilities
+model PartnerAccount {
+  id                String               @id @default(uuid())
+  accountId         String               @unique
+  account           Account              @relation("PartnerAccountLink", fields: [accountId], references: [id], onDelete: Cascade)
+  partnerApiKey     String               @unique @default(uuid())
+  isActive          Boolean              @default(true)
+  companyName       String?
+  maxLinkedAccounts Int                  @default(100)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  linkedAccounts    PartnerAccountLink[]
+
+  @@index([partnerApiKey])
+  @@map("partner_accounts")
+}
+
+// Links Partner to accounts they can access
+model PartnerAccountLink {
+  id               String         @id @default(uuid())
+  partnerAccountId String
+  partnerAccount   PartnerAccount @relation(fields: [partnerAccountId], references: [id], onDelete: Cascade)
+  linkedAccountId  String
+  linkedAccount    Account        @relation("PartnerLinkedAccount", fields: [linkedAccountId], references: [id], onDelete: Cascade)
+  linkedAt         DateTime       @default(now())
+  nickname         String?
+  isActive         Boolean        @default(true)
+  permissions      String[]       @default(["read"])
+
+  @@unique([partnerAccountId, linkedAccountId])
+  @@index([partnerAccountId])
+  @@index([linkedAccountId])
+  @@map("partner_account_links")
+}
+
+// HeadlessConnector model - for storing session data and credentials for headless automation
+model HeadlessConnector {
+  id             String    @id @default(uuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  vendor         String // "Adobe", "Zoom", etc.
+  status         String    @default("pending") // active, error, expired, pending
+  sessionData    String? // Encrypted JSON of Playwright storageState
+  encryptedCreds String? // Optional: Encrypted username/password
+  lastSyncAt     DateTime?
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([accountId, vendor])
+  @@index([accountId])
+  @@map("headless_connectors")
+}
+

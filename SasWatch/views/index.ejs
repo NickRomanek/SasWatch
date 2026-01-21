@@ -1,93 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %></title>
+    <title>
+        <%= title %> - SasWatch
+    </title>
+    <meta name="description"
+        content="View your SasWatch activity dashboard to monitor software usage and license consumption.">
+
+    <!-- Performance: Preconnect to Font domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="/css/style.css">
+
+    <!-- Icons as SVG for professional look -->
+    <style>
+        .svg-icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
 </head>
+
 <body>
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="sidebar-logo">
-                <img src="/images/logoTransp.png" alt="SasWatch" class="logo-image" width="32" height="32">
+                <img src="/images/logoTransp.png" alt="SasWatch Logo" class="logo-image" width="32" height="32">
                 <span>SasWatch</span>
             </div>
             <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
-                <span id="sidebar-toggle-icon">◀</span>
+                <span id="sidebar-toggle-icon">
+                    <svg class="svg-icon" viewBox="0 0 24 24">
+                        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                    </svg>
+                </span>
             </button>
         </div>
-        
+
         <nav class="sidebar-nav">
             <div class="sidebar-nav-item">
                 <a href="/" class="sidebar-nav-link" data-tooltip="Renewals">
-                    <span class="nav-icon">📅</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z" />
+                        </svg>
+                    </span>
                     <span>Renewals</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/users" class="sidebar-nav-link" data-tooltip="Users">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                        </svg>
+                    </span>
                     <span>Users</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/licenses" class="sidebar-nav-link" data-tooltip="Licenses">
-                    <span class="nav-icon">📜</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                        </svg>
+                    </span>
                     <span>Licenses</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
-                    <span class="nav-icon">📦</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5l3.5 3.5-3.5 3.5z" />
+                        </svg>
+                    </span>
                     <span>Apps</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/dashboard" class="sidebar-nav-link active" data-tooltip="Activity">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                        </svg>
+                    </span>
                     <span>Activity</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/account" class="sidebar-nav-link" data-tooltip="Account">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                        </svg>
+                    </span>
                     <span>Account</span>
                 </a>
             </div>
-            <% if (typeof member === 'undefined' || !member || member.role === 'admin' || member.role === 'owner') { %>
             <div class="sidebar-nav-item">
-                <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
-                    <span class="nav-icon">🧑‍🤝‍🧑</span>
-                    <span>Team</span>
+                <a href="/headless-connect" class="sidebar-nav-link" data-tooltip="Automated Logins">
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z" />
+                        </svg>
+                    </span>
+                    <span>Automated Logins</span>
                 </a>
             </div>
-            <% } %>
-            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin) && (typeof member === 'undefined' || !member)) { %>
-            <div class="sidebar-nav-item">
-                <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
-                    <span class="nav-icon">🛠️</span>
-                    <span>Dev</span>
-                </a>
-            </div>
-            <div class="sidebar-nav-item">
-                <a href="/admin" class="sidebar-nav-link" data-tooltip="Platform Admin">
-                    <span class="nav-icon">👑</span>
-                    <span>Platform Admin</span>
-                </a>
-            </div>
-            <% } %>
+            <% if (typeof member==='undefined' || !member || member.role==='admin' || member.role==='owner' ) { %>
+
+                <div class="sidebar-nav-item">
+                    <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
+                        <span class="nav-icon">
+                            <svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M16.5 13c-1.2 0-3.07.34-4.5 1-1.43-.67-3.3-1-4.5-1C5.33 13 1 14.08 1 16.25V19h15v-2.75c0-2.17-4.33-3.25-6.5-3.25zm-9-2c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm10 2c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm3 3.25c0-2.17-4.33-3.25-6.5-3.25-.33 0-.71.02-1.1.06 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.75z" />
+                            </svg>
+                        </span>
+                        <span>Team</span>
+                    </a>
+                </div>
+                <% } %>
         </nav>
-        
+
         <div class="sidebar-footer">
             <div class="sidebar-footer-actions">
                 <a href="/logout" class="sidebar-footer-link">
-                    <span class="nav-icon">🚪</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                        </svg>
+                    </span>
                     <span>Logout</span>
                 </a>
-                <button class="sidebar-footer-link" onclick="toggleTheme()" style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;" title="Toggle theme">
-                    <span class="nav-icon" id="theme-icon">☀️</span>
+                <button class="sidebar-footer-link" onclick="toggleTheme()"
+                    style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;"
+                    title="Toggle theme">
+                    <span class="nav-icon" id="theme-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41zm-12.37 12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41z" />
+                        </svg>
+                    </span>
                     <span>Theme</span>
                 </button>
             </div>
@@ -104,54 +176,69 @@
             <nav class="mobile-nav">
                 <div class="mobile-nav-item">
                     <a href="/" class="mobile-nav-link">
-                        <span>📅</span>
+                        <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z" />
+                            </svg></span>
                         <span>Renewals</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/users" class="mobile-nav-link">
-                        <span>👥</span>
+                        <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                            </svg></span>
                         <span>Users</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/licenses" class="mobile-nav-link">
-                        <span>📜</span>
+                        <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                            </svg></span>
                         <span>Licenses</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/apps" class="mobile-nav-link">
-                        <span>📦</span>
+                        <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5l3.5 3.5-3.5 3.5z" />
+                            </svg></span>
                         <span>Apps</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/dashboard" class="mobile-nav-link active">
-                        <span>📊</span>
+                        <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                            </svg></span>
                         <span>Activity</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/account" class="mobile-nav-link">
-                        <span>⚙️</span>
+                        <span class="nav-icon"><svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                            </svg></span>
                         <span>Account</span>
                     </a>
                 </div>
-                <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
-                <div class="mobile-nav-item">
-                    <a href="/dev" class="mobile-nav-link">
-                        <span>🛠️</span>
-                        <span>Dev</span>
-                    </a>
-                </div>
-                <% } %>
             </nav>
 
             <header>
                 <div class="header-content">
                     <h1>
-                        <span class="header-icon" aria-hidden="true">📊</span>
+                        <span class="header-icon" aria-hidden="true" style="background: transparent; box-shadow: none;">
+                            <svg class="svg-icon" style="width: 32px; height: 32px;" viewBox="0 0 24 24">
+                                <path
+                                    d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                            </svg>
+                        </span>
                         <span class="header-title-text">Activity</span>
                     </h1>
                 </div>
@@ -162,8 +249,15 @@
                     <div class="stat-content">
                         <div class="stat-label">Web Apps</div>
                         <div class="stat-value">
-                            <span id="adobe-total"><%= adobeCount %></span>
-                            <span class="stat-icon">🌐</span>
+                            <span id="adobe-total">
+                                <%= adobeCount %>
+                            </span>
+                            <span class="stat-icon" style="background: transparent; box-shadow: none;">
+                                <svg class="svg-icon" style="width: 28px; height: 28px;" viewBox="0 0 24 24">
+                                    <path
+                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                                </svg>
+                            </span>
                         </div>
                         <div class="stat-detail" id="adobe-today">0 today</div>
                     </div>
@@ -173,8 +267,15 @@
                     <div class="stat-content">
                         <div class="stat-label">Desktop Apps</div>
                         <div class="stat-value">
-                            <span id="wrapper-total"><%= wrapperCount %></span>
-                            <span class="stat-icon">💻</span>
+                            <span id="wrapper-total">
+                                <%= wrapperCount %>
+                            </span>
+                            <span class="stat-icon" style="background: transparent; box-shadow: none;">
+                                <svg class="svg-icon" style="width: 28px; height: 28px;" viewBox="0 0 24 24">
+                                    <path
+                                        d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z" />
+                                </svg>
+                            </span>
                         </div>
                         <div class="stat-detail" id="wrapper-today">0 today</div>
                     </div>
@@ -185,7 +286,12 @@
                         <div class="stat-label">This Week</div>
                         <div class="stat-value">
                             <span id="week-total">0</span>
-                            <span class="stat-icon">📈</span>
+                            <span class="stat-icon" style="background: transparent; box-shadow: none;">
+                                <svg class="svg-icon" style="width: 28px; height: 28px;" viewBox="0 0 24 24">
+                                    <path
+                                        d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6.17-6.17 4 4L20.83 8.59 23 10.76V6z" />
+                                </svg>
+                            </span>
                         </div>
                         <div class="stat-detail" id="unique-clients">0 unique clients</div>
                     </div>
@@ -196,7 +302,8 @@
                 <div class="tab-content-header">
                     <div style="display: flex; align-items: center; gap: 1rem;">
                         <h2>Recent Activity</h2>
-                        <select id="source-filter" class="filter-select" onchange="filterBySource(this.value)" style="min-width: 180px;">
+                        <select id="source-filter" class="filter-select" onchange="filterBySource(this.value)"
+                            style="min-width: 180px;">
                             <option value="all">All Sources</option>
                             <option value="wrapper">Desktop Apps</option>
                             <option value="adobe">Web Apps</option>
@@ -205,21 +312,33 @@
                     </div>
                     <div class="dashboard-controls">
                         <button class="btn btn-primary" onclick="startManualSync()">
-                            🔄 Refresh
+                            <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                viewBox="0 0 24 24">
+                                <path
+                                    d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm-6 8c0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3c-3.31 0-6-2.69-6-6z" />
+                            </svg>
+                            Refresh
                         </button>
-                        <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
-                        <button
-                            class="btn btn-secondary"
-                            id="sync-graph-btn"
-                            onclick="syncGraphManual()"
-                            title="Superadmin: Force sync from Microsoft Graph API"
-                            data-sync-hours="24"
-                            data-sync-limit="50"
-                            data-sync-page-size="25">
-                            ☁️ Sync Graph
-                        </button>
-                        <% } %>
-                        <button class="btn btn-danger" onclick="clearData()">🗑️ Clear Data</button>
+                        <% if (typeof account !=='undefined' && account && account.isSuperAdmin) { %>
+                            <button class="btn btn-secondary" id="sync-graph-btn" onclick="syncGraphManual()"
+                                title="Superadmin: Force sync from Microsoft Graph API" data-sync-hours="24"
+                                data-sync-limit="50" data-sync-page-size="25">
+                                <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                    viewBox="0 0 24 24">
+                                    <path
+                                        d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+                                </svg>
+                                Sync Graph
+                            </button>
+                            <% } %>
+                                <button class="btn btn-danger" onclick="clearData()">
+                                    <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                        viewBox="0 0 24 24">
+                                        <path
+                                            d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                                    </svg>
+                                    Clear Data
+                                </button>
                     </div>
                 </div>
                 <div id="recent-activity" class="activity-table-container">
@@ -239,13 +358,13 @@
     </main>
 
     <!-- Critical scripts (load immediately) -->
-    <script src="/js/ui-components.js"></script>
+    <script src="/js/ui-components.js" defer></script>
     <!-- Socket.IO client library (CDN with fallback) -->
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" 
-            integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO" 
-            crossorigin="anonymous"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+        integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO" crossorigin="anonymous"
+        defer></script>
     <!-- Real-time socket client -->
-    <script src="/js/socket-client.js"></script>
+    <script src="/js/socket-client.js" defer></script>
     <!-- Non-critical scripts (defer loading) -->
     <script src="/js/app.js" defer></script>
     <script>
@@ -253,19 +372,21 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const icon = document.getElementById('sidebar-toggle-icon');
-            
+
             // On mobile, toggle overlay menu instead
             if (window.innerWidth <= 768) {
                 toggleMobileMenu();
                 return;
             }
-            
+
             sidebar.classList.toggle('collapsed');
-            
+
             // Save state
             const isCollapsed = sidebar.classList.contains('collapsed');
             localStorage.setItem('sidebarCollapsed', isCollapsed);
-            icon.textContent = isCollapsed ? '▶' : '◀';
+            const leftIcon = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" /></svg>';
+            const rightIcon = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>';
+            icon.innerHTML = isCollapsed ? rightIcon : leftIcon;
         }
 
         // Mobile menu functions
@@ -299,13 +420,15 @@
             const html = document.documentElement;
             const currentTheme = html.getAttribute('data-theme');
             const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            
+
             html.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
-            
+
             // Update icon
             const icon = document.getElementById('theme-icon');
-            icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+            const sunIcon = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41zm-12.37 12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41z" /></svg>';
+            const moonIcon = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z" /></svg>';
+            icon.innerHTML = newTheme === 'dark' ? sunIcon : moonIcon;
         }
 
         // Initialize on page load
@@ -314,27 +437,30 @@
             const savedTheme = localStorage.getItem('theme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
             const themeIcon = document.getElementById('theme-icon');
-            themeIcon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
-            
+            const sunIcon = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41zm-12.37 12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41z" /></svg>';
+            const moonIcon = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z" /></svg>';
+            themeIcon.innerHTML = savedTheme === 'dark' ? sunIcon : moonIcon;
+
             // Initialize sidebar state
             const sidebar = document.getElementById('sidebar');
             const sidebarIcon = document.getElementById('sidebar-toggle-icon');
             const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-            
+
             // Show mobile menu button on mobile
             if (window.innerWidth <= 768) {
                 mobileMenuBtn.style.display = 'block';
             }
-            
+
             // Only restore collapsed state on desktop
             if (window.innerWidth > 768) {
                 const savedSidebarState = localStorage.getItem('sidebarCollapsed') === 'true';
                 if (savedSidebarState) {
                     sidebar.classList.add('collapsed');
-                    sidebarIcon.textContent = '▶';
+                    const rightIcon = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>';
+                    sidebarIcon.innerHTML = rightIcon;
                 }
             }
-            
+
             // Close mobile menu when clicking sidebar links
             const sidebarLinks = document.querySelectorAll('.sidebar-nav-link, .sidebar-footer-link');
             sidebarLinks.forEach(link => {
@@ -349,4 +475,5 @@
 
     <%- include('_survey-widget') %>
 </body>
+
 </html>

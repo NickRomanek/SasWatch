@@ -1,0 +1,322 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-01-20",
+  "features": [
+    {
+      "id": "audit-logging",
+      "title": "Audit Logging",
+      "description": "Track all admin actions for compliance and troubleshooting",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "medium",
+      "phase": 3,
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "GET /api/audit-logs returns paginated audit history",
+        "Logs created for license reclamation and assignment",
+        "Includes actor, action, target, timestamp, details",
+        "Supports filtering by action type and date range",
+        "Has integration tests (8 tests)"
+      ],
+      "filesToModify": [
+        "SasWatch/prisma/schema.prisma",
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/__tests__/integration/api/audit-logs.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "license-assignment",
+      "title": "License Assignment",
+      "description": "Assign licenses to users including reassignment from reclaimed pool",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "low",
+      "phase": 3,
+      "dependencies": ["license-reclamation"],
+      "acceptanceCriteria": [
+        "POST /api/licenses/assign assigns license to user",
+        "GET /api/licenses/inventory returns license counts with availability",
+        "Prevents duplicate license assignment",
+        "Creates audit log entry",
+        "Has integration tests (10 tests)"
+      ],
+      "filesToModify": [
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/__tests__/integration/api/license-assignment.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "bulk-license-reclamation",
+      "title": "Bulk License Reclamation",
+      "description": "Process multiple users for license reclamation in a single operation",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "low",
+      "phase": 2,
+      "dependencies": ["license-reclamation"],
+      "acceptanceCriteria": [
+        "POST /api/licenses/reclaim-bulk accepts array of userIds",
+        "Returns summary of successful/failed reclamations",
+        "Supports partial success (some users reclaimed, others failed)",
+        "Respects account scoping",
+        "Limits batch to 100 users",
+        "Has integration tests (7 tests)"
+      ],
+      "filesToModify": [
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/__tests__/integration/api/bulk-reclamation.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "activity-history",
+      "title": "User Activity History",
+      "description": "Track and query detailed activity history per user",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "medium",
+      "phase": 2,
+      "dependencies": ["usage-analytics"],
+      "acceptanceCriteria": [
+        "GET /api/users/:userId/activity returns activity history",
+        "GET /api/users/:userId/activity/summary returns aggregated stats",
+        "Supports date range filtering",
+        "Includes application used, timestamp, source",
+        "Paginated results with limit/offset",
+        "Has integration tests (10 tests)"
+      ],
+      "filesToModify": [
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/__tests__/integration/api/activity-history.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "scheduled-reports",
+      "title": "Scheduled Reports",
+      "description": "Automated email reports on configurable schedules",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "medium",
+      "phase": 2,
+      "dependencies": ["email-notifications", "usage-analytics"],
+      "acceptanceCriteria": [
+        "GET /api/reports/schedules returns configured report schedules",
+        "POST /api/reports/schedules creates new scheduled report",
+        "PUT /api/reports/schedules/:id updates schedule",
+        "DELETE /api/reports/schedules/:id removes schedule",
+        "GET /api/reports/types returns available report types",
+        "Support weekly and monthly frequencies",
+        "Has integration tests (12 tests)"
+      ],
+      "filesToModify": [
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/prisma/schema.prisma",
+        "SasWatch/__tests__/integration/api/scheduled-reports.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "email-notifications",
+      "title": "Email Notification System",
+      "description": "Configurable email notifications for license events, renewals, and usage alerts",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "medium",
+      "dependencies": ["inactivity-alerts"],
+      "acceptanceCriteria": [
+        "GET /api/notifications/preferences returns notification settings",
+        "PUT /api/notifications/preferences updates notification settings",
+        "GET /api/notifications/types returns available notification types",
+        "Support multiple notification types (renewal, inactivity, weekly digest, license changes)",
+        "Notification preferences stored per account (JSON)",
+        "Has integration tests (9 tests)"
+      ],
+      "filesToModify": [
+        "SasWatch/prisma/schema.prisma",
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/__tests__/integration/api/email-notifications.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "usage-analytics",
+      "title": "Advanced Usage Analytics",
+      "description": "Dashboard analytics with usage trends, license utilization, and activity patterns",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "medium",
+      "dependencies": ["api-inactive-users"],
+      "acceptanceCriteria": [
+        "GET /api/analytics/overview returns summary metrics",
+        "GET /api/analytics/activity-summary returns time-based breakdown",
+        "GET /api/analytics/license-utilization returns usage by license type",
+        "GET /api/analytics/top-users returns most/least active users",
+        "Supports configurable inactivity threshold",
+        "Has integration tests (14 tests)"
+      ],
+      "filesToModify": [
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/__tests__/integration/api/usage-analytics.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "license-reclamation",
+      "title": "License Reclamation Workflows",
+      "description": "Flag inactive licenses and enable one-click reassignment for cost optimization",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "medium",
+      "dependencies": ["api-inactive-users"],
+      "acceptanceCriteria": [
+        "GET /api/licenses/reclamation-candidates returns users flagged for reclamation",
+        "GET /api/licenses/reclamation-summary returns overview with savings",
+        "POST /api/licenses/reclaim processes reclamation (removes licenses)",
+        "Reclamation candidates based on inactivity threshold",
+        "Shows potential cost savings (monthly/annual)",
+        "Has integration tests (9 tests)"
+      ],
+      "filesToModify": [
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/lib/database-multitenant.js",
+        "SasWatch/__tests__/integration/api/license-reclamation.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "inactivity-alerts",
+      "title": "Automated Inactivity Alerts",
+      "description": "Email alerts when users haven't used Adobe in configurable days (30/60/90)",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "low",
+      "dependencies": ["api-inactive-users"],
+      "acceptanceCriteria": [
+        "Account can configure inactivity threshold (7/14/30/60/90 days)",
+        "Account can enable/disable alerts",
+        "GET /api/account/alert-settings returns current settings",
+        "PUT /api/account/alert-settings updates settings",
+        "Scheduled job checks inactive users and queues alerts (weekly on Monday)",
+        "Email template shows inactive users with action links",
+        "Has integration tests (8 tests)"
+      ],
+      "filesToModify": [
+        "SasWatch/prisma/schema.prisma",
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/lib/email-sender.js",
+        "SasWatch/lib/renewal-scheduler.js",
+        "SasWatch/__tests__/integration/api/alert-settings.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "export-csv-users",
+      "title": "Export Users to CSV",
+      "description": "Allow admins to export user data and inactive users list to CSV for reporting and audits",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "low",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "GET /api/users/export/csv returns CSV file",
+        "GET /api/users/inactive/export/csv returns inactive users CSV",
+        "CSV includes: email, firstName, lastName, licenses, lastActivity, daysSinceActivity",
+        "Proper Content-Type and Content-Disposition headers",
+        "Respects accountId scoping (auth.requireAuth)",
+        "Has integration tests"
+      ],
+      "filesToModify": [
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/__tests__/integration/api/export.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    },
+    {
+      "id": "api-inactive-users",
+      "title": "API Endpoint for Inactive Users",
+      "description": "Expose getInactiveUsers() via REST API endpoint for frontend integration",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "low",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "GET /api/users/inactive returns inactive users",
+        "Supports optional ?days query parameter (default: 30)",
+        "Returns JSON with count and users array",
+        "Respects accountId scoping (auth.requireAuth)",
+        "Has integration tests"
+      ],
+      "filesToModify": [
+        "SasWatch/server-multitenant-routes.js",
+        "SasWatch/__tests__/integration/api/inactive-users-api.test.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-19",
+      "completedDate": "2026-01-19",
+      "readyForImplementation": false
+    },
+    {
+      "id": "ui-inactive-users-widget",
+      "title": "Inactive Users Widget on Users Page",
+      "description": "Add a collapsible widget showing inactive users for license optimization, consuming /api/users/inactive",
+      "priority": 1,
+      "status": "completed",
+      "estimatedComplexity": "low",
+      "dependencies": ["api-inactive-users"],
+      "acceptanceCriteria": [
+        "Widget appears on /users page",
+        "Shows count of inactive users (default 30 days)",
+        "Allows changing days threshold via dropdown",
+        "Displays user name, email, last activity date, days inactive",
+        "Collapsible to reduce visual clutter",
+        "Styled consistently with existing UI"
+      ],
+      "filesToModify": [
+        "SasWatch/views/users.ejs",
+        "SasWatch/public/js/users.js"
+      ],
+      "protectedFiles": [],
+      "createdAt": "2026-01-20",
+      "completedDate": "2026-01-20",
+      "readyForImplementation": false
+    }
+  ],
+  "priorities": {
+    "1": "High - Blocking other work or high user value",
+    "2": "Medium - Important but not blocking",
+    "3": "Low - Nice to have"
+  }
+}

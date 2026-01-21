@@ -511,6 +511,126 @@ async function sendRenewalReminderEmail({ to, subscription, daysUntil, accountNa
 }
 
 /**
+ * Build HTML body for inactivity alert email
+ */
+function buildInactivityAlertEmailBody(accountName, inactiveUsers, daysThreshold, baseUrl) {
+    const userRows = inactiveUsers.slice(0, 10).map(user => `
+        <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                <strong>${user.firstName || ''} ${user.lastName || ''}</strong>
+                <br><span style="color: #666; font-size: 13px;">${user.email}</span>
+            </td>
+            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">
+                ${(user.licenses || []).join(', ') || 'None'}
+            </td>
+            <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">
+                <span style="color: ${user.daysSinceActivity > 60 ? '#dc2626' : user.daysSinceActivity > 30 ? '#d97706' : '#666'}; font-weight: 600;">
+                    ${user.daysSinceActivity !== null ? `${user.daysSinceActivity} days` : 'Never'}
+                </span>
+            </td>
+        </tr>
+    `).join('');
+
+    const moreUsers = inactiveUsers.length > 10 
+        ? `<p style="text-align: center; color: #666; margin: 15px 0;">... and ${inactiveUsers.length - 10} more inactive users</p>` 
+        : '';
+
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 650px; margin: 0 auto; padding: 20px; }
+                .header { background: #d97706; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+                .stats-box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+                .stat-number { font-size: 2.5rem; font-weight: bold; color: #d97706; }
+                .tip-box { background: #fef3c7; border-left: 4px solid #d97706; padding: 15px; margin: 20px 0; }
+                table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+                th { background: #f3f4f6; padding: 12px; text-align: left; font-weight: 600; }
+                .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+                .button { display: inline-block; background: #d97706; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🔕 Inactive Users Alert</h1>
+                </div>
+                <div class="content">
+                    <div class="stats-box">
+                        <div class="stat-number">${inactiveUsers.length}</div>
+                        <div style="color: #666;">users with no activity in ${daysThreshold}+ days</div>
+                    </div>
+                    
+                    <div class="tip-box">
+                        <strong>💰 License Optimization Opportunity</strong><br>
+                        These users may no longer need their assigned licenses. Review their activity and consider reassigning or revoking licenses to reduce costs.
+                    </div>
+                    
+                    <h3 style="margin-top: 25px;">Inactive Users</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th style="text-align: center;">Licenses</th>
+                                <th style="text-align: center;">Last Active</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${userRows}
+                        </tbody>
+                    </table>
+                    ${moreUsers}
+                    
+                    <p style="text-align: center; margin-top: 25px;">
+                        <a href="${baseUrl}/users" class="button">Review Users in SasWatch</a>
+                    </p>
+                </div>
+                <div class="footer">
+                    <p>You're receiving this because inactivity alerts are enabled for ${accountName}.</p>
+                    <p>To change your alert settings, visit <a href="${baseUrl}/account" style="color: #d97706;">Account Settings</a>.</p>
+                    <p>© ${new Date().getFullYear()} SasWatch. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+}
+
+/**
+ * Send inactivity alert email
+ */
+async function sendInactivityAlertEmail({ to, accountName, inactiveUsers, daysThreshold }) {
+    if (!SURVEY_EMAIL_REGEX.test(to)) {
+        throw new Error('Invalid email address provided for inactivity alert');
+    }
+
+    if (!inactiveUsers || inactiveUsers.length === 0) {
+        console.log('[Email] No inactive users to report, skipping inactivity alert');
+        return;
+    }
+
+    const fromEmail = getFromEmail('notification');
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+
+    const message = {
+        message: {
+            subject: `🔕 ${inactiveUsers.length} Inactive Users (${daysThreshold}+ days) - ${accountName}`,
+            body: {
+                contentType: 'HTML',
+                content: buildInactivityAlertEmailBody(accountName, inactiveUsers, daysThreshold, baseUrl)
+            },
+            toRecipients: [{ emailAddress: { address: to } }]
+        },
+        saveToSentItems: false
+    };
+
+    await sendGraphEmail(fromEmail, message, 'inactivity-alert');
+}
+
+/**
  * Send team member invitation email
  */
 async function sendInvitationEmail({ to, token, inviterName, accountName }) {
@@ -576,6 +696,7 @@ module.exports = {
     sendPasswordResetEmail,
     sendMfaEmail,
     sendRenewalReminderEmail,
+    sendInactivityAlertEmail,
     sendInvitationEmail,
     SURVEY_EMAIL_REGEX
 };

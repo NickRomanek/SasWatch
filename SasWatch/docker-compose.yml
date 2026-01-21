@@ -6,11 +6,11 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: subtracker-postgres
+    container_name: saswatch-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: subtracker
+      POSTGRES_DB: saswatch
     ports:
       - "5432:5432"
     volumes:

@@ -1,5 +1,5 @@
 # Manual Railway Database Schema Deployment Script
-# Run this from the SubTracker directory
+# Run this from the SasWatch directory
 
 param(
     [Parameter(Mandatory=$true)]

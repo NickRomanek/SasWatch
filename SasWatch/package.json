@@ -1,7 +1,7 @@
 {
-  "name": "subtracker",
+  "name": "saswatch",
   "version": "1.0.0",
-  "description": "Microsoft Graph API application for tracking login logs and managing SaaS licenses",
+  "description": "Multi-tenant SaaS platform for tracking Adobe Creative Cloud and Microsoft 365 license usage",
   "main": "server.js",
   "scripts": {
     "start": "node scripts/startup.js",
@@ -10,7 +10,17 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:setup": "powershell -ExecutionPolicy Bypass -File scripts/test-quick-start.ps1",
+    "ai:ready": "powershell -ExecutionPolicy Bypass -File scripts/ai-feature-workflow.ps1"
   },
   "dependencies": {
     "@azure/msal-node": "^2.5.1",
@@ -41,14 +51,21 @@
     "passport-local": "^1.0.0",
     "pdfjs-dist": "^4.3.136",
     "pg": "^8.16.3",
+    "playwright": "^1.57.0",
     "prisma": "^6.17.1",
     "socket.io": "^4.7.5",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^13.0.0",
     "winston": "^3.18.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@vitest/coverage-v8": "^1.2.0",
+    "@vitest/ui": "^1.2.0",
     "adm-zip": "^0.5.16",
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "vitest": "^1.2.0"
   },
   "keywords": [
     "microsoft-graph",

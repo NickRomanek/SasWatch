@@ -22,7 +22,7 @@ if (-not $isAdmin) {
 
 # Configuration
 $INSTALL_DIR = "C:\ProgramData\AdobeMonitor"
-$TASK_NAME = "Adobe Usage Monitor - SubTracker"
+$TASK_NAME = "Adobe Usage Monitor - SasWatch"
 $LOG_FILE = "$INSTALL_DIR\uninstall.log"
 $RUN_KEY_NAME = "AdobeUsageMonitor"
 $REMOVE_FILES = $true  # Set to $false to keep logs/tracking data

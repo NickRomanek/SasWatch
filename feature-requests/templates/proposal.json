@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Feature Proposal Template",
+  "description": "Use this template to propose new features for SasWatch. AI agents can create proposals, but only humans can approve them.",
+  "template": {
+    "id": "feature-id-kebab-case",
+    "title": "Feature Title",
+    "status": "proposal",
+    "proposedBy": "ai|human",
+    "proposedAt": "YYYY-MM-DD",
+    "problem": "What problem does this solve? Be specific about user pain points.",
+    "solution": "How will this feature solve the problem? Describe the approach.",
+    "userStories": [
+      "As a [role], I want [feature] so that [benefit]"
+    ],
+    "marketJustification": "Why is this important based on market trends or competitive analysis?",
+    "competitorAnalysis": [
+      "Which competitors have this feature?",
+      "How do they implement it?"
+    ],
+    "estimatedComplexity": "low|medium|high",
+    "estimatedValue": "low|medium|high|very-high",
+    "securityImpact": "none|low|medium|high",
+    "filesToModify": [
+      "path/to/file.js"
+    ],
+    "protectedFilesRequired": false,
+    "approvalRequired": true,
+    "dependencies": [
+      "feature-id-of-dependency"
+    ],
+    "acceptanceCriteria": [
+      "Criteria 1: Specific, measurable outcome",
+      "Criteria 2: Another measurable outcome"
+    ],
+    "testingRequirements": [
+      "Unit tests for [component]",
+      "Integration tests for [flow]"
+    ],
+    "votes": {
+      "approve": 0,
+      "reject": 0
+    },
+    "comments": [
+      {
+        "author": "name",
+        "date": "YYYY-MM-DD",
+        "text": "Comment text"
+      }
+    ]
+  },
+  "statusFlow": {
+    "proposal": "Initial state - awaiting human review",
+    "approved": "Human approved - ready for implementation",
+    "in-progress": "AI or human actively working on it",
+    "review": "Implementation complete - awaiting code review",
+    "testing": "In QA/testing phase",
+    "completed": "Merged and deployed"
+  },
+  "rules": {
+    "aiCanCreate": true,
+    "aiCanApprove": false,
+    "aiCanImplement": "only if status is 'approved'",
+    "humanApprovalRequired": "for any feature touching protected files"
+  }
+}

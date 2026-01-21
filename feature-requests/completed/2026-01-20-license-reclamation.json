@@ -1,0 +1,69 @@
+{
+  "id": "license-reclamation",
+  "title": "License Reclamation Workflows",
+  "description": "API endpoints for identifying and reclaiming unused licenses from inactive users",
+  "completedDate": "2026-01-20",
+  "status": "completed",
+  "filesChanged": [
+    "SasWatch/server-multitenant-routes.js",
+    "SasWatch/lib/database-multitenant.js",
+    "SasWatch/__tests__/integration/api/license-reclamation.test.js",
+    "feature-requests/backlog.json"
+  ],
+  "protectedFilesModified": [],
+  "acceptanceCriteria": {
+    "GET /api/licenses/reclamation-candidates returns users flagged": true,
+    "GET /api/licenses/reclamation-summary returns overview": true,
+    "POST /api/licenses/reclaim removes licenses": true,
+    "Candidates based on inactivity threshold": true,
+    "Shows potential cost savings": true,
+    "Multi-tenant account scoping": true,
+    "Has integration tests": true
+  },
+  "implementation": {
+    "endpoints": [
+      {
+        "path": "/api/licenses/reclamation-candidates",
+        "method": "GET",
+        "params": "?days=30 (default)",
+        "returns": "candidates array, totalLicenses, potentialSavings"
+      },
+      {
+        "path": "/api/licenses/reclaim",
+        "method": "POST",
+        "body": "{ userId, licenses: [] }",
+        "description": "Removes specified licenses from user (empty = all)"
+      },
+      {
+        "path": "/api/licenses/reclamation-summary",
+        "method": "GET",
+        "returns": "totalInactiveUsers, totalReclaimableLicenses, potentialSavings, byLicenseType"
+      }
+    ],
+    "features": [
+      "Uses account licenseCosts for savings calculation",
+      "Returns monthly and annual savings projections",
+      "Breaks down by license type",
+      "Filters out users with no licenses",
+      "Multi-tenant isolation enforced"
+    ]
+  },
+  "testResults": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "testFile": "__tests__/integration/api/license-reclamation.test.js"
+  },
+  "lessonsLearned": [
+    "Added 'id' field to getInactiveUsers return for reclamation workflows",
+    "Cost savings calculation requires licenseCosts to be set on account",
+    "Account scoping is critical - users can only reclaim from their own users",
+    "Empty licenses array in POST means reclaim all licenses"
+  ],
+  "nextSteps": [
+    "Add UI widget on licenses page showing reclamation opportunities",
+    "Add bulk reclamation (multiple users at once)",
+    "Add audit log for reclamation actions",
+    "Add email notification when licenses are reclaimed"
+  ]
+}

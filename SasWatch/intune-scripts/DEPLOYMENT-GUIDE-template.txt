@@ -1,5 +1,5 @@
 ═══════════════════════════════════════════════════════════════════════════
-  SubTracker - Microsoft Intune Deployment Guide
+  SasWatch - Microsoft Intune Deployment Guide
   Adobe Usage Monitor - Win32 App Package
 ═══════════════════════════════════════════════════════════════════════════
 
@@ -79,9 +79,9 @@ YOUR ACCOUNT DETAILS:
 
   App information:
   ────────────────────────────────────────────────────────────────────────
-  Name: Adobe Usage Monitor - SubTracker
-  Description: Monitors Adobe Creative Cloud usage and reports to SubTracker
-  Publisher: SubTracker
+  Name: Adobe Usage Monitor - SasWatch
+  Description: Monitors Adobe Creative Cloud usage and reports to SasWatch
+  Publisher: SasWatch
   App Version: 1.0
 
   (Optional fields can be left blank)
@@ -178,7 +178,7 @@ YOUR ACCOUNT DETAILS:
   3. Monitoring script is copied to C:\ProgramData\AdobeMonitor\
   4. Scheduled task is created (runs at startup)
   5. Monitoring begins immediately
-  6. Data appears in SubTracker dashboard within 5 minutes
+  6. Data appears in SasWatch dashboard within 5 minutes
 
   What Gets Monitored:
   ────────────────────────────────────────────────────────────────────────
@@ -218,14 +218,14 @@ YOUR ACCOUNT DETAILS:
   Verify on Client Computer:
   ────────────────────────────────────────────────────────────────────────
   1. Open Task Scheduler
-  2. Look for "Adobe Usage Monitor - SubTracker"
+  2. Look for "Adobe Usage Monitor - SasWatch"
   3. Verify it's running and set to run at startup
   4. Check C:\ProgramData\AdobeMonitor\ exists
   5. Check install.log for success messages
 
-  Verify in SubTracker Dashboard:
+  Verify in SasWatch Dashboard:
   ────────────────────────────────────────────────────────────────────────
-  1. Log in to SubTracker: {{API_URL}}
+  1. Log in to SasWatch: {{API_URL}}
   2. Go to Dashboard
   3. Look for usage events within 5 minutes
   4. Events should show computer names and usernames
@@ -254,9 +254,9 @@ YOUR ACCOUNT DETAILS:
  UPDATING THE DEPLOYMENT
 ═══════════════════════════════════════════════════════════════════════════
 
-  If you regenerate your API key in SubTracker:
+  If you regenerate your API key in SasWatch:
   ────────────────────────────────────────────────────────────────────────
-  1. Download new Intune package from SubTracker dashboard
+  1. Download new Intune package from SasWatch dashboard
   2. Create new .intunewin file (repeat Steps 2-3)
   3. In Intune, edit your existing app
   4. Upload the new .intunewin package
@@ -267,19 +267,19 @@ YOUR ACCOUNT DETAILS:
  SUPPORT & DOCUMENTATION
 ═══════════════════════════════════════════════════════════════════════════
 
-  SubTracker Dashboard: {{API_URL}}
+  SasWatch Dashboard: {{API_URL}}
   Your Account Settings: {{API_URL}}/account
 
   For help with:
   ────────────────────────────────────────────────────────────────────────
-  • SubTracker features → Check your account dashboard
+  • SasWatch features → Check your account dashboard
   • API issues → Verify API key in account settings
   • Intune deployment → Microsoft Intune documentation
   • Data not appearing → Check troubleshooting section above
 
 ═══════════════════════════════════════════════════════════════════════════
 
-Thank you for using SubTracker!
+Thank you for using SasWatch!
 
 Your monitoring script will help optimize Adobe license allocation and
 identify cost savings opportunities across your organization.

@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the workspace
+      - ..:/workspace:cached
+      # Preserve node_modules between container rebuilds
+      - node_modules:/workspace/SasWatch/node_modules
+    command: sleep infinity
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/saswatch_dev
+      - SESSION_SECRET=dev-secret-change-in-production-min-32-chars
+      - API_URL=http://localhost:3000
+    depends_on:
+      - postgres
+    networks:
+      - saswatch-network
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=saswatch_dev
+    ports:
+      - "5432:5432"
+    networks:
+      - saswatch-network
+
+volumes:
+  node_modules:
+  postgres-data:
+
+networks:
+  saswatch-network:
+    driver: bridge

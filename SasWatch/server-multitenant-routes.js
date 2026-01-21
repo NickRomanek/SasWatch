@@ -11,21 +11,24 @@ const { generateIntunePackage, getPackageFilename } = require('./lib/intune-pack
 const { generateInstallerPackage } = require('./lib/msi-generator');
 const { fetchEntraDirectory, fetchEntraSignIns, fetchEntraApplications } = require('./lib/entra-sync');
 const prisma = require('./lib/prisma');
-const { 
-    loginLimiter, 
-    signupLimiter, 
-    signupValidation, 
-    loginValidation, 
+const {
+    loginLimiter,
+    signupLimiter,
+    signupValidation,
+    loginValidation,
     forgotPasswordValidation,
-    resetPasswordValidation, 
+    resetPasswordValidation,
     handleValidationErrors,
     auditLog,
-    generateSecureToken 
+    generateSecureToken
 } = require('./lib/security');
 const { sendSurveyEmail, sendVerificationEmail, sendPasswordResetEmail, sendMfaEmail, SURVEY_EMAIL_REGEX } = require('./lib/email-sender');
 const multer = require('multer');
 const path = require('path');
 const { extractFromDocument, processMultipleAttachments, isSupportedFileType, getMimeTypeFromFilename } = require('./lib/document-extractor');
+const partnerDb = require('./lib/partner-database');
+const headlessManager = require('./lib/headless-manager');
+
 
 /**
  * Sanitize text for PostgreSQL UTF-8 storage
@@ -37,6 +40,20 @@ function sanitizeTextForDb(text) {
         .replace(/\x00/g, '')  // Remove null bytes
         .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F]/g, ' ')  // Replace other control chars with space
         .trim();
+}
+
+/**
+ * Escape a field value for CSV export
+ * Handles commas, quotes, and newlines per RFC 4180
+ */
+function escapeCsvField(value) {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    // If the field contains comma, quote, or newline, wrap in quotes and escape internal quotes
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
 }
 
 // Configure multer for file uploads
@@ -108,7 +125,7 @@ function setupSession(app) {
             sameSite: 'lax' // Allow cookies on redirects
         }
     };
-    
+
     // Use PostgreSQL session store in production
     if (process.env.DATABASE_URL) {
         console.log('Configuring PostgreSQL session store...');
@@ -120,20 +137,20 @@ function setupSession(app) {
             createTableIfMissing: true,  // Auto-create session table
             pruneSessionInterval: 60 * 15 // Prune expired sessions every 15 minutes
         });
-        
+
         // Test session store connection
         sessionConfig.store.on('error', (err) => {
             console.error('Session store error:', err);
         });
-        
+
         console.log('PostgreSQL session store configured');
     } else {
         console.log('Using memory session store (development only)');
     }
-    
+
     app.use(session(sessionConfig));
     app.use(auth.attachAccount); // Attach account to all requests if logged in
-    
+
     // Export session store for Socket.IO authentication
     return sessionConfig.store;
 }
@@ -142,23 +159,88 @@ function setupSession(app) {
 // Authentication Routes
 // ============================================
 
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     Account:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         name:
+ *           type: string
+ *         email:
+ *           type: string
+ *     Error:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: false
+ *         message:
+ *           type: string
+ *           example: Error description
+ */
+
 function setupAuthRoutes(app) {
+    /**
+     * @openapi
+     * /signup:
+     *   get:
+     *     summary: Render signup page
+     *     tags: [Authentication]
+     *     responses:
+     *       200:
+     *         description: Signup page rendered
+     */
     // Signup page
     app.get('/signup', (req, res) => {
         res.render('signup', { error: null });
     });
-    
+
     // Signup handler with rate limiting and validation
+    /**
+     * @openapi
+     * /signup:
+     *   post:
+     *     summary: Register a new account
+     *     tags: [Authentication]
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/x-www-form-urlencoded:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - name
+     *               - email
+     *               - password
+     *             properties:
+     *               name:
+     *                 type: string
+     *               email:
+     *                 type: string
+     *                 format: email
+     *               password:
+     *                 type: string
+     *                 format: password
+     *     responses:
+     *       302:
+     *         description: Redirects to dashboard on success
+     *       400:
+     *         description: Validation error
+     */
     app.post('/signup', signupLimiter, signupValidation, handleValidationErrors, async (req, res) => {
         try {
             const { name, email, password } = req.body;
-            
+
             // Create account (now includes verification token)
             const account = await auth.createAccount(name, email, password);
-            
+
             // In development, auto-verify email and auto-login
             const isDevelopment = process.env.NODE_ENV !== 'production';
-            
+
             if (isDevelopment) {
                 // Auto-verify email in development
                 await prisma.account.update({
@@ -169,21 +251,21 @@ function setupAuthRoutes(app) {
                         emailVerificationExpires: null
                     }
                 });
-                
+
                 // Auto-login in development
                 req.session.accountId = account.id;
                 req.session.accountEmail = account.email;
-                
+
                 auditLog('SIGNUP_SUCCESS', account.id, {
                     email: email,
                     name: name,
                     autoVerified: true,
                     autoLoggedIn: true
                 }, req);
-                
+
                 return res.redirect('/');
             }
-            
+
             // In production, send verification email
             try {
                 await sendVerificationEmail({
@@ -195,32 +277,32 @@ function setupAuthRoutes(app) {
                 console.error('Failed to send verification email:', emailError);
                 // Continue even if email fails - user can request resend
             }
-            
+
             // Log successful signup
             auditLog('SIGNUP_SUCCESS', account.id, {
                 email: email,
                 name: name
             }, req);
-            
+
             // DO NOT auto-login - require verification first
             // Show verification pending page instead
             res.render('verification-pending', { email, name });
-            
+
         } catch (error) {
             console.error('Signup error:', error);
-            
+
             // Log failed signup attempt
             auditLog('SIGNUP_FAILED', null, {
                 email: req.body.email,
                 error: error.message
             }, req);
-            
-            res.render('signup', { 
-                error: error.message || 'Failed to create account' 
+
+            res.render('signup', {
+                error: error.message || 'Failed to create account'
             });
         }
     });
-    
+
     // Login page
     app.get('/login', (req, res) => {
         if (req.session && req.session.accountId) {
@@ -228,48 +310,76 @@ function setupAuthRoutes(app) {
         }
         res.render('login', { error: null, message: null });
     });
-    
+
     // Login handler with rate limiting and validation
+    /**
+     * @openapi
+     * /login:
+     *   post:
+     *     summary: Log in to account
+     *     tags: [Authentication]
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/x-www-form-urlencoded:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - email
+     *               - password
+     *             properties:
+     *               email:
+     *                 type: string
+     *                 format: email
+     *               password:
+     *                 type: string
+     *                 format: password
+     *     responses:
+     *       302:
+     *         description: Redirects to dashboard
+     *       401:
+     *         description: Invalid credentials
+     */
     app.post('/login', loginLimiter, loginValidation, handleValidationErrors, async (req, res) => {
         try {
             const { email, password } = req.body;
-            
+
             console.log('Login attempt for email:', email);
-            
+
             const account = await auth.authenticateAccount(email, password);
-            
+
             if (!account) {
                 console.log('Authentication failed for email:', email);
-                
+
                 // Log failed login attempt
                 auditLog('LOGIN_FAILED', null, {
                     email: email,
                     reason: 'Invalid credentials'
                 }, req);
-                
-                return res.render('login', { 
+
+                return res.render('login', {
                     error: 'Invalid email or password',
                     message: null,
                     showResendLink: false,
                     email: null
                 });
             }
-            
+
             console.log('Authentication successful for account:', account.id);
-            
+
             // In development, skip email verification and MFA - only require email and password
             // Check NODE_ENV and also check if we're on Railway (Railway sets RAILWAY_ENVIRONMENT)
             const nodeEnv = process.env.NODE_ENV || 'development';
             const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
             const isDevelopment = nodeEnv !== 'production' && !isRailway;
-            
+
             // Debug logging for MFA enforcement
             console.log(`[Login] Email: ${email}, NODE_ENV: ${nodeEnv}, isRailway: ${isRailway}, isDevelopment: ${isDevelopment}, mfaEnabled: ${account.mfaEnabled}`);
-            
+
             // Check if email is verified (skip in development)
             if (!isDevelopment && !account.emailVerified) {
                 auditLog('LOGIN_BLOCKED_UNVERIFIED', account.id, { email }, req);
-                
+
                 return res.render('login', {
                     error: 'Please verify your email before logging in. Check your inbox for the verification link.',
                     message: null,
@@ -277,16 +387,16 @@ function setupAuthRoutes(app) {
                     email: email
                 });
             }
-            
+
             // Check MFA requirement (skip in development)
             // Force MFA in production or on Railway, regardless of NODE_ENV
             const shouldEnforceMfa = (!isDevelopment || isRailway) && account.mfaEnabled;
-            
+
             if (shouldEnforceMfa) {
                 // Generate MFA token (reuse emailVerificationToken fields)
                 const mfaToken = generateSecureToken();
                 const mfaExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-                
+
                 // Store MFA token in account
                 await prisma.account.update({
                     where: { id: account.id },
@@ -295,17 +405,17 @@ function setupAuthRoutes(app) {
                         emailVerificationExpires: mfaExpires
                     }
                 });
-                
+
                 // Send MFA magic link email
                 try {
-                    await sendMfaEmail({ 
-                        to: account.email, 
-                        token: mfaToken, 
-                        accountName: account.name 
+                    await sendMfaEmail({
+                        to: account.email,
+                        token: mfaToken,
+                        accountName: account.name
                     });
-                    
+
                     auditLog('MFA_EMAIL_SENT', account.id, { email: account.email }, req);
-                    
+
                     return res.render('login', {
                         message: 'We sent you a magic link via email. Click the link in your email to complete login.',
                         error: null,
@@ -314,11 +424,11 @@ function setupAuthRoutes(app) {
                     });
                 } catch (emailError) {
                     console.error('Failed to send MFA email:', emailError);
-                    auditLog('MFA_EMAIL_FAILED', account.id, { 
-                        email: account.email, 
-                        error: emailError.message 
+                    auditLog('MFA_EMAIL_FAILED', account.id, {
+                        email: account.email,
+                        error: emailError.message
                     }, req);
-                    
+
                     return res.render('login', {
                         error: 'Failed to send MFA email. Please try again later.',
                         message: null,
@@ -327,7 +437,7 @@ function setupAuthRoutes(app) {
                     });
                 }
             }
-            
+
             // Log successful login
             auditLog('LOGIN_SUCCESS', account.id, {
                 email: email,
@@ -338,11 +448,11 @@ function setupAuthRoutes(app) {
                 memberId: account.memberId || null,
                 memberRole: account.memberRole || 'owner'
             }, req);
-            
+
             // Create session
             req.session.accountId = account.id;
             req.session.accountEmail = account.email;
-            
+
             // Store member info if using new RBAC system
             if (account.memberId) {
                 req.session.memberId = account.memberId;
@@ -351,63 +461,63 @@ function setupAuthRoutes(app) {
                 // Legacy login - treat as owner
                 req.session.memberRole = 'owner';
             }
-            
+
             console.log('Session created:', req.session.accountId, 'role:', req.session.memberRole);
-            
+
             // Save session before redirect
             req.session.save((err) => {
                 if (err) {
                     console.error('Session save error:', err);
-                    
+
                     auditLog('SESSION_ERROR', account.id, {
                         error: err.message
                     }, req);
-                    
-                    return res.render('login', { 
+
+                    return res.render('login', {
                         error: 'Session error - please try again',
                         message: null
                     });
                 }
-                
+
                 console.log('Session saved, redirecting to /');
                 res.redirect('/');
             });
         } catch (error) {
             console.error('Login error:', error);
-            
+
             auditLog('LOGIN_ERROR', null, {
                 email: req.body.email,
                 error: error.message
             }, req);
-            
-            res.render('login', { 
+
+            res.render('login', {
                 error: error.message || 'Login failed',
                 message: null
             });
         }
     });
-    
+
     // Email verification endpoint
     app.get('/verify-email', async (req, res) => {
         try {
             const { token } = req.query;
-            
+
             if (!token) {
                 return res.render('verification-result', {
                     success: false,
                     message: 'Invalid verification link'
                 });
             }
-            
+
             const result = await auth.verifyEmail(token);
-            
+
             if (result.success) {
                 auditLog('EMAIL_VERIFIED', result.accountId, { email: result.email }, req);
-                
+
                 // Auto-login after successful verification
                 req.session.accountId = result.accountId;
                 req.session.accountEmail = result.email;
-                
+
                 return res.render('verification-result', {
                     success: true,
                     message: 'Email verified successfully! Redirecting to dashboard...'
@@ -431,26 +541,26 @@ function setupAuthRoutes(app) {
     app.get('/mfa/verify', async (req, res) => {
         try {
             const { token } = req.query;
-            
+
             if (!token) {
                 return res.render('verification-result', {
                     success: false,
                     message: 'Invalid verification link'
                 });
             }
-            
+
             // Find account by MFA token (stored in emailVerificationToken field)
             const account = await prisma.account.findUnique({
                 where: { emailVerificationToken: token }
             });
-            
+
             if (!account) {
                 return res.render('verification-result', {
                     success: false,
                     message: 'Invalid or expired verification link'
                 });
             }
-            
+
             // Check expiration
             if (account.emailVerificationExpires && new Date() > account.emailVerificationExpires) {
                 return res.render('verification-result', {
@@ -458,7 +568,7 @@ function setupAuthRoutes(app) {
                     message: 'Verification link has expired. Please login again.'
                 });
             }
-            
+
             // Clear token and create session
             await prisma.account.update({
                 where: { id: account.id },
@@ -467,13 +577,13 @@ function setupAuthRoutes(app) {
                     emailVerificationExpires: null
                 }
             });
-            
+
             // Create session
             req.session.accountId = account.id;
             req.session.accountEmail = account.email;
-            
+
             auditLog('MFA_VERIFIED', account.id, { email: account.email }, req);
-            
+
             return res.render('verification-result', {
                 success: true,
                 message: 'Login successful! Redirecting to dashboard...'
@@ -483,36 +593,36 @@ function setupAuthRoutes(app) {
             auditLog('MFA_VERIFICATION_ERROR', null, {
                 error: error.message
             }, req);
-            
+
             return res.render('verification-result', {
                 success: false,
                 message: 'An error occurred during verification. Please try again.'
             });
         }
     });
-    
+
     // Resend verification email
     app.post('/resend-verification', async (req, res) => {
         try {
             const { email } = req.body;
-            
+
             if (!email) {
                 return res.status(400).json({
                     success: false,
                     message: 'Email address is required'
                 });
             }
-            
+
             const account = await auth.resendVerificationEmail(email);
-            
+
             await sendVerificationEmail({
                 to: email,
                 token: account.emailVerificationToken,
                 accountName: account.name
             });
-            
+
             auditLog('VERIFICATION_RESENT', account.id, { email }, req);
-            
+
             res.json({ success: true, message: 'Verification email sent!' });
         } catch (error) {
             console.error('Resend verification error:', error);
@@ -522,25 +632,25 @@ function setupAuthRoutes(app) {
             });
         }
     });
-    
+
     // Logout
     app.get('/logout', (req, res) => {
         const accountId = req.session?.accountId;
-        
+
         req.session.destroy((err) => {
             if (err) {
                 console.error('Logout error:', err);
             }
-            
+
             // Log logout event
             auditLog('LOGOUT', accountId, {
                 message: 'User logged out'
             }, req);
-            
+
             res.redirect('/login');
         });
     });
-    
+
     // Forgot password page
     app.get('/forgot-password', (req, res) => {
         if (req.session && req.session.accountId) {
@@ -548,19 +658,19 @@ function setupAuthRoutes(app) {
         }
         res.render('forgot-password', { error: null, message: null });
     });
-    
+
     // Forgot password handler
     app.post('/forgot-password', loginLimiter, forgotPasswordValidation, handleValidationErrors, async (req, res) => {
         try {
             const { email } = req.body;
-            
+
             console.log('Password reset request for email:', email);
-            
+
             // Request password reset (always returns success for security)
             const result = await auth.requestPasswordReset(email);
-            
+
             console.log('Password reset result:', { success: result.success, hasToken: !!result.token, hasEmail: !!result.email });
-            
+
             if (result.success && result.token && result.email) {
                 // Send password reset email (same pattern as verification email)
                 try {
@@ -570,7 +680,7 @@ function setupAuthRoutes(app) {
                         token: result.token,
                         accountName: result.accountName
                     });
-                    
+
                     console.log('Password reset email sent successfully to:', result.email);
                     auditLog('PASSWORD_RESET_REQUESTED', result.accountId, { email: result.email }, req);
                 } catch (emailError) {
@@ -588,7 +698,7 @@ function setupAuthRoutes(app) {
             } else {
                 console.log('No password reset email sent - account may not exist or token generation failed');
             }
-            
+
             // Always show success message (security best practice)
             res.render('forgot-password', {
                 error: null,
@@ -597,12 +707,12 @@ function setupAuthRoutes(app) {
         } catch (error) {
             console.error('Forgot password error:', error);
             console.error('Error stack:', error.stack);
-            
+
             auditLog('PASSWORD_RESET_ERROR', null, {
                 email: req.body.email,
                 error: error.message
             }, req);
-            
+
             // Still show success message for security
             res.render('forgot-password', {
                 error: null,
@@ -610,31 +720,31 @@ function setupAuthRoutes(app) {
             });
         }
     });
-    
+
     // Reset password page
     app.get('/reset-password', async (req, res) => {
         try {
             const { token } = req.query;
-            
+
             if (!token) {
                 return res.render('reset-password', {
                     error: 'Invalid reset link. Please request a new password reset.',
                     token: null
                 });
             }
-            
+
             // Verify token exists (but don't change password yet)
             const account = await prisma.account.findUnique({
                 where: { passwordResetToken: token }
             });
-            
+
             if (!account) {
                 return res.render('reset-password', {
                     error: 'Invalid or expired reset link. Please request a new password reset.',
                     token: null
                 });
             }
-            
+
             // Check if token expired
             if (account.passwordResetExpires && new Date() > account.passwordResetExpires) {
                 return res.render('reset-password', {
@@ -642,7 +752,7 @@ function setupAuthRoutes(app) {
                     token: null
                 });
             }
-            
+
             // Show reset form
             res.render('reset-password', {
                 error: null,
@@ -657,19 +767,19 @@ function setupAuthRoutes(app) {
             });
         }
     });
-    
+
     // Reset password handler
     app.post('/reset-password', loginLimiter, resetPasswordValidation, handleValidationErrors, async (req, res) => {
         try {
             const { token, password } = req.body;
-            
+
             console.log('Password reset attempt for token:', token ? 'provided' : 'missing');
-            
+
             const result = await auth.resetPassword(token, password);
-            
+
             if (result.success) {
                 auditLog('PASSWORD_RESET_SUCCESS', result.accountId, { email: result.email }, req);
-                
+
                 return res.render('reset-password', {
                     error: null,
                     message: 'Your password has been successfully reset! You can now log in with your new password.',
@@ -680,7 +790,7 @@ function setupAuthRoutes(app) {
                 auditLog('PASSWORD_RESET_FAILED', null, {
                     reason: result.message
                 }, req);
-                
+
                 return res.render('reset-password', {
                     error: result.message || 'Failed to reset password. Please request a new reset link.',
                     token: token
@@ -688,11 +798,11 @@ function setupAuthRoutes(app) {
             }
         } catch (error) {
             console.error('Reset password error:', error);
-            
+
             auditLog('PASSWORD_RESET_ERROR', null, {
                 error: error.message
             }, req);
-            
+
             res.render('reset-password', {
                 error: error.message || 'An error occurred. Please try again.',
                 token: req.body.token || null
@@ -782,8 +892,31 @@ function setupAccountRoutes(app) {
             res.status(500).send('Error loading account page');
         }
     });
-    
-    // Regenerate API key
+
+    // Regenerate API Key
+    /**
+     * @openapi
+     * /api/account/regenerate-key:
+     *   post:
+     *     summary: Regenerate API Key
+     *     tags: [Account]
+     *     security:
+     *       - cookieAuth: []
+     *     responses:
+     *       200:
+     *         description: New API Key generated
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 success:
+     *                   type: boolean
+     *                   example: true
+     *                 apiKey:
+     *                   type: string
+     *                   example: sk_live_...
+     */
     app.post('/api/account/regenerate-key', auth.requireAuth, async (req, res) => {
         try {
             const accountId = req.accountId || req.session.accountId;
@@ -796,27 +929,27 @@ function setupAccountRoutes(app) {
             }
 
             const newApiKey = await auth.regenerateApiKey(accountId);
-            
+
             // Log API key regeneration (security-sensitive action)
             auditLog('API_KEY_REGENERATED', accountId, {
                 message: 'API key was regenerated',
                 reason: 'Security rotation or compromise'
             }, req);
-            
-            res.json({ 
-                success: true, 
-                apiKey: newApiKey 
+
+            res.json({
+                success: true,
+                apiKey: newApiKey
             });
         } catch (error) {
             console.error('Regenerate API key error:', error);
-            
+
             auditLog('API_KEY_REGENERATION_FAILED', accountId, {
                 error: error.message
             }, req);
-            
-            res.status(500).json({ 
-                success: false, 
-                error: error?.message || 'Failed to regenerate API key' 
+
+            res.status(500).json({
+                success: false,
+                error: error?.message || 'Failed to regenerate API key'
             });
         }
     });
@@ -884,7 +1017,7 @@ function setupAccountRoutes(app) {
             // Generate state token for CSRF protection
             const crypto = require('crypto');
             const state = crypto.randomBytes(16).toString('hex');
-            
+
             // Store state in session
             req.session.entraConsentState = state;
             req.session.save((err) => {
@@ -971,9 +1104,9 @@ function setupAccountRoutes(app) {
             res.json({ success: true });
         } catch (error) {
             console.error('Disconnect Entra error:', error);
-            res.status(500).json({ 
-                success: false, 
-                error: 'Failed to disconnect Microsoft 365' 
+            res.status(500).json({
+                success: false,
+                error: 'Failed to disconnect Microsoft 365'
             });
         }
     });
@@ -1162,7 +1295,7 @@ function setupAccountRoutes(app) {
                     const maxPages = req.query.maxPages ? parseInt(req.query.maxPages, 10) : 5;
                     const backfillHours = req.query.backfillHours ? parseInt(req.query.backfillHours, 10) : 24;
                     const top = req.query.top ? parseInt(req.query.top, 10) : undefined;
-                    
+
                     results.signIns = await db.syncEntraSignInsIfNeeded(req.session.accountId, {
                         force: true,
                         backfillHours: Math.max(1, Math.min(backfillHours, 168)), // 1 hour to 7 days
@@ -1306,7 +1439,7 @@ function setupScriptRoutes(app) {
             res.status(500).send('Failed to generate script');
         }
     });
-    
+
     // Download deployment instructions
     app.get('/download/instructions', auth.requireAuth, async (req, res) => {
         try {
@@ -1326,33 +1459,33 @@ function setupScriptRoutes(app) {
             res.status(500).send('Failed to generate instructions');
         }
     });
-    
+
     // Download Chrome extension
     app.get('/download/extension', auth.requireAuth, async (req, res) => {
         try {
             const path = require('path');
             const fs = require('fs');
             const archiver = require('archiver');
-            
+
             const extensionPath = path.join(__dirname, '../extension');
-            
+
             // Check if extension folder exists
             if (!fs.existsSync(extensionPath)) {
                 return res.status(404).send('Extension files not found');
             }
-            
+
             // Set headers for zip download
             res.setHeader('Content-Type', 'application/zip');
             res.setHeader('Content-Disposition', 'attachment; filename=adobe-usage-sensor.zip');
-            
+
             // Create zip archive
             const archive = archiver('zip', {
                 zlib: { level: 9 } // Maximum compression
             });
-            
+
             // Pipe archive to response
             archive.pipe(res);
-            
+
             // Add files from extension folder
             archive.directory(extensionPath, false, (entry) => {
                 // Exclude README.md and any hidden files
@@ -1361,7 +1494,7 @@ function setupScriptRoutes(app) {
                 }
                 return entry;
             });
-            
+
             // Finalize the archive
             await archive.finalize();
 
@@ -1488,10 +1621,106 @@ function setupScriptRoutes(app) {
 
         } catch (error) {
             console.error('Activity Agent installer download error:', error);
-            res.status(500).json({ 
-                success: false, 
-                error: 'Failed to generate installer: ' + error.message 
+            res.status(500).json({
+                success: false,
+                error: 'Failed to generate installer: ' + error.message
             });
+        }
+    });
+}
+
+// ============================================
+// Headless Connector Routes
+// ============================================
+
+function setupHeadlessRoutes(app) {
+    // Rate limiter for headless operations
+    // Prevent abuse of browser launching/syncing
+    const headlessLimiter = rateLimit({
+        windowMs: 1 * 60 * 1000, // 1 minute
+        max: 10, // Limit each account to 10 requests per windowMs
+        message: { success: false, message: 'Too many requests, please try again later.' },
+        standardHeaders: true,
+        legacyHeaders: false,
+        keyGenerator: (req) => req.session ? req.session.accountId : req.ip
+    });
+
+    // 1. Render the main configuration page
+    app.get('/headless-connect', auth.requireAuth, async (req, res) => {
+        try {
+            const connectors = await prisma.headlessConnector.findMany({
+                where: { accountId: req.session.accountId }
+            });
+            res.render('headless-connect', { connectors });
+        } catch (error) {
+            console.error('Headless page error:', error);
+            res.status(500).send('Error loading headless connect page');
+        }
+    });
+
+    // 2. Add a Connector & Start Interactive Capture
+    app.post('/api/headless/connect', auth.requireAuth, headlessLimiter, async (req, res) => {
+        try {
+            const { vendor } = req.body;
+            const accountId = req.session.accountId;
+
+            // This will launch a non-headless browser on the SERVER (for dev/local use)
+            await headlessManager.captureSession(accountId, vendor);
+
+            res.json({ success: true, message: `Browser launched for ${vendor}. Please log in.` });
+        } catch (error) {
+            console.error('Headless connect error:', error);
+            res.status(400).json({ success: false, message: error.message });
+        }
+    });
+
+    // 2.5 Get Connectors Status (Polling)
+    app.get('/api/headless/status', auth.requireAuth, async (req, res) => {
+        try {
+            const connectors = await prisma.headlessConnector.findMany({
+                where: { accountId: req.session.accountId },
+                select: {
+                    id: true,
+                    vendor: true,
+                    status: true,
+                    lastSyncAt: true,
+                    errorMessage: true
+                }
+            });
+            res.json({ success: true, connectors });
+        } catch (error) {
+            console.error('Headless status error:', error);
+            res.status(500).json({ success: false, message: 'Error fetching status' });
+        }
+    });
+
+    // 3. Trigger Manual Sync
+    app.post('/api/headless/sync', auth.requireAuth, headlessLimiter, async (req, res) => {
+        try {
+            const { vendor } = req.body;
+            const accountId = req.session.accountId;
+
+            const result = await headlessManager.sync(accountId, vendor);
+            res.json({ success: true, result });
+        } catch (error) {
+            console.error('Headless sync error:', error);
+            res.status(400).json({ success: false, message: error.message });
+        }
+    });
+
+    // 4. Delete Connector
+    app.delete('/api/headless/connector/:id', auth.requireAuth, async (req, res) => {
+        try {
+            await prisma.headlessConnector.delete({
+                where: {
+                    id: req.params.id,
+                    accountId: req.session.accountId // Security check
+                }
+            });
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Delete connector error:', error);
+            res.status(400).json({ success: false, message: error.message });
         }
     });
 }
@@ -1526,7 +1755,7 @@ function setupTrackingAPI(app) {
     app.post('/api/track', auth.requireApiKey, trackingLimiter, async (req, res) => {
         try {
             const data = req.body;
-            
+
             // Determine source based on event origin and type
             let source = 'adobe'; // default for web extension events
             if (data.why === 'agent_monitor') {
@@ -1535,31 +1764,31 @@ function setupTrackingAPI(app) {
             } else if (data.why === 'adobe_reader_wrapper' || data.why === 'process_monitor') {
                 source = 'wrapper';
             }
-            
+
             console.log(`[Track API] Event received: ${data.event} | source: ${source} | url: ${data.url} | why: ${data.why}`);
-            
+
             // Save usage event with account association
             await db.addUsageEvent(req.accountId, data, source);
-            
-            res.json({ 
-                success: true, 
-                message: 'Usage data recorded' 
+
+            res.json({
+                success: true,
+                message: 'Usage data recorded'
             });
         } catch (error) {
             console.error('Track API error:', error);
-            res.status(500).json({ 
-                success: false, 
-                error: 'Failed to save usage data' 
+            res.status(500).json({
+                success: false,
+                error: 'Failed to save usage data'
             });
         }
     });
-    
+
     // Health check endpoint
     app.get('/api/health', (req, res) => {
-        res.json({ 
-            status: 'ok', 
+        res.json({
+            status: 'ok',
             timestamp: new Date().toISOString(),
-            service: 'SubTracker Multi-Tenant API'
+            service: 'SasWatch Multi-Tenant API'
         });
     });
 
@@ -1568,21 +1797,21 @@ function setupTrackingAPI(app) {
     app.get('/api/socket/auth', auth.requireAuth, async (req, res) => {
         try {
             if (!req.accountId) {
-                return res.status(401).json({ 
-                    success: false, 
-                    error: 'Not authenticated' 
+                return res.status(401).json({
+                    success: false,
+                    error: 'Not authenticated'
                 });
             }
 
-            res.json({ 
-                success: true, 
-                accountId: req.accountId 
+            res.json({
+                success: true,
+                accountId: req.accountId
             });
         } catch (error) {
             console.error('Socket auth endpoint error:', error);
-            res.status(500).json({ 
-                success: false, 
-                error: 'Internal server error' 
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error'
             });
         }
     });
@@ -1724,9 +1953,9 @@ function setupDevRoutes(app) {
                 maxPages: Math.max(1, Math.min(pagesNeeded, 5)),  // Fetch up to 5 pages to get enough data
                 since: sinceDate           // Filter by time range
             });
-            
+
             console.log('[DEV-SYNC] Fetched', result.events?.length || 0, 'events from Graph');
-            
+
             // IMPORTANT: Save the fetched events to database immediately for persistence
             if (result.events && result.events.length > 0) {
                 try {
@@ -1768,7 +1997,7 @@ function setupDevRoutes(app) {
                     // Continue anyway - data is still displayed
                 }
             }
-            
+
             const duration = Date.now() - start;
             const events = Array.isArray(result.events) ? result.events.slice(0, limit) : [];
 
@@ -1787,7 +2016,7 @@ function setupDevRoutes(app) {
             });
         } catch (error) {
             console.error('Dev activity fetch error:', error);
-            
+
             // Provide more detailed error information
             const errorResponse = {
                 success: false,
@@ -1814,7 +2043,162 @@ function setupDevRoutes(app) {
 // Account-Scoped Data Routes (Update Existing)
 // ============================================
 
+// Valid inactivity alert thresholds
+const VALID_ALERT_THRESHOLDS = [7, 14, 30, 60, 90];
+
 function setupDataRoutes(app) {
+    // ============================================
+    // Alert Settings Endpoints
+    // ============================================
+
+    // Get alert settings for account
+    /**
+     * @openapi
+     * /api/account/alert-settings:
+     *   get:
+     *     summary: Get account alert settings
+     *     tags: [Account]
+     *     security:
+     *       - cookieAuth: []
+     *     responses:
+     *       200:
+     *         description: Alert settings retrieved
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 inactivityAlertEnabled:
+     *                   type: boolean
+     *                 inactivityAlertThreshold:
+     *                   type: integer
+     *                 inactivityAlertLastSent:
+     *                   type: string
+     *                   format: date-time
+     *                 inactivityAlertEmail:
+     *                   type: string
+     *       401:
+     *         description: Unauthorized
+     */
+    app.get('/api/account/alert-settings', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: {
+                    inactivityAlertEnabled: true,
+                    inactivityAlertThreshold: true,
+                    inactivityAlertLastSent: true,
+                    inactivityAlertEmail: true,
+                    email: true // Fallback email
+                }
+            });
+
+            if (!account) {
+                return res.status(404).json({ error: 'Account not found' });
+            }
+
+            res.json({
+                inactivityAlertEnabled: account.inactivityAlertEnabled,
+                inactivityAlertThreshold: account.inactivityAlertThreshold,
+                inactivityAlertLastSent: account.inactivityAlertLastSent,
+                inactivityAlertEmail: account.inactivityAlertEmail || account.email
+            });
+        } catch (error) {
+            console.error('Get alert settings error:', error);
+            res.status(500).json({ error: 'Failed to get alert settings' });
+        }
+    });
+
+    // Update alert settings for account
+    /**
+     * @openapi
+     * /api/account/alert-settings:
+     *   put:
+     *     summary: Update account alert settings
+     *     tags: [Account]
+     *     security:
+     *       - cookieAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               inactivityAlertEnabled:
+     *                 type: boolean
+     *               inactivityAlertThreshold:
+     *                 type: integer
+     *                 enum: [7, 14, 30, 60, 90]
+     *               inactivityAlertEmail:
+     *                 type: string
+     *                 format: email
+     *     responses:
+     *       200:
+     *         description: Alert settings updated
+     *       400:
+     *         description: Invalid input
+     */
+    app.put('/api/account/alert-settings', auth.requireAuth, async (req, res) => {
+        try {
+            const { inactivityAlertEnabled, inactivityAlertThreshold, inactivityAlertEmail } = req.body;
+            const updateData = {};
+
+            // Validate and set enabled status
+            if (typeof inactivityAlertEnabled === 'boolean') {
+                updateData.inactivityAlertEnabled = inactivityAlertEnabled;
+            }
+
+            // Validate threshold
+            if (inactivityAlertThreshold !== undefined) {
+                const threshold = Number(inactivityAlertThreshold);
+                if (!VALID_ALERT_THRESHOLDS.includes(threshold)) {
+                    return res.status(400).json({
+                        error: `Invalid threshold. Must be one of: ${VALID_ALERT_THRESHOLDS.join(', ')} days`
+                    });
+                }
+                updateData.inactivityAlertThreshold = threshold;
+            }
+
+            // Validate email format
+            if (inactivityAlertEmail !== undefined) {
+                if (inactivityAlertEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inactivityAlertEmail)) {
+                    return res.status(400).json({ error: 'Invalid email format' });
+                }
+                updateData.inactivityAlertEmail = inactivityAlertEmail || null;
+            }
+
+            const account = await prisma.account.update({
+                where: { id: req.session.accountId },
+                data: updateData,
+                select: {
+                    inactivityAlertEnabled: true,
+                    inactivityAlertThreshold: true,
+                    inactivityAlertLastSent: true,
+                    inactivityAlertEmail: true,
+                    email: true
+                }
+            });
+
+            res.json({
+                success: true,
+                settings: {
+                    inactivityAlertEnabled: account.inactivityAlertEnabled,
+                    inactivityAlertThreshold: account.inactivityAlertThreshold,
+                    inactivityAlertLastSent: account.inactivityAlertLastSent,
+                    inactivityAlertEmail: account.inactivityAlertEmail || account.email
+                }
+            });
+        } catch (error) {
+            console.error('Update alert settings error:', error);
+            res.status(500).json({ error: 'Failed to update alert settings' });
+        }
+    });
+
+    // ============================================
+    // User Endpoints
+    // ============================================
+
     // Get users (account-scoped)
     app.get('/api/users', auth.requireAuth, async (req, res) => {
         try {
@@ -1830,7 +2214,1181 @@ function setupDataRoutes(app) {
             res.status(500).json({ error: 'Failed to get users' });
         }
     });
-    
+
+    // Get inactive users (account-scoped)
+    app.get('/api/users/inactive', auth.requireAuth, async (req, res) => {
+        try {
+            const rawDays = Number.parseInt(req.query.days ?? '30', 10);
+            const daysInactive = Number.isFinite(rawDays) && rawDays > 0 ? rawDays : 30;
+            const inactiveUsers = await db.getInactiveUsers(req.session.accountId, daysInactive);
+
+            res.json({
+                daysInactive,
+                count: inactiveUsers.length,
+                users: inactiveUsers
+            });
+        } catch (error) {
+            console.error('Get inactive users error:', error);
+            res.status(500).json({ error: 'Failed to get inactive users' });
+        }
+    });
+
+    // Export all users to CSV (account-scoped)
+    app.get('/api/users/export/csv', auth.requireAuth, async (req, res) => {
+        try {
+            const result = await db.getUsersData(req.session.accountId);
+            const users = result.users || [];
+
+            // Generate CSV content
+            const headers = ['email', 'firstName', 'lastName', 'licenses', 'lastActivity', 'activityCount'];
+            const csvRows = [headers.join(',')];
+
+            for (const user of users) {
+                const row = [
+                    escapeCsvField(user.email || ''),
+                    escapeCsvField(user.firstName || ''),
+                    escapeCsvField(user.lastName || ''),
+                    escapeCsvField((user.licenses || []).join('; ')),
+                    user.lastActivity ? new Date(user.lastActivity).toISOString() : '',
+                    user.activityCount || 0
+                ];
+                csvRows.push(row.join(','));
+            }
+
+            const csv = csvRows.join('\n');
+            const filename = `users-${new Date().toISOString().split('T')[0]}.csv`;
+
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.send(csv);
+        } catch (error) {
+            console.error('Export users CSV error:', error);
+            res.status(500).json({ error: 'Failed to export users' });
+        }
+    });
+
+    // Export inactive users to CSV (account-scoped)
+    app.get('/api/users/inactive/export/csv', auth.requireAuth, async (req, res) => {
+        try {
+            const rawDays = Number.parseInt(req.query.days ?? '30', 10);
+            const daysInactive = Number.isFinite(rawDays) && rawDays > 0 ? rawDays : 30;
+            const inactiveUsers = await db.getInactiveUsers(req.session.accountId, daysInactive);
+
+            // Generate CSV content with daysSinceActivity column
+            const headers = ['email', 'firstName', 'lastName', 'licenses', 'lastActivity', 'daysSinceActivity', 'activityCount'];
+            const csvRows = [headers.join(',')];
+
+            for (const user of inactiveUsers) {
+                const row = [
+                    escapeCsvField(user.email || ''),
+                    escapeCsvField(user.firstName || ''),
+                    escapeCsvField(user.lastName || ''),
+                    escapeCsvField((user.licenses || []).join('; ')),
+                    user.lastActivity ? new Date(user.lastActivity).toISOString() : '',
+                    user.daysSinceActivity ?? 'never',
+                    user.activityCount || 0
+                ];
+                csvRows.push(row.join(','));
+            }
+
+            const csv = csvRows.join('\n');
+            const filename = `inactive-users-${daysInactive}days-${new Date().toISOString().split('T')[0]}.csv`;
+
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.send(csv);
+        } catch (error) {
+            console.error('Export inactive users CSV error:', error);
+            res.status(500).json({ error: 'Failed to export inactive users' });
+        }
+    });
+
+    // ============================================
+    // Email Notification Preferences Endpoints
+    // ============================================
+
+    const VALID_DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+    const DEFAULT_NOTIFICATION_PREFERENCES = {
+        renewalReminders: { enabled: true, daysBeforeExpiry: [60, 30, 7] },
+        inactivityAlerts: { enabled: false, threshold: 30 },
+        weeklyDigest: { enabled: true, dayOfWeek: 'monday' },
+        licenseChanges: { enabled: true }
+    };
+
+    const NOTIFICATION_TYPES = [
+        { id: 'renewalReminders', name: 'Renewal Reminders', description: 'Get notified before subscriptions expire' },
+        { id: 'inactivityAlerts', name: 'Inactivity Alerts', description: 'Alerts when users haven\'t used their licenses' },
+        { id: 'weeklyDigest', name: 'Weekly Digest', description: 'Weekly summary of license usage and activity' },
+        { id: 'licenseChanges', name: 'License Changes', description: 'Notifications when licenses are added or removed' }
+    ];
+
+    // Get notification preferences
+    app.get('/api/notifications/preferences', auth.requireAuth, async (req, res) => {
+        try {
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { notificationPreferences: true }
+            });
+
+            if (!account) {
+                return res.status(404).json({ error: 'Account not found' });
+            }
+
+            // Merge stored preferences with defaults
+            const storedPrefs = account.notificationPreferences || {};
+            const preferences = {
+                renewalReminders: { ...DEFAULT_NOTIFICATION_PREFERENCES.renewalReminders, ...storedPrefs.renewalReminders },
+                inactivityAlerts: { ...DEFAULT_NOTIFICATION_PREFERENCES.inactivityAlerts, ...storedPrefs.inactivityAlerts },
+                weeklyDigest: { ...DEFAULT_NOTIFICATION_PREFERENCES.weeklyDigest, ...storedPrefs.weeklyDigest },
+                licenseChanges: { ...DEFAULT_NOTIFICATION_PREFERENCES.licenseChanges, ...storedPrefs.licenseChanges }
+            };
+
+            res.json(preferences);
+        } catch (error) {
+            console.error('Get notification preferences error:', error);
+            res.status(500).json({ error: 'Failed to get notification preferences' });
+        }
+    });
+
+    // Update notification preferences
+    app.put('/api/notifications/preferences', auth.requireAuth, async (req, res) => {
+        try {
+            const updates = req.body;
+
+            // Validate dayOfWeek if provided
+            if (updates.weeklyDigest?.dayOfWeek) {
+                if (!VALID_DAYS_OF_WEEK.includes(updates.weeklyDigest.dayOfWeek.toLowerCase())) {
+                    return res.status(400).json({
+                        error: `Invalid dayOfWeek. Must be one of: ${VALID_DAYS_OF_WEEK.join(', ')}`
+                    });
+                }
+                updates.weeklyDigest.dayOfWeek = updates.weeklyDigest.dayOfWeek.toLowerCase();
+            }
+
+            // Get current preferences
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { notificationPreferences: true }
+            });
+
+            if (!account) {
+                return res.status(404).json({ error: 'Account not found' });
+            }
+
+            const currentPrefs = account.notificationPreferences || {};
+
+            // Deep merge updates with current preferences
+            const newPrefs = {
+                renewalReminders: { ...currentPrefs.renewalReminders, ...updates.renewalReminders },
+                inactivityAlerts: { ...currentPrefs.inactivityAlerts, ...updates.inactivityAlerts },
+                weeklyDigest: { ...currentPrefs.weeklyDigest, ...updates.weeklyDigest },
+                licenseChanges: { ...currentPrefs.licenseChanges, ...updates.licenseChanges }
+            };
+
+            // Clean up undefined values
+            for (const key of Object.keys(newPrefs)) {
+                newPrefs[key] = Object.fromEntries(
+                    Object.entries(newPrefs[key]).filter(([, v]) => v !== undefined)
+                );
+            }
+
+            await prisma.account.update({
+                where: { id: req.session.accountId },
+                data: { notificationPreferences: newPrefs }
+            });
+
+            res.json({ success: true, preferences: newPrefs });
+        } catch (error) {
+            console.error('Update notification preferences error:', error);
+            res.status(500).json({ error: 'Failed to update notification preferences' });
+        }
+    });
+
+    // Get available notification types
+    app.get('/api/notifications/types', auth.requireAuth, async (req, res) => {
+        res.json({ types: NOTIFICATION_TYPES });
+    });
+
+    // ============================================
+    // Usage Analytics Endpoints
+    // ============================================
+
+    // Overview metrics
+    app.get('/api/analytics/overview', auth.requireAuth, async (req, res) => {
+        try {
+            const rawDays = Number.parseInt(req.query.inactiveDays ?? '30', 10);
+            const inactiveDays = Number.isFinite(rawDays) && rawDays > 0 ? rawDays : 30;
+            const cutoffDate = new Date(Date.now() - inactiveDays * 24 * 60 * 60 * 1000);
+
+            const users = await prisma.user.findMany({
+                where: { accountId: req.session.accountId },
+                select: {
+                    licenses: true,
+                    lastActivity: true,
+                    activityCount: true
+                }
+            });
+
+            const totalUsers = users.length;
+            let activeUsers = 0;
+            let totalLicenses = 0;
+            let totalActivityCount = 0;
+
+            for (const user of users) {
+                totalLicenses += (user.licenses || []).length;
+                totalActivityCount += user.activityCount || 0;
+                if (user.lastActivity && new Date(user.lastActivity) >= cutoffDate) {
+                    activeUsers++;
+                }
+            }
+
+            res.json({
+                totalUsers,
+                activeUsers,
+                inactiveUsers: totalUsers - activeUsers,
+                totalLicenses,
+                totalActivityCount,
+                averageActivityPerUser: totalUsers > 0 ? Math.round(totalActivityCount / totalUsers) : 0,
+                inactiveDaysThreshold: inactiveDays
+            });
+        } catch (error) {
+            console.error('Analytics overview error:', error);
+            res.status(500).json({ error: 'Failed to get analytics overview' });
+        }
+    });
+
+    // License utilization
+    app.get('/api/analytics/license-utilization', auth.requireAuth, async (req, res) => {
+        try {
+            const rawDays = Number.parseInt(req.query.inactiveDays ?? '30', 10);
+            const inactiveDays = Number.isFinite(rawDays) && rawDays > 0 ? rawDays : 30;
+            const cutoffDate = new Date(Date.now() - inactiveDays * 24 * 60 * 60 * 1000);
+
+            const users = await prisma.user.findMany({
+                where: { accountId: req.session.accountId },
+                select: {
+                    licenses: true,
+                    lastActivity: true
+                }
+            });
+
+            // Get account license costs
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { licenseCosts: true }
+            });
+            const licenseCosts = account?.licenseCosts || {};
+
+            // Build license utilization map
+            const licenseMap = {};
+
+            for (const user of users) {
+                const isActive = user.lastActivity && new Date(user.lastActivity) >= cutoffDate;
+
+                for (const license of (user.licenses || [])) {
+                    if (!licenseMap[license]) {
+                        const cost = licenseCosts[license]?.costPerLicense || 0;
+                        licenseMap[license] = {
+                            name: license,
+                            totalAssigned: 0,
+                            activeUsers: 0,
+                            inactiveUsers: 0,
+                            costPerLicense: cost,
+                            monthlyCost: 0,
+                            wastedCost: 0
+                        };
+                    }
+                    licenseMap[license].totalAssigned++;
+                    if (isActive) {
+                        licenseMap[license].activeUsers++;
+                    } else {
+                        licenseMap[license].inactiveUsers++;
+                    }
+                }
+            }
+
+            // Calculate utilization rates and costs
+            const licenses = Object.values(licenseMap).map(l => {
+                const utilizationRate = l.totalAssigned > 0
+                    ? (l.activeUsers / l.totalAssigned) * 100
+                    : 0;
+                return {
+                    ...l,
+                    utilizationRate: Math.round(utilizationRate * 100) / 100,
+                    monthlyCost: l.totalAssigned * l.costPerLicense,
+                    wastedCost: l.inactiveUsers * l.costPerLicense
+                };
+            });
+
+            // Sort by total assigned descending
+            licenses.sort((a, b) => b.totalAssigned - a.totalAssigned);
+
+            const totalWastedCost = licenses.reduce((sum, l) => sum + l.wastedCost, 0);
+
+            res.json({
+                licenses,
+                totalWastedMonthlyCost: totalWastedCost,
+                inactiveDaysThreshold: inactiveDays
+            });
+        } catch (error) {
+            console.error('License utilization error:', error);
+            res.status(500).json({ error: 'Failed to get license utilization' });
+        }
+    });
+
+    // Top/bottom users by activity
+    app.get('/api/analytics/top-users', auth.requireAuth, async (req, res) => {
+        try {
+            const rawLimit = Number.parseInt(req.query.limit ?? '10', 10);
+            const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 10;
+            const order = req.query.order === 'asc' ? 'asc' : 'desc';
+
+            const users = await prisma.user.findMany({
+                where: { accountId: req.session.accountId },
+                select: {
+                    id: true,
+                    email: true,
+                    firstName: true,
+                    lastName: true,
+                    licenses: true,
+                    lastActivity: true,
+                    activityCount: true
+                },
+                orderBy: { activityCount: order },
+                take: limit
+            });
+
+            res.json({
+                users: users.map(u => ({
+                    id: u.id,
+                    email: u.email,
+                    firstName: u.firstName,
+                    lastName: u.lastName,
+                    licenses: u.licenses || [],
+                    lastActivity: u.lastActivity,
+                    activityCount: u.activityCount || 0
+                })),
+                order,
+                limit
+            });
+        } catch (error) {
+            console.error('Top users error:', error);
+            res.status(500).json({ error: 'Failed to get top users' });
+        }
+    });
+
+    // Activity summary by time period
+    app.get('/api/analytics/activity-summary', auth.requireAuth, async (req, res) => {
+        try {
+            const now = new Date();
+            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+            const users = await prisma.user.findMany({
+                where: { accountId: req.session.accountId },
+                select: { lastActivity: true }
+            });
+
+            let last7Days = 0;
+            let last30Days = 0;
+            let last90Days = 0;
+            let neverActive = 0;
+            let olderThan90 = 0;
+
+            for (const user of users) {
+                if (!user.lastActivity) {
+                    neverActive++;
+                } else {
+                    const lastActivity = new Date(user.lastActivity);
+                    if (lastActivity >= sevenDaysAgo) {
+                        last7Days++;
+                    } else if (lastActivity >= thirtyDaysAgo) {
+                        last30Days++;
+                    } else if (lastActivity >= ninetyDaysAgo) {
+                        last90Days++;
+                    } else {
+                        olderThan90++;
+                    }
+                }
+            }
+
+            res.json({
+                last7Days,
+                last30Days,
+                last90Days,
+                olderThan90Days: olderThan90,
+                neverActive,
+                totalUsers: users.length
+            });
+        } catch (error) {
+            console.error('Activity summary error:', error);
+            res.status(500).json({ error: 'Failed to get activity summary' });
+        }
+    });
+
+    // ============================================
+    // License Reclamation Endpoints
+    // ============================================
+
+    // Get reclamation candidates (inactive users with licenses)
+    app.get('/api/licenses/reclamation-candidates', auth.requireAuth, async (req, res) => {
+        try {
+            const rawDays = Number.parseInt(req.query.days ?? '30', 10);
+            const daysInactive = Number.isFinite(rawDays) && rawDays > 0 ? rawDays : 30;
+
+            // Get inactive users
+            const inactiveUsers = await db.getInactiveUsers(req.session.accountId, daysInactive);
+
+            // Filter to only users with licenses
+            const candidates = inactiveUsers.filter(u => u.licenses && u.licenses.length > 0);
+
+            // Get account license costs for savings calculation
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { licenseCosts: true }
+            });
+            const licenseCosts = account?.licenseCosts || {};
+
+            // Calculate total licenses and potential savings
+            let totalLicenses = 0;
+            let monthlySavings = 0;
+
+            for (const candidate of candidates) {
+                totalLicenses += candidate.licenses.length;
+                for (const license of candidate.licenses) {
+                    const cost = licenseCosts[license]?.costPerLicense || 0;
+                    monthlySavings += cost;
+                }
+            }
+
+            res.json({
+                daysInactive,
+                candidates: candidates.map(c => ({
+                    id: c.id,
+                    email: c.email,
+                    firstName: c.firstName,
+                    lastName: c.lastName,
+                    licenses: c.licenses,
+                    lastActivity: c.lastActivity,
+                    daysSinceActivity: c.daysSinceActivity
+                })),
+                totalLicenses,
+                potentialSavings: {
+                    monthly: monthlySavings,
+                    annual: monthlySavings * 12,
+                    currency: 'USD'
+                }
+            });
+        } catch (error) {
+            console.error('Get reclamation candidates error:', error);
+            res.status(500).json({ error: 'Failed to get reclamation candidates' });
+        }
+    });
+
+    // Reclaim licenses from a user
+    app.post('/api/licenses/reclaim', auth.requireAuth, async (req, res) => {
+        try {
+            const { userId, licenses } = req.body;
+
+            if (!userId) {
+                return res.status(400).json({ error: 'userId is required' });
+            }
+
+            // Find user and verify account ownership
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: userId,
+                    accountId: req.session.accountId
+                }
+            });
+
+            if (!user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            // Determine which licenses to reclaim
+            const currentLicenses = user.licenses || [];
+            let licensesToReclaim;
+
+            if (!licenses || licenses.length === 0) {
+                // Reclaim all licenses
+                licensesToReclaim = [...currentLicenses];
+            } else {
+                // Reclaim only specified licenses
+                licensesToReclaim = licenses.filter(l => currentLicenses.includes(l));
+            }
+
+            // Remove reclaimed licenses
+            const remainingLicenses = currentLicenses.filter(l => !licensesToReclaim.includes(l));
+
+            await prisma.user.update({
+                where: { id: userId },
+                data: { licenses: remainingLicenses }
+            });
+
+            // Create audit log
+            await createAuditLog(
+                req.session.accountId,
+                req.session.memberId,
+                'license.reclaim',
+                'user',
+                userId,
+                { licenses: licensesToReclaim, userEmail: user.email },
+                req
+            );
+
+            res.json({
+                success: true,
+                userId,
+                reclaimedLicenses: licensesToReclaim,
+                remainingLicenses
+            });
+        } catch (error) {
+            console.error('Reclaim licenses error:', error);
+            res.status(500).json({ error: 'Failed to reclaim licenses' });
+        }
+    });
+
+    // Bulk reclaim licenses from multiple users
+    app.post('/api/licenses/reclaim-bulk', auth.requireAuth, async (req, res) => {
+        try {
+            const { userIds, licenses } = req.body;
+
+            if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+                return res.status(400).json({ error: 'userIds array is required and must not be empty' });
+            }
+
+            if (userIds.length > 100) {
+                return res.status(400).json({ error: 'Maximum batch size is 100 users' });
+            }
+
+            const results = [];
+            let succeeded = 0;
+            let failed = 0;
+
+            for (const userId of userIds) {
+                try {
+                    // Find user and verify account ownership
+                    const user = await prisma.user.findFirst({
+                        where: {
+                            id: userId,
+                            accountId: req.session.accountId
+                        }
+                    });
+
+                    if (!user) {
+                        results.push({
+                            userId,
+                            success: false,
+                            error: 'User not found or access denied'
+                        });
+                        failed++;
+                        continue;
+                    }
+
+                    // Determine which licenses to reclaim
+                    const currentLicenses = user.licenses || [];
+                    let licensesToReclaim;
+
+                    if (!licenses || licenses.length === 0) {
+                        licensesToReclaim = [...currentLicenses];
+                    } else {
+                        licensesToReclaim = licenses.filter(l => currentLicenses.includes(l));
+                    }
+
+                    // Remove reclaimed licenses
+                    const remainingLicenses = currentLicenses.filter(l => !licensesToReclaim.includes(l));
+
+                    await prisma.user.update({
+                        where: { id: userId },
+                        data: { licenses: remainingLicenses }
+                    });
+
+                    results.push({
+                        userId,
+                        success: true,
+                        reclaimedLicenses: licensesToReclaim,
+                        remainingLicenses
+                    });
+                    succeeded++;
+                } catch (err) {
+                    results.push({
+                        userId,
+                        success: false,
+                        error: err.message
+                    });
+                    failed++;
+                }
+            }
+
+            res.json({
+                success: failed === 0,
+                processed: userIds.length,
+                succeeded,
+                failed,
+                results
+            });
+        } catch (error) {
+            console.error('Bulk reclaim licenses error:', error);
+            res.status(500).json({ error: 'Failed to process bulk reclamation' });
+        }
+    });
+
+    // Assign license to user
+    app.post('/api/licenses/assign', auth.requireAuth, async (req, res) => {
+        try {
+            const { userId, license } = req.body;
+
+            if (!userId) {
+                return res.status(400).json({ error: 'userId is required' });
+            }
+
+            if (!license) {
+                return res.status(400).json({ error: 'license is required' });
+            }
+
+            // Find user and verify account ownership
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: userId,
+                    accountId: req.session.accountId
+                }
+            });
+
+            if (!user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            // Check if user already has this license
+            const currentLicenses = user.licenses || [];
+            if (currentLicenses.includes(license)) {
+                return res.status(400).json({ error: 'User already has this license' });
+            }
+
+            // Add the license
+            const updatedLicenses = [...currentLicenses, license];
+
+            await prisma.user.update({
+                where: { id: userId },
+                data: { licenses: updatedLicenses }
+            });
+
+            // Create audit log
+            await createAuditLog(
+                req.session.accountId,
+                req.session.memberId,
+                'license.assign',
+                'user',
+                userId,
+                { license, userEmail: user.email },
+                req
+            );
+
+            res.json({
+                success: true,
+                userId,
+                assignedLicense: license,
+                currentLicenses: updatedLicenses
+            });
+        } catch (error) {
+            console.error('Assign license error:', error);
+            res.status(500).json({ error: 'Failed to assign license' });
+        }
+    });
+
+    // Get license inventory
+    app.get('/api/licenses/inventory', auth.requireAuth, async (req, res) => {
+        try {
+            // Get account's license configuration
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { licenseCosts: true }
+            });
+
+            const licenseCosts = account?.licenseCosts || {};
+
+            // Count assigned licenses across all users
+            const users = await prisma.user.findMany({
+                where: { accountId: req.session.accountId },
+                select: { licenses: true }
+            });
+
+            // Count each license type
+            const assignedCounts = {};
+            for (const user of users) {
+                for (const license of (user.licenses || [])) {
+                    assignedCounts[license] = (assignedCounts[license] || 0) + 1;
+                }
+            }
+
+            // Build inventory
+            const licenses = Object.entries(licenseCosts).map(([name, config]) => {
+                const totalLicenses = config.totalLicenses || 0;
+                const assignedCount = assignedCounts[name] || 0;
+                return {
+                    name,
+                    totalLicenses,
+                    assignedCount,
+                    availableCount: Math.max(0, totalLicenses - assignedCount),
+                    costPerLicense: config.costPerLicense || 0
+                };
+            });
+
+            // Add any licenses that users have but aren't in the config
+            for (const [name, count] of Object.entries(assignedCounts)) {
+                if (!licenseCosts[name]) {
+                    licenses.push({
+                        name,
+                        totalLicenses: 0,
+                        assignedCount: count,
+                        availableCount: 0,
+                        costPerLicense: 0
+                    });
+                }
+            }
+
+            res.json({ licenses });
+        } catch (error) {
+            console.error('Get license inventory error:', error);
+            res.status(500).json({ error: 'Failed to get license inventory' });
+        }
+    });
+
+    // Get reclamation summary
+    app.get('/api/licenses/reclamation-summary', auth.requireAuth, async (req, res) => {
+        try {
+            const daysInactive = 30; // Default threshold
+
+            // Get inactive users
+            const inactiveUsers = await db.getInactiveUsers(req.session.accountId, daysInactive);
+
+            // Filter to only users with licenses
+            const usersWithLicenses = inactiveUsers.filter(u => u.licenses && u.licenses.length > 0);
+
+            // Get account license costs
+            const account = await prisma.account.findUnique({
+                where: { id: req.session.accountId },
+                select: { licenseCosts: true }
+            });
+            const licenseCosts = account?.licenseCosts || {};
+
+            // Calculate by license type
+            const byLicenseType = {};
+            let totalReclaimableLicenses = 0;
+            let totalMonthlySavings = 0;
+
+            for (const user of usersWithLicenses) {
+                for (const license of user.licenses) {
+                    if (!byLicenseType[license]) {
+                        const cost = licenseCosts[license]?.costPerLicense || 0;
+                        byLicenseType[license] = {
+                            count: 0,
+                            costPerLicense: cost,
+                            totalMonthlyCost: 0
+                        };
+                    }
+                    byLicenseType[license].count++;
+                    byLicenseType[license].totalMonthlyCost += licenseCosts[license]?.costPerLicense || 0;
+                    totalReclaimableLicenses++;
+                    totalMonthlySavings += licenseCosts[license]?.costPerLicense || 0;
+                }
+            }
+
+            res.json({
+                totalInactiveUsers: usersWithLicenses.length,
+                totalReclaimableLicenses,
+                potentialMonthlySavings: totalMonthlySavings,
+                potentialAnnualSavings: totalMonthlySavings * 12,
+                byLicenseType,
+                thresholdDays: daysInactive
+            });
+        } catch (error) {
+            console.error('Get reclamation summary error:', error);
+            res.status(500).json({ error: 'Failed to get reclamation summary' });
+        }
+    });
+
+    // ============================================
+    // Audit Logging Endpoints
+    // ============================================
+
+    // Helper function to create audit log entries
+    async function createAuditLog(accountId, actorId, action, targetType, targetId, details, req = null) {
+        try {
+            await prisma.auditLog.create({
+                data: {
+                    accountId,
+                    actorId,
+                    action,
+                    targetType,
+                    targetId,
+                    details,
+                    ipAddress: req?.ip || req?.connection?.remoteAddress,
+                    userAgent: req?.get?.('user-agent')
+                }
+            });
+        } catch (error) {
+            console.error('Failed to create audit log:', error);
+            // Don't throw - audit logging should not break main operations
+        }
+    }
+
+    // Get audit logs
+    app.get('/api/audit-logs', auth.requireAuth, async (req, res) => {
+        try {
+            const rawLimit = Number.parseInt(req.query.limit ?? '50', 10);
+            const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : 50;
+            const rawOffset = Number.parseInt(req.query.offset ?? '0', 10);
+            const offset = Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+
+            const whereClause = { accountId: req.session.accountId };
+
+            // Filter by action type
+            if (req.query.action) {
+                whereClause.action = req.query.action;
+            }
+
+            // Filter by date range
+            if (req.query.startDate || req.query.endDate) {
+                whereClause.createdAt = {};
+                if (req.query.startDate) {
+                    whereClause.createdAt.gte = new Date(req.query.startDate);
+                }
+                if (req.query.endDate) {
+                    whereClause.createdAt.lte = new Date(req.query.endDate);
+                }
+            }
+
+            const [logs, total] = await Promise.all([
+                prisma.auditLog.findMany({
+                    where: whereClause,
+                    orderBy: { createdAt: 'desc' },
+                    take: limit,
+                    skip: offset
+                }),
+                prisma.auditLog.count({ where: whereClause })
+            ]);
+
+            res.json({
+                logs,
+                total,
+                limit,
+                offset,
+                hasMore: offset + logs.length < total
+            });
+        } catch (error) {
+            console.error('Get audit logs error:', error);
+            res.status(500).json({ error: 'Failed to get audit logs' });
+        }
+    });
+
+    // ============================================
+    // Scheduled Reports Endpoints
+    // ============================================
+
+    const VALID_FREQUENCIES = ['weekly', 'monthly'];
+    const VALID_REPORT_TYPES = ['usage-summary', 'license-utilization', 'inactive-users', 'activity-summary'];
+
+    const REPORT_TYPE_INFO = [
+        { id: 'usage-summary', name: 'Usage Summary', description: 'Overview of user activity and license usage' },
+        { id: 'license-utilization', name: 'License Utilization', description: 'License usage rates and cost analysis' },
+        { id: 'inactive-users', name: 'Inactive Users', description: 'List of users with no recent activity' },
+        { id: 'activity-summary', name: 'Activity Summary', description: 'Breakdown of activity by time period' }
+    ];
+
+    // Get all scheduled reports for account
+    app.get('/api/reports/schedules', auth.requireAuth, async (req, res) => {
+        try {
+            const schedules = await prisma.scheduledReport.findMany({
+                where: { accountId: req.session.accountId },
+                orderBy: { createdAt: 'desc' }
+            });
+            res.json({ schedules });
+        } catch (error) {
+            console.error('Get schedules error:', error);
+            res.status(500).json({ error: 'Failed to get report schedules' });
+        }
+    });
+
+    // Create new scheduled report
+    app.post('/api/reports/schedules', auth.requireAuth, async (req, res) => {
+        try {
+            const { name, frequency, reportType, dayOfWeek, dayOfMonth, recipients } = req.body;
+
+            // Validate required fields
+            if (!name) {
+                return res.status(400).json({ error: 'name is required' });
+            }
+
+            if (!VALID_FREQUENCIES.includes(frequency)) {
+                return res.status(400).json({ error: `Invalid frequency. Must be one of: ${VALID_FREQUENCIES.join(', ')}` });
+            }
+
+            if (!VALID_REPORT_TYPES.includes(reportType)) {
+                return res.status(400).json({ error: `Invalid reportType. Must be one of: ${VALID_REPORT_TYPES.join(', ')}` });
+            }
+
+            if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+                return res.status(400).json({ error: 'At least one recipient email is required' });
+            }
+
+            if (frequency === 'weekly' && !dayOfWeek) {
+                return res.status(400).json({ error: 'dayOfWeek is required for weekly frequency' });
+            }
+
+            if (frequency === 'weekly' && !VALID_DAYS_OF_WEEK.includes(dayOfWeek?.toLowerCase())) {
+                return res.status(400).json({ error: `Invalid dayOfWeek. Must be one of: ${VALID_DAYS_OF_WEEK.join(', ')}` });
+            }
+
+            const schedule = await prisma.scheduledReport.create({
+                data: {
+                    accountId: req.session.accountId,
+                    name,
+                    frequency,
+                    reportType,
+                    dayOfWeek: dayOfWeek?.toLowerCase(),
+                    dayOfMonth: dayOfMonth ? Number.parseInt(dayOfMonth, 10) : null,
+                    recipients
+                }
+            });
+
+            res.status(201).json({ success: true, schedule });
+        } catch (error) {
+            console.error('Create schedule error:', error);
+            res.status(500).json({ error: 'Failed to create report schedule' });
+        }
+    });
+
+    // Update scheduled report
+    app.put('/api/reports/schedules/:id', auth.requireAuth, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const updates = req.body;
+
+            // Verify ownership
+            const existing = await prisma.scheduledReport.findFirst({
+                where: { id, accountId: req.session.accountId }
+            });
+
+            if (!existing) {
+                return res.status(404).json({ error: 'Schedule not found' });
+            }
+
+            // Validate if changing frequency/reportType
+            if (updates.frequency && !VALID_FREQUENCIES.includes(updates.frequency)) {
+                return res.status(400).json({ error: `Invalid frequency` });
+            }
+
+            if (updates.reportType && !VALID_REPORT_TYPES.includes(updates.reportType)) {
+                return res.status(400).json({ error: `Invalid reportType` });
+            }
+
+            const schedule = await prisma.scheduledReport.update({
+                where: { id },
+                data: {
+                    name: updates.name,
+                    frequency: updates.frequency,
+                    reportType: updates.reportType,
+                    dayOfWeek: updates.dayOfWeek?.toLowerCase(),
+                    dayOfMonth: updates.dayOfMonth,
+                    recipients: updates.recipients,
+                    enabled: updates.enabled
+                }
+            });
+
+            res.json({ success: true, schedule });
+        } catch (error) {
+            console.error('Update schedule error:', error);
+            res.status(500).json({ error: 'Failed to update report schedule' });
+        }
+    });
+
+    // Delete scheduled report
+    app.delete('/api/reports/schedules/:id', auth.requireAuth, async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            // Verify ownership
+            const existing = await prisma.scheduledReport.findFirst({
+                where: { id, accountId: req.session.accountId }
+            });
+
+            if (!existing) {
+                return res.status(404).json({ error: 'Schedule not found' });
+            }
+
+            await prisma.scheduledReport.delete({ where: { id } });
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Delete schedule error:', error);
+            res.status(500).json({ error: 'Failed to delete report schedule' });
+        }
+    });
+
+    // Get available report types
+    app.get('/api/reports/types', auth.requireAuth, async (req, res) => {
+        res.json({ types: REPORT_TYPE_INFO });
+    });
+
+    // ============================================
+    // User Activity History Endpoints
+    // ============================================
+
+    // Get user activity history
+    app.get('/api/users/:userId/activity', auth.requireAuth, async (req, res) => {
+        try {
+            const { userId } = req.params;
+            const rawLimit = Number.parseInt(req.query.limit ?? '50', 10);
+            const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : 50;
+            const rawOffset = Number.parseInt(req.query.offset ?? '0', 10);
+            const offset = Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+
+            // Verify user belongs to this account
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: userId,
+                    accountId: req.session.accountId
+                },
+                include: {
+                    windowsUsernames: true
+                }
+            });
+
+            if (!user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            // Get usernames to match against events
+            const usernames = user.windowsUsernames.map(wu => wu.username);
+
+            // Build date filters
+            const whereClause = {
+                accountId: req.session.accountId,
+                windowsUser: { in: usernames.length > 0 ? usernames : ['__no_match__'] }
+            };
+
+            if (req.query.startDate) {
+                whereClause.when = { ...whereClause.when, gte: new Date(req.query.startDate) };
+            }
+            if (req.query.endDate) {
+                whereClause.when = { ...whereClause.when, lte: new Date(req.query.endDate) };
+            }
+
+            // Get total count
+            const total = await prisma.usageEvent.count({ where: whereClause });
+
+            // Get activities
+            const activities = await prisma.usageEvent.findMany({
+                where: whereClause,
+                orderBy: { when: 'desc' },
+                take: limit,
+                skip: offset,
+                select: {
+                    id: true,
+                    event: true,
+                    url: true,
+                    when: true,
+                    source: true,
+                    windowTitle: true,
+                    browser: true,
+                    computerName: true
+                }
+            });
+
+            res.json({
+                userId,
+                activities,
+                total,
+                limit,
+                offset,
+                hasMore: offset + activities.length < total
+            });
+        } catch (error) {
+            console.error('Get user activity error:', error);
+            res.status(500).json({ error: 'Failed to get user activity' });
+        }
+    });
+
+    // Get user activity summary
+    app.get('/api/users/:userId/activity/summary', auth.requireAuth, async (req, res) => {
+        try {
+            const { userId } = req.params;
+
+            // Verify user belongs to this account
+            const user = await prisma.user.findFirst({
+                where: {
+                    id: userId,
+                    accountId: req.session.accountId
+                },
+                include: {
+                    windowsUsernames: true
+                }
+            });
+
+            if (!user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            const usernames = user.windowsUsernames.map(wu => wu.username);
+
+            const whereClause = {
+                accountId: req.session.accountId,
+                windowsUser: { in: usernames.length > 0 ? usernames : ['__no_match__'] }
+            };
+
+            // Get all events for aggregation
+            const events = await prisma.usageEvent.findMany({
+                where: whereClause,
+                select: {
+                    url: true,
+                    source: true,
+                    when: true
+                }
+            });
+
+            // Aggregate by application
+            const appCounts = {};
+            const sourceCounts = {};
+            let lastActivity = null;
+
+            for (const event of events) {
+                // Track by application/URL
+                const app = event.url;
+                appCounts[app] = (appCounts[app] || 0) + 1;
+
+                // Track by source
+                sourceCounts[event.source] = (sourceCounts[event.source] || 0) + 1;
+
+                // Track last activity
+                if (!lastActivity || new Date(event.when) > new Date(lastActivity)) {
+                    lastActivity = event.when;
+                }
+            }
+
+            res.json({
+                userId,
+                totalEvents: events.length,
+                byApplication: Object.entries(appCounts)
+                    .map(([application, count]) => ({ application, count }))
+                    .sort((a, b) => b.count - a.count),
+                bySource: Object.entries(sourceCounts)
+                    .map(([source, count]) => ({ source, count }))
+                    .sort((a, b) => b.count - a.count),
+                lastActivity
+            });
+        } catch (error) {
+            console.error('Get user activity summary error:', error);
+            res.status(500).json({ error: 'Failed to get activity summary' });
+        }
+    });
+
+    // ============================================
+    // User Endpoints (continued)
+    // ============================================
+
     // Add user (account-scoped)
     app.post('/api/users', auth.requireAuth, async (req, res) => {
         try {
@@ -1841,7 +3399,7 @@ function setupDataRoutes(app) {
             res.status(500).json({ error: 'Failed to add user' });
         }
     });
-    
+
     // Update user (account-scoped)
     app.put('/api/users/update', auth.requireAuth, async (req, res) => {
         try {
@@ -1853,7 +3411,7 @@ function setupDataRoutes(app) {
             res.status(500).json({ error: 'Failed to update user' });
         }
     });
-    
+
     // Delete user (account-scoped)
     app.delete('/api/users/:email', auth.requireAuth, async (req, res) => {
         try {
@@ -1864,7 +3422,7 @@ function setupDataRoutes(app) {
             res.status(500).json({ error: 'Failed to delete user' });
         }
     });
-    
+
     // Delete all users (account-scoped)
     app.delete('/api/users', auth.requireAuth, async (req, res) => {
         try {
@@ -1882,11 +3440,11 @@ function setupDataRoutes(app) {
         console.log('Merge users endpoint called:', { targetEmail: req.body.targetEmail, sourceEmails: req.body.sourceEmails });
         try {
             const { targetEmail, sourceEmails } = req.body;
-            
+
             if (!targetEmail || !sourceEmails || !Array.isArray(sourceEmails) || sourceEmails.length === 0) {
                 return res.status(400).json({ error: 'targetEmail and sourceEmails array are required' });
             }
-            
+
             const result = await db.mergeUsers(req.session.accountId, targetEmail, sourceEmails);
             res.json({ success: true, ...result });
         } catch (error) {
@@ -1899,11 +3457,11 @@ function setupDataRoutes(app) {
     app.delete('/api/users/bulk', auth.requireAuth, async (req, res) => {
         try {
             const { emails } = req.body;
-            
+
             if (!emails || !Array.isArray(emails) || emails.length === 0) {
                 return res.status(400).json({ error: 'emails array is required' });
             }
-            
+
             const deletedCount = await db.deleteUsersBulk(req.session.accountId, emails);
             res.json({ success: true, deletedCount });
         } catch (error) {
@@ -1964,29 +3522,29 @@ function setupDataRoutes(app) {
             res.status(500).json({ success: false, error: 'Failed to map username' });
         }
     });
-    
+
     // Import users from CSV (account-scoped)
     app.post('/api/users/import', auth.requireAuth, async (req, res) => {
         try {
             const multer = require('multer');
             const upload = multer({ storage: multer.memoryStorage() });
-            
+
             // Handle file upload
             upload.single('csvFile')(req, res, async (err) => {
                 if (err) {
                     console.error('File upload error:', err);
                     return res.status(400).json({ error: 'File upload failed' });
                 }
-                
+
                 if (!req.file) {
                     return res.status(400).json({ error: 'No file uploaded' });
                 }
-                
+
                 try {
                     // Parse CSV using proper CSV parser
                     const { parse } = require('csv-parse/sync');
                     const csvData = req.file.buffer.toString('utf-8');
-                    
+
                     // Parse CSV with proper handling of quoted fields
                     const records = parse(csvData, {
                         columns: true,
@@ -1994,11 +3552,11 @@ function setupDataRoutes(app) {
                         trim: true,
                         relax_quotes: true
                     });
-                    
+
                     if (records.length === 0) {
                         return res.status(400).json({ error: 'CSV file is empty or invalid' });
                     }
-                    
+
                     // Normalize headers
                     const normalizedRecords = records.map(record => {
                         const normalized = {};
@@ -2010,56 +3568,56 @@ function setupDataRoutes(app) {
                         });
                         return normalized;
                     });
-                    
+
                     // Validate required columns exist
                     if (normalizedRecords.length > 0) {
                         const firstRecord = normalizedRecords[0];
                         // Accept common variants for the email column
-                        const emailKey = ['email','e_mail','user_email','username','upn','user_principal_name']
+                        const emailKey = ['email', 'e_mail', 'user_email', 'username', 'upn', 'user_principal_name']
                             .find(k => k in firstRecord);
                         if (!emailKey) {
-                            return res.status(400).json({ 
-                                error: 'Missing required column: email' 
+                            return res.status(400).json({
+                                error: 'Missing required column: email'
                             });
                         }
                         // Normalize to .email for downstream logic
                         normalizedRecords.forEach(r => {
                             if (!r.email) {
-                                const key = Object.keys(r).find(k => ['email','e_mail','user_email','username','upn','user_principal_name'].includes(k));
+                                const key = Object.keys(r).find(k => ['email', 'e_mail', 'user_email', 'username', 'upn', 'user_principal_name'].includes(k));
                                 if (key) {
                                     r.email = r[key];
                                 }
                             }
                         });
                     }
-                    
+
                     let imported = 0;
                     let updated = 0;
                     let errors = 0;
-                    
+
                     // Process each row
                     for (const userData of normalizedRecords) {
                         if (!userData.email || !userData.email.trim()) continue;
-                        
+
                         try {
                             // Check if user exists
                             const existingUsers = await db.getUsersData(req.session.accountId);
-                            const existingUser = existingUsers.users.find(u => 
+                            const existingUser = existingUsers.users.find(u =>
                                 u.email.toLowerCase() === userData.email.toLowerCase()
                             );
-                            
+
                             if (existingUser) {
                                 // Update existing user - merge licenses instead of replacing
                                 const licensesStr = userData.team_products || userData.licenses;
                                 const csvLicensesArray = licensesStr ? licensesStr.split(',').map(l => l.trim()).filter(l => l) : [];
-                                
+
                                 // ✅ Merge CSV licenses with existing Adobe licenses (preserve existing, add new from CSV)
                                 // Note: entraLicenses are separate and managed by Entra sync, so we only merge Adobe licenses
                                 const existingAdobeLicenses = Array.isArray(existingUser.licenses) ? existingUser.licenses : [];
                                 const existingEntraLicenses = Array.isArray(existingUser.entraLicenses) ? existingUser.entraLicenses : [];
                                 const mergedLicenses = [...new Set([...existingAdobeLicenses, ...csvLicensesArray])]; // Deduplicate
                                 const licensesArray = mergedLicenses.length > 0 ? mergedLicenses : existingAdobeLicenses;
-                                
+
                                 // Debug logging for production troubleshooting
                                 if (csvLicensesArray.length > 0) {
                                     console.log(`[Import] Updating user ${existingUser.email}:`);
@@ -2068,7 +3626,7 @@ function setupDataRoutes(app) {
                                     console.log(`  - CSV licenses: ${csvLicensesArray.length}`, csvLicensesArray);
                                     console.log(`  - Merged Adobe licenses: ${licensesArray.length}`, licensesArray);
                                 }
-                                
+
                                 const updateData = {
                                     firstName: userData.first_name || userData.firstname || existingUser.firstName,
                                     lastName: userData.last_name || userData.lastname || existingUser.lastName,
@@ -2076,7 +3634,7 @@ function setupDataRoutes(app) {
                                     adminRoles: userData.admin_roles || userData.adminroles || existingUser.adminRoles,
                                     userGroups: userData.user_groups || userData.usergroups || existingUser.userGroups
                                 };
-                                
+
                                 // ✅ Use existing user's email (canonical from database) instead of CSV email to ensure case consistency
                                 await db.updateUser(req.session.accountId, existingUser.email, updateData);
                                 updated++;
@@ -2088,7 +3646,7 @@ function setupDataRoutes(app) {
                                 // Create new user
                                 const licensesStr = userData.team_products || userData.licenses || '';
                                 const licensesArray = licensesStr ? licensesStr.split(',').map(l => l.trim()).filter(l => l) : [];
-                                
+
                                 const newUser = {
                                     email: userData.email,
                                     firstName: userData.first_name || userData.firstname || '',
@@ -2097,7 +3655,7 @@ function setupDataRoutes(app) {
                                     adminRoles: userData.admin_roles || userData.adminroles || '',
                                     userGroups: userData.user_groups || userData.usergroups || ''
                                 };
-                                
+
                                 await db.createUser(req.session.accountId, newUser);
                                 imported++;
                             }
@@ -2106,27 +3664,27 @@ function setupDataRoutes(app) {
                             errors++;
                         }
                     }
-                    
-                    res.json({ 
-                        success: true, 
-                        imported, 
-                        updated, 
+
+                    res.json({
+                        success: true,
+                        imported,
+                        updated,
                         errors,
                         total: imported + updated
                     });
-                    
+
                 } catch (parseError) {
                     console.error('CSV parse error:', parseError);
                     res.status(400).json({ error: 'Failed to parse CSV file' });
                 }
             });
-            
+
         } catch (error) {
             console.error('Import error:', error);
             res.status(500).json({ error: 'Failed to import users' });
         }
     });
-    
+
     // Get usage data (account-scoped)
     app.get('/api/usage', auth.requireAuth, async (req, res) => {
         try {
@@ -2138,7 +3696,7 @@ function setupDataRoutes(app) {
             res.status(500).json({ error: 'Failed to get usage data' });
         }
     });
-    
+
     // Get recent activity (account-scoped) - for dashboard
     app.get('/api/usage/recent', auth.requireAuth, async (req, res) => {
         try {
@@ -2236,9 +3794,9 @@ function setupDataRoutes(app) {
                         const errorResult = {
                             error: true,
                             reason: isGraphThrottle ? 'graph-throttled' :
-                                   isTimeout ? 'timeout' :
-                                   isPermissionError ? 'permission-denied' :
-                                   (error.reason || 'error'),
+                                isTimeout ? 'timeout' :
+                                    isPermissionError ? 'permission-denied' :
+                                        (error.reason || 'error'),
                             message: error.message || (isGraphThrottle ? 'Microsoft Graph returned 429 (Too Many Requests).' : 'Failed to sync Microsoft Entra sign-ins'),
                             helpText: error.helpText,
                             statusCode: error?.statusCode,
@@ -2335,13 +3893,13 @@ function setupDataRoutes(app) {
             res.status(500).json({ error: 'Failed to get recent activity' });
         }
     });
-    
+
     // Get stats (account-scoped) - for dashboard
     app.get('/api/stats', auth.requireAuth, async (req, res) => {
         try {
             const accountId = req.session.accountId;
             const cacheKey = `stats:${accountId}`;
-            
+
             // Check cache first
             const cached = statsCache.get(cacheKey);
             if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL_MS) {
@@ -2441,7 +3999,7 @@ function setupDataRoutes(app) {
 
             // Cache the result
             statsCache.set(cacheKey, { data, timestamp: Date.now() });
-            
+
             res.json(data);
         } catch (error) {
             console.error('Get stats error:', error);
@@ -2453,7 +4011,7 @@ function setupDataRoutes(app) {
     app.get('/licenses', auth.requireAuth, auth.attachAccount, async (req, res) => {
         try {
             res.render('licenses', {
-                title: 'SubTracker - Licenses',
+                title: 'SasWatch - Licenses',
                 account: req.account
             });
         } catch (error) {
@@ -2466,13 +4024,13 @@ function setupDataRoutes(app) {
     app.get('/api/licenses', auth.requireAuth, async (req, res) => {
         try {
             const licenses = await db.getLicensesData(req.session.accountId);
-            
+
             // Calculate stats
             const stats = {
                 totalLicenses: licenses.length,
                 totalAssigned: licenses.reduce((sum, l) => sum + l.assigned, 0),
                 totalActive: licenses.reduce((sum, l) => sum + l.active, 0),
-                avgUtilization: licenses.length > 0 
+                avgUtilization: licenses.length > 0
                     ? Math.round(licenses.reduce((sum, l) => sum + l.utilization, 0) / licenses.length)
                     : 0
             };
@@ -2558,7 +4116,7 @@ function setupDataRoutes(app) {
             });
 
             const licenseCosts = account?.licenseCosts || {};
-            
+
             // Parse and validate inputs
             const numCostPerLicense = costPerLicense !== undefined && costPerLicense !== '' ? parseFloat(costPerLicense) : null;
             const numTotalLicenses = totalLicenses !== undefined && totalLicenses !== '' ? parseFloat(totalLicenses) : null;
@@ -2613,8 +4171,8 @@ function setupDataRoutes(app) {
             });
 
             const result = licenseCosts[licenseName] || null;
-            res.json({ 
-                success: true, 
+            res.json({
+                success: true,
                 data: result
             });
         } catch (error) {
@@ -2622,7 +4180,7 @@ function setupDataRoutes(app) {
             console.error('Error stack:', error.stack);
             console.error('Request body:', req.body);
             console.error('Account ID:', req.session.accountId);
-            
+
             // Provide more specific error messages
             let errorMessage = 'Failed to update license cost';
             if (error.code === 'P2002') {
@@ -2630,7 +4188,7 @@ function setupDataRoutes(app) {
             } else if (error.message) {
                 errorMessage = error.message;
             }
-            
+
             res.status(500).json({ error: errorMessage });
         }
     });
@@ -2646,7 +4204,7 @@ function setupDashboardRoutes(app) {
         try {
             const account = req.account || await auth.getAccountById(req.session.accountId);
             res.render('renewals', {
-                title: 'SubTracker - Renewals & Subscriptions',
+                title: 'SasWatch - Renewals & Subscriptions',
                 account: account
             });
         } catch (error) {
@@ -2654,16 +4212,16 @@ function setupDashboardRoutes(app) {
             res.status(500).send('Error loading renewals page');
         }
     });
-    
+
     // Users page (moved to /users)
     app.get('/users', auth.requireAuth, async (req, res) => {
         try {
             const account = await auth.getAccountById(req.session.accountId);
             const syncResult = await db.syncEntraUsersIfNeeded(req.session.accountId);
             const usersData = await db.getUsersData(req.session.accountId);
-            
-            res.render('users', { 
-                title: 'SubTracker - Users',
+
+            res.render('users', {
+                title: 'SasWatch - Users',
                 usersData,
                 users: usersData.users || [],
                 unmappedUsernames: usersData.unmappedUsernames || [],
@@ -2676,7 +4234,7 @@ function setupDashboardRoutes(app) {
             res.status(500).send('Error loading users page');
         }
     });
-    
+
     // Activity dashboard (requires auth)
     app.get('/dashboard', auth.requireAuth, async (req, res) => {
         try {
@@ -2684,7 +4242,7 @@ function setupDashboardRoutes(app) {
             const stats = await db.getDatabaseStats(req.session.accountId);
 
             res.render('index', {
-                title: 'SubTracker - Dashboard',
+                title: 'SasWatch - Dashboard',
                 users: usersData.users,
                 adobeCount: stats.adobeEvents || 0,
                 wrapperCount: stats.wrapperEvents || 0,
@@ -2738,12 +4296,12 @@ function setupAppsRoutes(app) {
         try {
             console.log('[Apps] Loading apps page...');
             const appsData = await db.getAppsData(req.session.accountId);
-            
+
             clearTimeout(timeout);
             if (!res.headersSent) {
                 console.log('[Apps] Rendering apps page...');
                 res.render('apps', {
-                    title: 'SubTracker - Applications',
+                    title: 'SasWatch - Applications',
                     apps: appsData.apps || [],
                     stats: appsData.stats || {},
                     account: req.account
@@ -2771,7 +4329,7 @@ function setupAppsRoutes(app) {
         try {
             console.log('[Apps API] Fetching apps data...');
             const appsData = await db.getAppsData(req.session.accountId);
-            
+
             clearTimeout(timeout);
             if (!res.headersSent) {
                 res.json(appsData);
@@ -2789,13 +4347,13 @@ function setupAppsRoutes(app) {
     app.get('/api/apps/detail', auth.requireAuth, async (req, res) => {
         try {
             const { id, sourceKey } = req.query;
-            
+
             if (!id && !sourceKey) {
                 return res.status(400).json({ error: 'Either id or sourceKey is required' });
             }
 
             const appDetail = await db.getAppDetail(req.session.accountId, id, sourceKey);
-            
+
             if (!appDetail) {
                 return res.status(404).json({ error: 'Application not found' });
             }
@@ -2818,15 +4376,15 @@ function setupAppsRoutes(app) {
 
         try {
             const appsData = await db.getAppsData(req.session.accountId);
-            
+
             // Count how many sign-in events are in the database
             const signInCount = await db.prisma.entraSignIn.count({
                 where: { accountId: req.session.accountId }
             });
-            
+
             syncResult.signInEventsInDb = signInCount;
             syncResult.appsFound = appsData.apps?.length || 0;
-            
+
             res.json({
                 success: true,
                 sync: syncResult,
@@ -2998,7 +4556,120 @@ function setupAppsRoutes(app) {
 // Main Setup Function
 // ============================================
 
+// ============================================
+// Headless Automation Routes
+// ============================================
+
+function setupHeadlessRoutes(app) {
+    // Headless connect page
+    app.get('/headless-connect', auth.requireAuth, auth.attachAccount, async (req, res) => {
+        try {
+            const connectors = await prisma.headlessConnector.findMany({
+                where: { accountId: req.session.accountId }
+            });
+
+            res.render('headless-connect', {
+                title: 'SasWatch - Headless Connections',
+                connectors,
+                account: req.account
+            });
+        } catch (error) {
+            console.error('Headless connect page error:', error);
+            res.status(500).send('Error loading headless connect page');
+        }
+    });
+
+    // Capture session (Interactive mode)
+    app.post('/api/headless/connect', auth.requireAuth, async (req, res) => {
+        try {
+            const { vendor } = req.body;
+            if (!vendor) return res.status(400).json({ error: 'Vendor is required' });
+
+            // In local dev, we use captureSession which opens a headed browser
+            // In production, we might need a different UI flow (like a VNC or remote browser)
+            // For now, let's implement the trigger.
+            console.log(`[Headless] Triggering session capture for ${vendor}`);
+
+            // This is a placeholder for the actual interactive capture flow
+            // which usually needs a separate process or a sophisticated frontend.
+            // For this MVP, we'll suggest using a dummy successful capture if in dev
+            if (process.env.NODE_ENV === 'development') {
+                await prisma.headlessConnector.upsert({
+                    where: { accountId_vendor: { accountId: req.session.accountId, vendor } },
+                    update: { status: 'pending', errorMessage: null },
+                    create: { accountId: req.session.accountId, vendor, status: 'pending' }
+                });
+
+                return res.json({
+                    success: true,
+                    message: `Initial connection for ${vendor} initialized. Please use the server console to complete login in headed mode.`
+                });
+            }
+
+            res.status(501).json({ error: 'Interactive capture not yet implemented for production' });
+        } catch (error) {
+            console.error('Headless connect error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Trigger sync
+    app.post('/api/headless/sync', auth.requireAuth, async (req, res) => {
+        try {
+            const { vendor } = req.body;
+            if (!vendor) return res.status(400).json({ error: 'Vendor is required' });
+
+            const accountId = req.session.accountId;
+
+            // Re-use activeSyncs map for status tracking
+            activeSyncs.set(accountId, {
+                active: true,
+                message: `Automating login to ${vendor}...`,
+                progress: 10,
+                startedAt: new Date(),
+                lastUpdate: new Date()
+            });
+
+            // Run in background
+            headlessManager.sync(accountId, vendor)
+                .then(result => {
+                    activeSyncs.set(accountId, {
+                        active: false,
+                        message: `Sync completed for ${vendor}`,
+                        progress: 100,
+                        startedAt: new Date(),
+                        lastUpdate: new Date()
+                    });
+                    setTimeout(() => activeSyncs.delete(accountId), 60000);
+                })
+                .catch(error => {
+                    activeSyncs.set(accountId, {
+                        active: false,
+                        message: `Sync failed for ${vendor}: ${error.message}`,
+                        progress: 0,
+                        startedAt: new Date(),
+                        lastUpdate: new Date(),
+                        error: true
+                    });
+                    setTimeout(() => activeSyncs.delete(accountId), 60000);
+                });
+
+            res.json({ success: true, message: 'Sync started in background' });
+        } catch (error) {
+            console.error('Headless sync error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Status endpoint
+    app.get('/api/headless/status', auth.requireAuth, (req, res) => {
+        const syncStatus = activeSyncs.get(req.session.accountId);
+        res.json(syncStatus || { active: false });
+    });
+}
+
 function setupMultiTenantRoutes(app) {
+
     console.log('Setting up multi-tenant routes...');
 
     setupSession(app);
@@ -3007,7 +4678,9 @@ function setupMultiTenantRoutes(app) {
     setupScriptRoutes(app);
     setupTrackingAPI(app);
     setupDataRoutes(app);
+    setupHeadlessRoutes(app);
     setupDevRoutes(app);
+
     setupDashboardRoutes(app);
     setupAppsRoutes(app);
     setupAdminRoutes(app);
@@ -3032,18 +4705,18 @@ function setupAdminRoutes(app) {
 
         try {
             console.log('[Admin] Loading admin dashboard...');
-            
+
             // Ensure account is set
             if (!req.account && req.session.accountId) {
                 req.account = await auth.getAccountById(req.session.accountId);
             }
             const currentAccount = req.account;
-            
+
             if (!currentAccount) {
                 clearTimeout(timeout);
                 return res.status(401).send('Account not found');
             }
-            
+
             console.log('[Admin] Fetching accounts...');
             const accounts = await prisma.account.findMany({
                 select: {
@@ -3071,7 +4744,7 @@ function setupAdminRoutes(app) {
                     // Check if we still have time (allow 3s per account max)
                     const stats = await Promise.race([
                         db.getDatabaseStats(account.id),
-                        new Promise((_, reject) => 
+                        new Promise((_, reject) =>
                             setTimeout(() => reject(new Error('Stats timeout')), 3000)
                         )
                     ]);
@@ -3113,7 +4786,7 @@ function setupAdminRoutes(app) {
     app.get('/api/admin/accounts/:id/activity', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
         try {
             const accountId = req.params.id;
-            
+
             // Verify account exists
             const account = await prisma.account.findUnique({
                 where: { id: accountId },
@@ -3185,8 +4858,8 @@ function setupAdminRoutes(app) {
 
             // Prevent disabling yourself
             if (accountId === req.account.id && isActive === false) {
-                return res.status(400).json({ 
-                    error: 'Cannot disable your own account' 
+                return res.status(400).json({
+                    error: 'Cannot disable your own account'
                 });
             }
 
@@ -3281,14 +4954,14 @@ function setupAdminRoutes(app) {
 
             // Prevent modifying yourself
             if (accountId === req.account.id) {
-                return res.status(400).json({ 
-                    error: 'Cannot modify your own platform admin status' 
+                return res.status(400).json({
+                    error: 'Cannot modify your own platform admin status'
                 });
             }
 
             const account = await prisma.account.update({
                 where: { id: accountId },
-                data: { 
+                data: {
                     platformAdmin: platformAdmin === true || platformAdmin === 'true',
                     isSuperAdmin: platformAdmin === true || platformAdmin === 'true' // Keep legacy field in sync
                 },
@@ -3391,7 +5064,7 @@ function setupAdminRoutes(app) {
     app.get('/admin/accounts/:id', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
         try {
             const accountId = req.params.id;
-            
+
             const account = await prisma.account.findUnique({
                 where: { id: accountId },
                 select: {
@@ -3431,10 +5104,10 @@ function setupAdminRoutes(app) {
     // Superadmin-only: Manually trigger Graph API sync to database
     app.post('/api/admin/sync-graph', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
         console.log('[Admin Sync] Superadmin triggered manual Graph API sync');
-        
+
         // Get Socket.IO instance for progress updates
         const io = req.app.get('io');
-        
+
         try {
             const accountId = req.session.accountId;
             const body = req.body || {};
@@ -3507,10 +5180,10 @@ function setupAdminRoutes(app) {
                     const now = Date.now();
                     if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
                         lastProgressUpdate = now;
-                        
+
                         // Log progress to console
                         console.log(`[Admin Sync] Progress: ${progress.message} - Page ${progress.page}, ${progress.eventsFetched} events`);
-                        
+
                         if (io) {
                             const progressPercent = Math.min(95, Math.floor((progress.page / maxPages) * 100));
                             io.of('/dashboard').to(`account:${accountId}`).emit('sync:progress', {
@@ -3559,7 +5232,7 @@ function setupAdminRoutes(app) {
         } catch (error) {
             console.error('[Admin Sync] Error:', error);
             console.error('[Admin Sync] Error stack:', error.stack);
-            
+
             // Determine user-friendly error message
             let userMessage = error.message || 'Graph sync failed';
             if (error.message?.includes('timeout')) {
@@ -3571,7 +5244,7 @@ function setupAdminRoutes(app) {
             } else if (error.statusCode === 429) {
                 userMessage = 'Rate limit exceeded. Please wait a few minutes and try again.';
             }
-            
+
             // Send error update via Socket.IO
             if (io && req.session?.accountId) {
                 io.of('/dashboard').to(`account:${req.session.accountId}`).emit('sync:complete', {
@@ -3581,11 +5254,159 @@ function setupAdminRoutes(app) {
                     error: userMessage
                 });
             }
-            
+
             res.status(500).json({
                 success: false,
                 error: userMessage
             });
+        }
+    });
+}
+
+/**
+ * Setup Partner Management Routes (Super Admin Only)
+ */
+function setupPartnerManagementRoutes(app) {
+    // GET /admin/partners - Render partner management dashboard
+    app.get('/admin/partners', auth.requireAuth, auth.attachAccount, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const partners = await partnerDb.getAllPartners();
+            const accounts = await prisma.account.findMany({
+                where: { isActive: true },
+                select: { id: true, name: true, email: true }
+            });
+
+            res.render('admin-partners', {
+                title: 'Partner Management',
+                partners,
+                accounts,
+                currentAccount: req.account
+            });
+        } catch (error) {
+            console.error('[Admin-Partner] Error loading partners:', error);
+            res.status(500).send('Error loading partner management');
+        }
+    });
+
+    // POST /api/admin/partners - Create new partner (JSON API)
+    app.post('/api/admin/partners', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const { accountId, companyName, maxLinkedAccounts } = req.body;
+
+            if (!accountId) {
+                return res.status(400).json({ success: false, error: 'Account ID is required' });
+            }
+
+            const partner = await partnerDb.createPartnerAccount(accountId, {
+                companyName,
+                maxLinkedAccounts: maxLinkedAccounts ? parseInt(maxLinkedAccounts) : 100
+            });
+
+            auditLog('PARTNER_CREATED', req.account.id, {
+                targetPartnerId: partner.id,
+                targetAccountId: accountId,
+                companyName
+            }, req);
+
+            res.json({ success: true, partner });
+        } catch (error) {
+            console.error('[Admin-Partner] Create error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // POST /api/admin/partners/:id/toggle - Toggle partner active status
+    app.post('/api/admin/partners/:id/toggle', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { isActive } = req.body;
+
+            await partnerDb.updatePartnerAccount(id, { isActive });
+
+            auditLog('PARTNER_TOGGLE_ACTIVE', req.account.id, {
+                targetPartnerId: id,
+                isActive
+            }, req);
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('[Admin-Partner] Toggle error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // POST /api/admin/partners/:id/link - Link account to partner
+    app.post('/api/admin/partners/:id/link', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { linkedAccountId, nickname } = req.body;
+
+            if (!linkedAccountId) {
+                return res.status(400).json({ success: false, error: 'Linked Account ID is required' });
+            }
+
+            const link = await partnerDb.linkAccountToPartner(id, linkedAccountId, { nickname });
+
+            auditLog('PARTNER_ACCOUNT_LINKED', req.account.id, {
+                partnerId: id,
+                linkedAccountId,
+                nickname
+            }, req);
+
+            res.json({ success: true, link });
+        } catch (error) {
+            console.error('[Admin-Partner] Link error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // POST /api/admin/partners/:id/unlink - Unlink account from partner
+    app.post('/api/admin/partners/:id/unlink', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { linkedAccountId } = req.body;
+
+            await partnerDb.unlinkAccountFromPartner(id, linkedAccountId);
+
+            auditLog('PARTNER_ACCOUNT_UNLINKED', req.account.id, {
+                partnerId: id,
+                linkedAccountId
+            }, req);
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('[Admin-Partner] Unlink error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // POST /api/admin/partners/:id/key - Regenerate API key
+    app.post('/api/admin/partners/:id/key', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const newKey = await partnerDb.regeneratePartnerApiKey(id);
+
+            auditLog('PARTNER_KEY_REGENERATED', req.account.id, {
+                targetPartnerId: id
+            }, req);
+
+            res.json({ success: true, apiKey: newKey });
+        } catch (error) {
+            console.error('[Admin-Partner] Key regen error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // GET /admin/partners/:id/details - Get partner details (JSON API)
+    app.get('/admin/partners/:id/details', auth.requireAuth, auth.requireSuperAdmin, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const partner = await partnerDb.getPartnerById(id);
+            if (!partner) return res.status(404).json({ success: false, error: 'Partner not found' });
+            res.json({ success: true, partner });
+        } catch (error) {
+            console.error('[Admin-Partner] Details error:', error);
+            res.status(500).json({ success: false, error: error.message });
         }
     });
 }
@@ -3606,7 +5427,7 @@ function setupRenewalsRoutes(app) {
             error: 'Too many requests. Please try again later.'
         }
     });
-    
+
     // Stricter rate limiter for test-alert (prevents email spamming)
     const testAlertLimiter = rateLimit({
         windowMs: 60 * 60 * 1000, // 1 hour
@@ -3618,7 +5439,7 @@ function setupRenewalsRoutes(app) {
             error: 'Too many test alerts. Please try again in an hour.'
         }
     });
-    
+
     // Rate limiter for file uploads (expensive OpenAI calls)
     const uploadLimiter = rateLimit({
         windowMs: 60 * 60 * 1000, // 1 hour
@@ -3630,12 +5451,12 @@ function setupRenewalsRoutes(app) {
             error: 'Too many uploads. Please try again later.'
         }
     });
-    
+
     // Renewals page (calendar view)
     app.get('/renewals', auth.requireAuth, async (req, res) => {
         try {
             res.render('renewals', {
-                title: 'SubTracker - Renewals & Subscriptions',
+                title: 'SasWatch - Renewals & Subscriptions',
                 account: req.account
             });
         } catch (error) {
@@ -3643,7 +5464,7 @@ function setupRenewalsRoutes(app) {
             res.status(500).send('Error loading renewals page');
         }
     });
-    
+
     // GET /api/renewals - Get all subscriptions for account
     app.get('/api/renewals', auth.requireAuth, async (req, res) => {
         try {
@@ -3655,7 +5476,7 @@ function setupRenewalsRoutes(app) {
                     renewalDate: 'asc'
                 }
             });
-            
+
             res.json({
                 success: true,
                 subscriptions: subscriptions.map(sub => ({
@@ -3676,19 +5497,19 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // POST /api/renewals - Create new subscription
     app.post('/api/renewals', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
         try {
             const { name, vendor, renewalDate, cancelByDate, cost, billingCycle, accountNumber, seats, owner, notes, alertEmail, alertDays } = req.body;
-            
+
             if (!name || !vendor || !renewalDate) {
                 return res.status(400).json({
                     success: false,
                     error: 'Name, vendor, and renewal date are required'
                 });
             }
-            
+
             const subscription = await prisma.subscription.create({
                 data: {
                     accountId: req.session.accountId,
@@ -3707,7 +5528,7 @@ function setupRenewalsRoutes(app) {
                     isArchived: false
                 }
             });
-            
+
             res.json({
                 success: true,
                 subscription: {
@@ -3725,13 +5546,13 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // PUT /api/renewals/:id - Update subscription
     app.put('/api/renewals/:id', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
         try {
             const { id } = req.params;
             const { name, vendor, renewalDate, cancelByDate, cost, billingCycle, accountNumber, seats, owner, notes, alertEmail, alertDays, isArchived } = req.body;
-            
+
             // Verify subscription belongs to account
             const existing = await prisma.subscription.findFirst({
                 where: {
@@ -3739,14 +5560,14 @@ function setupRenewalsRoutes(app) {
                     accountId: req.session.accountId
                 }
             });
-            
+
             if (!existing) {
                 return res.status(404).json({
                     success: false,
                     error: 'Subscription not found'
                 });
             }
-            
+
             const subscription = await prisma.subscription.update({
                 where: { id },
                 data: {
@@ -3765,7 +5586,7 @@ function setupRenewalsRoutes(app) {
                     isArchived: isArchived !== undefined ? isArchived : existing.isArchived
                 }
             });
-            
+
             res.json({
                 success: true,
                 subscription: {
@@ -3783,12 +5604,12 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // DELETE /api/renewals/:id - Delete subscription
     app.delete('/api/renewals/:id', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
         try {
             const { id } = req.params;
-            
+
             // Verify subscription belongs to account
             const existing = await prisma.subscription.findFirst({
                 where: {
@@ -3796,18 +5617,18 @@ function setupRenewalsRoutes(app) {
                     accountId: req.session.accountId
                 }
             });
-            
+
             if (!existing) {
                 return res.status(404).json({
                     success: false,
                     error: 'Subscription not found'
                 });
             }
-            
+
             await prisma.subscription.delete({
                 where: { id }
             });
-            
+
             res.json({
                 success: true
             });
@@ -3819,7 +5640,7 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // POST /api/renewals/:id/test-alert - Send a test alert email immediately (dev only)
     app.post('/api/renewals/:id/test-alert', auth.requireAuth, testAlertLimiter, async (req, res) => {
         // Block in production
@@ -3829,10 +5650,10 @@ function setupRenewalsRoutes(app) {
                 error: 'Test alerts are not available in production'
             });
         }
-        
+
         try {
             const { id } = req.params;
-            
+
             // Verify subscription belongs to account
             const subscription = await prisma.subscription.findFirst({
                 where: {
@@ -3848,31 +5669,31 @@ function setupRenewalsRoutes(app) {
                     }
                 }
             });
-            
+
             if (!subscription) {
                 return res.status(404).json({
                     success: false,
                     error: 'Subscription not found'
                 });
             }
-            
+
             // Determine recipient email
             const recipientEmail = subscription.alertEmail || subscription.account.email;
-            
+
             if (!recipientEmail) {
                 return res.status(400).json({
                     success: false,
                     error: 'No email address configured for this subscription'
                 });
             }
-            
+
             // Calculate days until renewal for the test email
             const renewalDate = new Date(subscription.renewalDate);
             const now = new Date();
             now.setHours(0, 0, 0, 0);
             renewalDate.setHours(0, 0, 0, 0);
             const daysUntil = Math.floor((renewalDate - now) / (1000 * 60 * 60 * 24));
-            
+
             // Send test alert email
             const { sendRenewalReminderEmail } = require('./lib/email-sender');
             await sendRenewalReminderEmail({
@@ -3881,13 +5702,13 @@ function setupRenewalsRoutes(app) {
                 daysUntil,
                 accountName: subscription.account.name
             });
-            
+
             // Update lastAlertSent timestamp
             await prisma.subscription.update({
                 where: { id },
                 data: { lastAlertSent: new Date() }
             });
-            
+
             res.json({
                 success: true,
                 message: `Test alert sent to ${recipientEmail}`
@@ -3900,12 +5721,12 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // POST /api/renewals/:id/renew - Mark subscription as renewed (advance renewal date)
     app.post('/api/renewals/:id/renew', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
         try {
             const { id } = req.params;
-            
+
             // Verify subscription belongs to account
             const existing = await prisma.subscription.findFirst({
                 where: {
@@ -3913,18 +5734,18 @@ function setupRenewalsRoutes(app) {
                     accountId: req.session.accountId
                 }
             });
-            
+
             if (!existing) {
                 return res.status(404).json({
                     success: false,
                     error: 'Subscription not found'
                 });
             }
-            
+
             // Calculate new renewal date based on billing cycle
             const currentDate = new Date(existing.renewalDate);
             let newDate = new Date(currentDate);
-            
+
             switch (existing.billingCycle) {
                 case 'monthly':
                     newDate.setMonth(newDate.getMonth() + 1);
@@ -3938,7 +5759,7 @@ function setupRenewalsRoutes(app) {
                 default:
                     newDate.setFullYear(newDate.getFullYear() + 1);
             }
-            
+
             const subscription = await prisma.subscription.update({
                 where: { id },
                 data: {
@@ -3946,7 +5767,7 @@ function setupRenewalsRoutes(app) {
                     lastAlertSent: null // Reset alert so it can be sent again
                 }
             });
-            
+
             res.json({
                 success: true,
                 subscription: {
@@ -3964,11 +5785,11 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // ============================================
     // Document Upload & Pending Subscriptions API
     // ============================================
-    
+
     // POST /api/renewals/upload - Upload documents for extraction
     app.post('/api/renewals/upload', auth.requireAuth, uploadLimiter, upload.array('files', 10), async (req, res) => {
         try {
@@ -3978,29 +5799,29 @@ function setupRenewalsRoutes(app) {
                     error: 'No files uploaded'
                 });
             }
-            
+
             console.log(`[Upload] Processing ${req.files.length} file(s) for account ${req.session.accountId}`);
-            
+
             // Prepare attachments for processing
             const attachments = req.files.map(file => ({
                 buffer: file.buffer,
                 mimeType: file.mimetype,
                 filename: file.originalname
             }));
-            
+
             // Extract subscription data from documents
             const extractedData = await processMultipleAttachments(attachments);
-            
+
             if (extractedData.length === 0) {
                 return res.status(400).json({
                     success: false,
                     error: 'Could not extract subscription information from the uploaded files'
                 });
             }
-            
+
             // Save to pending_subscriptions table
             const pendingItems = [];
-            
+
             for (const data of extractedData) {
                 const pending = await prisma.pendingSubscription.create({
                     data: {
@@ -4018,7 +5839,7 @@ function setupRenewalsRoutes(app) {
                         status: 'pending'
                     }
                 });
-                
+
                 pendingItems.push({
                     ...pending,
                     renewalDate: pending.renewalDate ? pending.renewalDate.toISOString() : null,
@@ -4027,13 +5848,13 @@ function setupRenewalsRoutes(app) {
                     updatedAt: pending.updatedAt.toISOString()
                 });
             }
-            
+
             res.json({
                 success: true,
                 message: `Extracted ${pendingItems.length} subscription(s) from ${req.files.length} file(s)`,
                 pendingSubscriptions: pendingItems
             });
-            
+
         } catch (error) {
             console.error('Error processing upload:', error);
             res.status(500).json({
@@ -4042,7 +5863,7 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // GET /api/renewals/pending - Get all pending subscriptions for account
     app.get('/api/renewals/pending', auth.requireAuth, async (req, res) => {
         try {
@@ -4055,7 +5876,7 @@ function setupRenewalsRoutes(app) {
                     createdAt: 'desc'
                 }
             });
-            
+
             res.json({
                 success: true,
                 pendingSubscriptions: pendingSubscriptions.map(p => ({
@@ -4074,26 +5895,26 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // GET /api/renewals/pending/:id - Get single pending subscription
     app.get('/api/renewals/pending/:id', auth.requireAuth, async (req, res) => {
         try {
             const { id } = req.params;
-            
+
             const pending = await prisma.pendingSubscription.findFirst({
                 where: {
                     id,
                     accountId: req.session.accountId
                 }
             });
-            
+
             if (!pending) {
                 return res.status(404).json({
                     success: false,
                     error: 'Pending subscription not found'
                 });
             }
-            
+
             res.json({
                 success: true,
                 pendingSubscription: {
@@ -4112,13 +5933,13 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // POST /api/renewals/pending/:id/approve - Convert pending to actual subscription
     app.post('/api/renewals/pending/:id/approve', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
         try {
             const { id } = req.params;
             const { name, vendor, renewalDate, cancelByDate, cost, billingCycle, accountNumber, seats, owner, notes, alertEmail, alertDays } = req.body;
-            
+
             // Verify pending subscription belongs to account
             const pending = await prisma.pendingSubscription.findFirst({
                 where: {
@@ -4126,26 +5947,26 @@ function setupRenewalsRoutes(app) {
                     accountId: req.session.accountId
                 }
             });
-            
+
             if (!pending) {
                 return res.status(404).json({
                     success: false,
                     error: 'Pending subscription not found'
                 });
             }
-            
+
             // Validate required fields (use from body or pending data)
             const finalName = name || pending.name;
             const finalVendor = vendor || pending.vendor;
             const finalRenewalDate = renewalDate || (pending.renewalDate ? pending.renewalDate.toISOString().split('T')[0] : null);
-            
+
             if (!finalName || !finalVendor || !finalRenewalDate) {
                 return res.status(400).json({
                     success: false,
                     error: 'Name, vendor, and renewal date are required'
                 });
             }
-            
+
             // Create the actual subscription
             const subscription = await prisma.subscription.create({
                 data: {
@@ -4165,13 +5986,13 @@ function setupRenewalsRoutes(app) {
                     isArchived: false
                 }
             });
-            
+
             // Mark pending as approved
             await prisma.pendingSubscription.update({
                 where: { id },
                 data: { status: 'approved' }
             });
-            
+
             res.json({
                 success: true,
                 subscription: {
@@ -4181,7 +6002,7 @@ function setupRenewalsRoutes(app) {
                     cost: subscription.cost ? subscription.cost.toString() : null
                 }
             });
-            
+
         } catch (error) {
             console.error('Error approving pending subscription:', error);
             res.status(500).json({
@@ -4190,12 +6011,12 @@ function setupRenewalsRoutes(app) {
             });
         }
     });
-    
+
     // DELETE /api/renewals/pending/:id - Reject/delete pending subscription
     app.delete('/api/renewals/pending/:id', auth.requireAuth, renewalsApiLimiter, async (req, res) => {
         try {
             const { id } = req.params;
-            
+
             // Verify pending subscription belongs to account
             const pending = await prisma.pendingSubscription.findFirst({
                 where: {
@@ -4203,24 +6024,24 @@ function setupRenewalsRoutes(app) {
                     accountId: req.session.accountId
                 }
             });
-            
+
             if (!pending) {
                 return res.status(404).json({
                     success: false,
                     error: 'Pending subscription not found'
                 });
             }
-            
+
             // Delete the pending subscription
             await prisma.pendingSubscription.delete({
                 where: { id }
             });
-            
+
             res.json({
                 success: true,
                 message: 'Pending subscription rejected and deleted'
             });
-            
+
         } catch (error) {
             console.error('Error deleting pending subscription:', error);
             res.status(500).json({
@@ -4244,7 +6065,7 @@ function setupMembersRoutes(app) {
             const accountId = req.session.accountId;
             const members = await auth.getAccountMembers(accountId);
             const currentMember = req.member || { role: 'owner', id: req.session.memberId };
-            
+
             res.render('members', {
                 title: 'Team Members',
                 account: req.account,
@@ -4265,7 +6086,7 @@ function setupMembersRoutes(app) {
             });
         }
     });
-    
+
     // GET /api/members - Get all members (API)
     app.get('/api/members', auth.requireAuth, auth.requireRole(['owner', 'admin']), async (req, res) => {
         try {
@@ -4276,36 +6097,36 @@ function setupMembersRoutes(app) {
             res.status(500).json({ success: false, error: 'Failed to fetch members' });
         }
     });
-    
+
     // POST /api/members/invite - Invite a new member
     app.post('/api/members/invite', auth.requireAuth, auth.requirePermission('members.invite'), async (req, res) => {
         try {
             const { email, name, role } = req.body;
-            
+
             if (!email) {
                 return res.status(400).json({ success: false, error: 'Email is required' });
             }
-            
+
             // Get current member for audit and role check
             const currentMember = req.member || { id: req.session.memberId, role: req.session.memberRole || 'owner' };
-            
+
             // Check if assigning allowed role
             const assignableRoles = permissions.getAssignableRoles(currentMember.role);
             const targetRole = role || 'viewer';
             if (!assignableRoles.includes(targetRole)) {
-                return res.status(403).json({ 
-                    success: false, 
-                    error: `You cannot assign the ${targetRole} role` 
+                return res.status(403).json({
+                    success: false,
+                    error: `You cannot assign the ${targetRole} role`
                 });
             }
-            
+
             // Create invited member (with invitation token, no password yet)
             const member = await auth.createMember(
                 req.session.accountId,
                 { email, name: name || email, role: targetRole },
                 currentMember.id
             );
-            
+
             // Send invitation email
             const { sendInvitationEmail } = require('./lib/email-sender');
             try {
@@ -4319,15 +6140,15 @@ function setupMembersRoutes(app) {
                 console.error('Failed to send invitation email:', emailError);
                 // Don't fail the request - member was created
             }
-            
+
             auditLog('MEMBER_INVITED', req.session.accountId, {
                 invitedEmail: email,
                 invitedRole: targetRole,
                 invitedBy: currentMember.id
             }, req);
-            
-            res.json({ 
-                success: true, 
+
+            res.json({
+                success: true,
                 message: `Invitation sent to ${email}`,
                 member: auth.sanitizeMemberForClient(member)
             });
@@ -4336,59 +6157,59 @@ function setupMembersRoutes(app) {
             res.status(400).json({ success: false, error: error.message });
         }
     });
-    
+
     // PATCH /api/members/:id/role - Update member role
     app.patch('/api/members/:id/role', auth.requireAuth, auth.requirePermission('members.edit'), async (req, res) => {
         try {
             const { id } = req.params;
             const { role } = req.body;
-            
+
             if (!role || !permissions.isValidRole(role)) {
                 return res.status(400).json({ success: false, error: 'Invalid role' });
             }
-            
+
             const currentMember = req.member || { id: req.session.memberId, role: req.session.memberRole || 'owner' };
-            
+
             const updatedMember = await auth.updateMemberRole(id, role, currentMember);
-            
+
             auditLog('MEMBER_ROLE_CHANGED', req.session.accountId, {
                 memberId: id,
                 newRole: role,
                 changedBy: currentMember.id
             }, req);
-            
+
             res.json({ success: true, member: auth.sanitizeMemberForClient(updatedMember) });
         } catch (error) {
             console.error('Error updating member role:', error);
             res.status(400).json({ success: false, error: error.message });
         }
     });
-    
+
     // DELETE /api/members/:id - Remove member
     app.delete('/api/members/:id', auth.requireAuth, auth.requirePermission('members.remove'), async (req, res) => {
         try {
             const { id } = req.params;
             const currentMember = req.member || { id: req.session.memberId, role: req.session.memberRole || 'owner' };
-            
+
             await auth.removeMember(id, currentMember);
-            
+
             auditLog('MEMBER_REMOVED', req.session.accountId, {
                 memberId: id,
                 removedBy: currentMember.id
             }, req);
-            
+
             res.json({ success: true, message: 'Member removed' });
         } catch (error) {
             console.error('Error removing member:', error);
             res.status(400).json({ success: false, error: error.message });
         }
     });
-    
+
     // GET /invite/accept - Accept invitation page
     app.get('/invite/accept', async (req, res) => {
         try {
             const { token } = req.query;
-            
+
             if (!token) {
                 return res.render('invite-accept', {
                     error: 'Invalid invitation link',
@@ -4396,13 +6217,13 @@ function setupMembersRoutes(app) {
                     member: null
                 });
             }
-            
+
             // Find member by invitation token
             const member = await prisma.accountMember.findUnique({
                 where: { invitationToken: token },
                 include: { account: true }
             });
-            
+
             if (!member) {
                 return res.render('invite-accept', {
                     error: 'Invalid or expired invitation link',
@@ -4410,7 +6231,7 @@ function setupMembersRoutes(app) {
                     member: null
                 });
             }
-            
+
             if (member.invitationExpires && new Date() > member.invitationExpires) {
                 return res.render('invite-accept', {
                     error: 'This invitation has expired. Please request a new one.',
@@ -4418,7 +6239,7 @@ function setupMembersRoutes(app) {
                     member: null
                 });
             }
-            
+
             res.render('invite-accept', {
                 error: null,
                 token: token,
@@ -4437,12 +6258,12 @@ function setupMembersRoutes(app) {
             });
         }
     });
-    
+
     // POST /invite/accept - Accept invitation and set password
     app.post('/invite/accept', async (req, res) => {
         try {
             const { token, name, password, confirmPassword } = req.body;
-            
+
             if (!token) {
                 return res.render('invite-accept', {
                     error: 'Invalid invitation',
@@ -4450,7 +6271,7 @@ function setupMembersRoutes(app) {
                     member: null
                 });
             }
-            
+
             if (!password || password.length < 8) {
                 return res.render('invite-accept', {
                     error: 'Password must be at least 8 characters',
@@ -4458,7 +6279,7 @@ function setupMembersRoutes(app) {
                     member: { name }
                 });
             }
-            
+
             if (password !== confirmPassword) {
                 return res.render('invite-accept', {
                     error: 'Passwords do not match',
@@ -4466,9 +6287,9 @@ function setupMembersRoutes(app) {
                     member: { name }
                 });
             }
-            
+
             const result = await auth.acceptInvitation(token, name, password);
-            
+
             if (!result.success) {
                 return res.render('invite-accept', {
                     error: result.message,
@@ -4476,10 +6297,10 @@ function setupMembersRoutes(app) {
                     member: { name }
                 });
             }
-            
+
             // Get member for session
             const member = await auth.getMemberById(result.memberId);
-            
+
             if (!member) {
                 return res.render('invite-accept', {
                     error: 'Failed to load member information',
@@ -4487,7 +6308,7 @@ function setupMembersRoutes(app) {
                     member: { name }
                 });
             }
-            
+
             // Clear any existing session data to prevent conflicts
             req.session.regenerate((err) => {
                 if (err) {
@@ -4498,22 +6319,22 @@ function setupMembersRoutes(app) {
                         member: { name }
                     });
                 }
-                
+
                 // Log member in with correct email
                 req.session.accountId = member.accountId;
                 req.session.accountEmail = member.email; // Use member's email, not account owner's
                 req.session.memberId = member.id;
                 req.session.memberRole = member.role;
-                
+
                 // Clear any cached account/member attachments
                 req.account = null;
                 req.member = null;
-                
+
                 auditLog('MEMBER_INVITATION_ACCEPTED', member.accountId, {
                     memberId: member.id,
                     email: member.email
                 }, req);
-                
+
                 req.session.save((err) => {
                     if (err) {
                         console.error('Session save error:', err);
@@ -4549,11 +6370,13 @@ module.exports = {
     setupDashboardRoutes,
     setupAppsRoutes,
     setupAdminRoutes,
+    setupPartnerManagementRoutes,
     setupRenewalsRoutes,
     setupMembersRoutes,  // New RBAC routes
     // Original names for backward compatibility
     setupScriptRoutes,
     setupTrackingAPI,
-    setupDataRoutes
+    setupDataRoutes,
+    setupHeadlessRoutes
 };
 

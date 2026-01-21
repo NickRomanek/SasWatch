@@ -1,0 +1,63 @@
+{
+  "id": "export-csv-users",
+  "title": "Export Users to CSV",
+  "description": "Allow admins to export user data and inactive users list to CSV for reporting and audits",
+  "completedDate": "2026-01-20",
+  "status": "completed",
+  "filesChanged": [
+    "SasWatch/server-multitenant-routes.js",
+    "SasWatch/__tests__/integration/api/export.test.js",
+    "feature-requests/backlog.json"
+  ],
+  "protectedFilesModified": [],
+  "acceptanceCriteria": {
+    "GET /api/users/export/csv returns CSV file": true,
+    "GET /api/users/inactive/export/csv returns inactive users CSV": true,
+    "CSV includes email, firstName, lastName, licenses, lastActivity": true,
+    "Inactive CSV includes daysSinceActivity column": true,
+    "Proper Content-Type and Content-Disposition headers": true,
+    "Respects accountId scoping (auth.requireAuth)": true,
+    "Has integration tests": true
+  },
+  "implementation": {
+    "endpoints": [
+      {
+        "path": "/api/users/export/csv",
+        "method": "GET",
+        "description": "Export all users to CSV",
+        "auth": "requireAuth"
+      },
+      {
+        "path": "/api/users/inactive/export/csv",
+        "method": "GET",
+        "description": "Export inactive users to CSV",
+        "auth": "requireAuth",
+        "params": "?days=30 (default)"
+      }
+    ],
+    "helpers": [
+      "escapeCsvField() - RFC 4180 compliant CSV field escaping"
+    ],
+    "csvFormat": {
+      "allUsers": ["email", "firstName", "lastName", "licenses", "lastActivity", "activityCount"],
+      "inactiveUsers": ["email", "firstName", "lastName", "licenses", "lastActivity", "daysSinceActivity", "activityCount"]
+    }
+  },
+  "testResults": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0,
+    "testFile": "__tests__/integration/api/export.test.js"
+  },
+  "lessonsLearned": [
+    "getUsersData returns { users: [], ... } object, not array directly",
+    "Users with null lastActivity are considered 'never active' and should be in inactive export",
+    "CSV escaping must handle commas, quotes, and newlines per RFC 4180",
+    "Content-Disposition header important for browser download UX"
+  ],
+  "nextSteps": [
+    "Add export button to UI (users page)",
+    "Add PDF export option",
+    "Add date range filtering for exports"
+  ]
+}

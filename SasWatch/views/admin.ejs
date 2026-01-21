@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %> - SasWatch</title>
+    <title>
+        <%= title %> - SasWatch
+    </title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
         .admin-container {
@@ -268,11 +271,12 @@
         }
 
         @media (max-width: 1200px) {
+
             .table-header,
             .table-row {
                 grid-template-columns: 2fr 2fr 1fr 1fr 1fr 1fr 100px;
             }
-            
+
             .table-header .hide-mobile,
             .table-row .hide-mobile {
                 display: none;
@@ -510,6 +514,7 @@
         }
     </style>
 </head>
+
 <body>
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
@@ -522,7 +527,7 @@
                 <span id="sidebar-toggle-icon">◀</span>
             </button>
         </div>
-        
+
         <nav class="sidebar-nav">
             <div class="sidebar-nav-item">
                 <a href="/" class="sidebar-nav-link" data-tooltip="Renewals">
@@ -560,37 +565,47 @@
                     <span>Account</span>
                 </a>
             </div>
-            <% if (typeof currentMember === 'undefined' || !currentMember || currentMember.role === 'admin' || currentMember.role === 'owner') { %>
-            <div class="sidebar-nav-item">
-                <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
-                    <span class="nav-icon">🧑‍🤝‍🧑</span>
-                    <span>Team</span>
-                </a>
-            </div>
-            <% } %>
-            <% if (currentAccount && (currentAccount.isSuperAdmin || currentAccount.platformAdmin) && (typeof currentMember === 'undefined' || !currentMember)) { %>
-            <div class="sidebar-nav-item">
-                <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
-                    <span class="nav-icon">🛠️</span>
-                    <span>Dev</span>
-                </a>
-            </div>
-            <div class="sidebar-nav-item">
-                <a href="/admin" class="sidebar-nav-link active" data-tooltip="Platform Admin">
-                    <span class="nav-icon">👑</span>
-                    <span>Platform Admin</span>
-                </a>
-            </div>
-            <% } %>
+            <% if (typeof currentMember==='undefined' || !currentMember || currentMember.role==='admin' ||
+                currentMember.role==='owner' ) { %>
+                <div class="sidebar-nav-item">
+                    <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
+                        <span class="nav-icon">🧑‍🤝‍🧑</span>
+                        <span>Team</span>
+                    </a>
+                </div>
+                <% } %>
+                    <% if (currentAccount && (currentAccount.isSuperAdmin || currentAccount.platformAdmin) && (typeof
+                        currentMember==='undefined' || !currentMember)) { %>
+                        <div class="sidebar-nav-item">
+                            <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
+                                <span class="nav-icon">🛠️</span>
+                                <span>Dev</span>
+                            </a>
+                        </div>
+                        <div class="sidebar-nav-item">
+                            <a href="/admin" class="sidebar-nav-link active" data-tooltip="Platform Admin">
+                                <span class="nav-icon">👑</span>
+                                <span>Platform Admin</span>
+                            </a>
+                        </div>
+                        <div class="sidebar-nav-item">
+                            <a href="/admin/partners" class="sidebar-nav-link" data-tooltip="Partner Management">
+                                <span class="nav-icon">🤝</span>
+                                <span>Partner Management</span>
+                            </a>
+                        </div>
+                        <% } %>
         </nav>
-        
+
         <div class="sidebar-footer">
             <div class="sidebar-footer-actions">
                 <a href="/logout" class="sidebar-footer-link">
                     <span class="nav-icon">🚪</span>
                     <span>Logout</span>
                 </a>
-                <button class="sidebar-footer-link" onclick="toggleTheme()" style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;" title="Toggle theme">
+                <button class="sidebar-footer-link" onclick="toggleTheme()"
+                    style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;"
+                    title="Toggle theme">
                     <span class="nav-icon" id="theme-icon">☀️</span>
                     <span>Theme</span>
                 </button>
@@ -607,100 +622,128 @@
                     <span>Admin Dashboard</span>
                 </h1>
                 <div>
-                    <span style="color: var(--text-secondary);">Total Accounts: <strong><%= accounts.length %></strong></span>
+                    <span style="color: var(--text-secondary); margin-right: 16px;">Total Accounts: <strong>
+                            <%= accounts.length %>
+                        </strong></span>
+                    <a href="/admin/partners" class="btn btn-secondary" style="text-decoration: none;">🤝 Manage
+                        Partners</a>
                 </div>
             </div>
 
-            <% if (accounts.length === 0) { %>
+            <% if (accounts.length===0) { %>
                 <div class="empty-state">
                     <div class="empty-state-icon">📭</div>
                     <h2>No accounts found</h2>
                     <p>No accounts have been created yet.</p>
                 </div>
-            <% } else { %>
-                <div class="accounts-table">
-                    <div class="table-header">
-                        <div>Account</div>
-                        <div>Email</div>
-                        <div class="hide-mobile">Tier</div>
-                        <div>Status</div>
-                        <div>Users</div>
-                        <div>Events</div>
-                        <div class="hide-mobile">Sign-Ins</div>
-                        <div class="hide-mobile">Created</div>
-                        <div>Actions</div>
-                    </div>
-                    <% accounts.forEach((account) => { %>
-                        <div class="table-row" data-account-id="<%= account.id %>">
-                            <div>
-                                <div class="account-name">
-                                    <%= account.name %>
-                                    <% if (account.isSuperAdmin) { %>
-                                        <span class="status-badge status-super-admin" style="margin-left: 8px;">Admin</span>
-                                    <% } %>
-                                </div>
-                            </div>
-                            <div class="account-email"><%= account.email %></div>
-                            <div class="hide-mobile">
-                                <span class="tier-badge"><%= account.subscriptionTier %></span>
-                            </div>
-                            <div>
-                                <span class="status-badge <%= account.isActive ? 'status-active' : 'status-inactive' %>">
-                                    <%= account.isActive ? 'Active' : 'Inactive' %>
-                                </span>
-                            </div>
-                            <div class="stat-number"><%= account.stats.users || 0 %></div>
-                            <div class="stat-number"><%= account.stats.usageEvents || 0 %></div>
-                            <div class="hide-mobile stat-number"><%= account.stats.signInEvents || 0 %></div>
-                            <div class="hide-mobile" style="font-size: 0.75rem; color: var(--text-secondary);">
-                                <%= new Date(account.createdAt).toLocaleDateString() %>
-                            </div>
-                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                <button class="expand-btn" onclick="toggleActivity('<%= account.id %>')" data-account-id="<%= account.id %>">
-                                    📊 View
-                                </button>
-                                <button class="toggle-active-btn active" onclick="openEditModal('<%= account.id %>', '<%= account.name %>', <%= account.isActive %>, <%= account.platformAdmin || account.isSuperAdmin %>)">
-                                    Edit
-                                </button>
-                                <button 
-                                    class="delete-btn" 
-                                    onclick="openDeleteModal('<%= account.id %>', '<%= account.name %>', '<%= account.email %>', <%= account.platformAdmin || account.isSuperAdmin %>)"
-                                    <%= (account.platformAdmin || account.isSuperAdmin) ? 'disabled title="Cannot delete platform admin accounts"' : '' %>
-                                >
-                                    🗑️ Delete
-                                </button>
-                            </div>
-                            <div class="activity-section" id="activity-<%= account.id %>">
-                                <div class="activity-header">
-                                    <h3>Activity for <%= account.name %></h3>
-                                    <button onclick="toggleActivity('<%= account.id %>')" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer;">✕</button>
-                                </div>
-                                <div class="activity-stats">
-                                    <div class="activity-stat">
-                                        <div class="activity-stat-number"><%= account.stats.users || 0 %></div>
-                                        <div class="activity-stat-label">Users</div>
-                                    </div>
-                                    <div class="activity-stat">
-                                        <div class="activity-stat-number"><%= account.stats.usageEvents || 0 %></div>
-                                        <div class="activity-stat-label">Usage Events</div>
-                                    </div>
-                                    <div class="activity-stat">
-                                        <div class="activity-stat-number"><%= account.stats.signInEvents || 0 %></div>
-                                        <div class="activity-stat-label">Sign-Ins</div>
-                                    </div>
-                                    <div class="activity-stat">
-                                        <div class="activity-stat-number"><%= account.stats.unmappedUsernames || 0 %></div>
-                                        <div class="activity-stat-label">Unmapped</div>
-                                    </div>
-                                </div>
-                                <div class="activity-list" id="activity-list-<%= account.id %>">
-                                    <div class="loading">Loading activity...</div>
-                                </div>
-                            </div>
+                <% } else { %>
+                    <div class="accounts-table">
+                        <div class="table-header">
+                            <div>Account</div>
+                            <div>Email</div>
+                            <div class="hide-mobile">Tier</div>
+                            <div>Status</div>
+                            <div>Users</div>
+                            <div>Events</div>
+                            <div class="hide-mobile">Sign-Ins</div>
+                            <div class="hide-mobile">Created</div>
+                            <div>Actions</div>
                         </div>
-                    <% }); %>
-                </div>
-            <% } %>
+                        <% accounts.forEach((account)=> { %>
+                            <div class="table-row" data-account-id="<%= account.id %>">
+                                <div>
+                                    <div class="account-name">
+                                        <%= account.name %>
+                                            <% if (account.isSuperAdmin) { %>
+                                                <span class="status-badge status-super-admin"
+                                                    style="margin-left: 8px;">Admin</span>
+                                                <% } %>
+                                    </div>
+                                </div>
+                                <div class="account-email">
+                                    <%= account.email %>
+                                </div>
+                                <div class="hide-mobile">
+                                    <span class="tier-badge">
+                                        <%= account.subscriptionTier %>
+                                    </span>
+                                </div>
+                                <div>
+                                    <span
+                                        class="status-badge <%= account.isActive ? 'status-active' : 'status-inactive' %>">
+                                        <%= account.isActive ? 'Active' : 'Inactive' %>
+                                    </span>
+                                </div>
+                                <div class="stat-number">
+                                    <%= account.stats.users || 0 %>
+                                </div>
+                                <div class="stat-number">
+                                    <%= account.stats.usageEvents || 0 %>
+                                </div>
+                                <div class="hide-mobile stat-number">
+                                    <%= account.stats.signInEvents || 0 %>
+                                </div>
+                                <div class="hide-mobile" style="font-size: 0.75rem; color: var(--text-secondary);">
+                                    <%= new Date(account.createdAt).toLocaleDateString() %>
+                                </div>
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button class="expand-btn" onclick="toggleActivity('<%= account.id %>')"
+                                        data-account-id="<%= account.id %>">
+                                        📊 View
+                                    </button>
+                                    <button class="toggle-active-btn active"
+                                        onclick="openEditModal('<%= account.id %>', '<%= account.name %>', <%= account.isActive %>, <%= account.platformAdmin || account.isSuperAdmin %>)">
+                                        Edit
+                                    </button>
+                                    <button class="delete-btn"
+                                        onclick="openDeleteModal('<%= account.id %>', '<%= account.name %>', '<%= account.email %>', <%= account.platformAdmin || account.isSuperAdmin %>)"
+                                        <%=(account.platformAdmin || account.isSuperAdmin)
+                                        ? 'disabled title="Cannot delete platform admin accounts"' : '' %>
+                                        >
+                                        🗑️ Delete
+                                    </button>
+                                </div>
+                                <div class="activity-section" id="activity-<%= account.id %>">
+                                    <div class="activity-header">
+                                        <h3>Activity for <%= account.name %>
+                                        </h3>
+                                        <button onclick="toggleActivity('<%= account.id %>')"
+                                            style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer;">✕</button>
+                                    </div>
+                                    <div class="activity-stats">
+                                        <div class="activity-stat">
+                                            <div class="activity-stat-number">
+                                                <%= account.stats.users || 0 %>
+                                            </div>
+                                            <div class="activity-stat-label">Users</div>
+                                        </div>
+                                        <div class="activity-stat">
+                                            <div class="activity-stat-number">
+                                                <%= account.stats.usageEvents || 0 %>
+                                            </div>
+                                            <div class="activity-stat-label">Usage Events</div>
+                                        </div>
+                                        <div class="activity-stat">
+                                            <div class="activity-stat-number">
+                                                <%= account.stats.signInEvents || 0 %>
+                                            </div>
+                                            <div class="activity-stat-label">Sign-Ins</div>
+                                        </div>
+                                        <div class="activity-stat">
+                                            <div class="activity-stat-number">
+                                                <%= account.stats.unmappedUsernames || 0 %>
+                                            </div>
+                                            <div class="activity-stat-label">Unmapped</div>
+                                        </div>
+                                    </div>
+                                    <div class="activity-list" id="activity-list-<%= account.id %>">
+                                        <div class="loading">Loading activity...</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <% }); %>
+                    </div>
+                    <% } %>
         </div>
     </main>
 
@@ -716,7 +759,7 @@
                 activitySection.classList.remove('expanded');
             } else {
                 activitySection.classList.add('expanded');
-                
+
                 // Load activity if not already loaded
                 if (activityList.innerHTML.includes('Loading activity')) {
                     try {
@@ -725,7 +768,7 @@
 
                         if (data.success) {
                             let html = '';
-                            
+
                             if (data.activity.recentSignIns.length > 0) {
                                 html += '<h4 style="margin: 16px 0 8px 0; color: var(--text-primary);">Recent Sign-Ins</h4>';
                                 data.activity.recentSignIns.forEach(signIn => {
@@ -915,7 +958,7 @@
             const sidebar = document.getElementById('sidebar');
             const icon = document.getElementById('sidebar-toggle-icon');
             sidebar.classList.toggle('collapsed');
-            
+
             const isCollapsed = sidebar.classList.contains('collapsed');
             localStorage.setItem('sidebarCollapsed', isCollapsed);
             icon.textContent = isCollapsed ? '▶' : '◀';
@@ -950,7 +993,7 @@
             deleteAccountId = accountId;
             deleteAccountName = accountName;
             deleteAccountEmail = accountEmail;
-            
+
             const deleteAccountNameEl = document.getElementById('delete-account-name');
             const deleteAccountEmailEl = document.getElementById('delete-account-email');
             if (deleteAccountNameEl) {
@@ -959,7 +1002,7 @@
             if (deleteAccountEmailEl) {
                 deleteAccountEmailEl.textContent = accountEmail;
             }
-            
+
             const deleteModal = document.getElementById('deleteModal');
             if (deleteModal) {
                 deleteModal.classList.add('active');
@@ -1055,7 +1098,8 @@
                         <input type="checkbox" id="edit-platform-admin">
                         <span class="label-text">Platform Admin (super admin)</span>
                     </label>
-                    <div class="password-hint">Platform Admin can manage <span class="highlight">all accounts</span></div>
+                    <div class="password-hint">Platform Admin can manage <span class="highlight">all accounts</span>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1074,17 +1118,22 @@
                 <div class="header-content">
                     <h2>⚠️ Delete Account</h2>
                     <div class="account-name" id="delete-account-name"></div>
-                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 4px;" id="delete-account-email"></div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 4px;"
+                        id="delete-account-email"></div>
                 </div>
-                <button type="button" class="modal-close" onclick="closeDeleteModal()" aria-label="Close modal">×</button>
+                <button type="button" class="modal-close" onclick="closeDeleteModal()"
+                    aria-label="Close modal">×</button>
             </div>
             <div class="modal-body">
                 <div style="color: var(--text-primary); margin-bottom: 16px;">
-                    <p style="margin: 0 0 12px 0; font-weight: 500;">Are you sure you want to permanently delete this account?</p>
+                    <p style="margin: 0 0 12px 0; font-weight: 500;">Are you sure you want to permanently delete this
+                        account?</p>
                     <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
-                        This action <strong style="color: var(--danger);">cannot be undone</strong>. All data associated with this account will be permanently deleted, including:
+                        This action <strong style="color: var(--danger);">cannot be undone</strong>. All data associated
+                        with this account will be permanently deleted, including:
                     </p>
-                    <ul style="margin: 12px 0 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 0.875rem;">
+                    <ul
+                        style="margin: 12px 0 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 0.875rem;">
                         <li>All team members</li>
                         <li>All users and usage data</li>
                         <li>All subscriptions and renewals</li>
@@ -1096,7 +1145,8 @@
             <div class="modal-footer">
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
-                    <button type="button" class="btn-primary" onclick="confirmDeleteAccount()" style="background: var(--danger);">
+                    <button type="button" class="btn-primary" onclick="confirmDeleteAccount()"
+                        style="background: var(--danger);">
                         Delete Permanently
                     </button>
                 </div>
@@ -1106,5 +1156,5 @@
 
     <%- include('_survey-widget') %>
 </body>
-</html>
 
+</html>

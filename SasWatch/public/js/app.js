@@ -1,4 +1,4 @@
-// SubTracker - Simple Usage Monitor
+// SasWatch - Simple Usage Monitor
 let currentSourceFilter = 'all';
 let cachedActivityData = null;
 

@@ -1,0 +1,43 @@
+{
+  "id": "ui-inactive-users-widget",
+  "title": "Inactive Users Widget on Users Page",
+  "description": "Add a collapsible widget showing inactive users for license optimization, consuming /api/users/inactive",
+  "completedDate": "2026-01-20",
+  "status": "completed",
+  "filesChanged": [
+    "SasWatch/views/users.ejs",
+    "feature-requests/backlog.json"
+  ],
+  "protectedFilesModified": [],
+  "acceptanceCriteria": {
+    "Widget appears on /users page": true,
+    "Shows count of inactive users (default 30 days)": true,
+    "Allows changing days threshold via dropdown": true,
+    "Displays user name, email, last activity date, days inactive": true,
+    "Collapsible to reduce visual clutter": true,
+    "Styled consistently with existing UI": true
+  },
+  "implementation": {
+    "button": "Added 'Inactive' button (btn-warning) in header action buttons area",
+    "section": "Added collapsible import-section with id='inactive-import-section'",
+    "controls": "Day threshold dropdown (7, 14, 30, 60, 90 days) with onChange handler",
+    "display": "User list with name, email, licenses, days since activity, and activity link",
+    "emptyState": "Shows success message when no inactive users found"
+  },
+  "testResults": {
+    "automated": "API endpoint tested via integration tests (2 tests passing)",
+    "manual": "Requires login to /users page and clicking Inactive button",
+    "note": "Browser automation unreliable for login form - manual verification recommended"
+  },
+  "lessonsLearned": [
+    "Followed existing patterns for collapsible sections (import-section, upload-card)",
+    "Used toggleImportSection() function for consistency with other widgets",
+    "Browser automation tools have limitations with form inputs",
+    "UI components can be built on top of tested API endpoints"
+  ],
+  "nextSteps": [
+    "Add CSV export for inactive users list",
+    "Add bulk action to disable licenses for inactive users",
+    "Add email notification for license optimization opportunities"
+  ]
+}

@@ -10,7 +10,7 @@ $ErrorActionPreference = "Continue"
 
 # Configuration
 $INSTALL_DIR = "C:\ProgramData\AdobeMonitor"
-$TASK_NAME = "Adobe Usage Monitor - SubTracker"
+$TASK_NAME = "Adobe Usage Monitor - SasWatch"
 $STATUS_FILE = "$INSTALL_DIR\status.json"
 $LOG_FILE = "$INSTALL_DIR\install.log"
 $MONITOR_LOG = "$INSTALL_DIR\monitor.log"

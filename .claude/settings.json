@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allowedTools": ["read", "write", "edit", "bash", "glob", "grep"],
+    "deniedPaths": [".env", "*.pem", "*.key", "*.local.json"]
+  },
+  "testCommand": "cd SasWatch && npm test",
+  "lintCommand": "cd SasWatch && npm run lint",
+  "buildCommand": "cd SasWatch && npm run db:generate",
+  "devCommand": "cd SasWatch && npm run dev"
+}

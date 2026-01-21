@@ -1,0 +1,75 @@
+{
+  "id": "usage-analytics",
+  "title": "Advanced Usage Analytics",
+  "description": "API endpoints for dashboard analytics with usage trends, license utilization, and activity patterns",
+  "completedDate": "2026-01-20",
+  "status": "completed",
+  "filesChanged": [
+    "SasWatch/server-multitenant-routes.js",
+    "SasWatch/__tests__/integration/api/usage-analytics.test.js",
+    "feature-requests/backlog.json"
+  ],
+  "protectedFilesModified": [],
+  "acceptanceCriteria": {
+    "GET /api/analytics/overview returns summary metrics": true,
+    "GET /api/analytics/activity-summary returns time-based breakdown": true,
+    "GET /api/analytics/license-utilization returns usage by license type": true,
+    "GET /api/analytics/top-users returns most/least active users": true,
+    "Supports configurable inactivity threshold": true,
+    "Multi-tenant account scoping": true,
+    "Has integration tests": true
+  },
+  "implementation": {
+    "endpoints": [
+      {
+        "path": "/api/analytics/overview",
+        "method": "GET",
+        "params": "?inactiveDays=30",
+        "returns": "totalUsers, activeUsers, inactiveUsers, totalLicenses, totalActivityCount, averageActivityPerUser"
+      },
+      {
+        "path": "/api/analytics/license-utilization",
+        "method": "GET",
+        "params": "?inactiveDays=30",
+        "returns": "licenses array with totalAssigned, activeUsers, inactiveUsers, utilizationRate, monthlyCost, wastedCost"
+      },
+      {
+        "path": "/api/analytics/top-users",
+        "method": "GET",
+        "params": "?limit=10&order=desc|asc",
+        "returns": "users array sorted by activityCount"
+      },
+      {
+        "path": "/api/analytics/activity-summary",
+        "method": "GET",
+        "returns": "last7Days, last30Days, last90Days, olderThan90Days, neverActive, totalUsers"
+      }
+    ],
+    "features": [
+      "License utilization rate calculation",
+      "Wasted cost calculation for inactive licenses",
+      "Top/bottom users by activity",
+      "Activity breakdown by time period",
+      "Configurable inactivity threshold",
+      "Multi-tenant isolation"
+    ]
+  },
+  "testResults": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0,
+    "testFile": "__tests__/integration/api/usage-analytics.test.js"
+  },
+  "lessonsLearned": [
+    "Utilization rate = activeUsers / totalAssigned * 100",
+    "Time period categorization helps identify usage patterns",
+    "Cost calculations require licenseCosts on account model",
+    "Top users endpoint supports both most and least active sorting"
+  ],
+  "nextSteps": [
+    "Add UI dashboard for analytics visualization",
+    "Add time-series data for trend charts",
+    "Add export analytics to PDF/CSV",
+    "Add comparative analytics (this month vs last month)"
+  ]
+}

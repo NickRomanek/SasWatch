@@ -32,6 +32,11 @@ receiver/
 dist/
 build/
 
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov
+
 # Test packages and archives
 *.zip
 test-package/
@@ -39,3 +44,6 @@ test-package/
 # Accidentally created files from git commands
 tatus*
 *--porcelain
+
+# Marketing agent (private - not part of product)
+marketing-agent/

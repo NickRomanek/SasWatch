@@ -1,11 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %></title>
+    <title>
+        <%= title %> - SasWatch
+    </title>
+    <meta name="description" content="Manage and monitor user activity and license assignments in SasWatch.">
+
+    <!-- Performance: Preconnect to Font domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="/css/style.css">
+    <!-- Icons as SVG for professional look -->
+    <style>
+        .svg-icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .hidden-initial {
+            display: none !important;
+        }
+    </style>
 </head>
+
 <body>
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
@@ -15,79 +40,128 @@
                 <span>SasWatch</span>
             </div>
             <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
-                <span id="sidebar-toggle-icon">◀</span>
+                <span id="sidebar-toggle-icon">
+                    <svg class="svg-icon" viewBox="0 0 24 24">
+                        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                    </svg>
+                </span>
             </button>
         </div>
-        
+
         <nav class="sidebar-nav">
             <div class="sidebar-nav-item">
                 <a href="/" class="sidebar-nav-link" data-tooltip="Renewals">
-                    <span class="nav-icon">📅</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z" />
+                        </svg>
+                    </span>
                     <span>Renewals</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/users" class="sidebar-nav-link active" data-tooltip="Users">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                        </svg>
+                    </span>
                     <span>Users</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/licenses" class="sidebar-nav-link" data-tooltip="Licenses">
-                    <span class="nav-icon">📜</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                        </svg>
+                    </span>
                     <span>Licenses</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/apps" class="sidebar-nav-link" data-tooltip="Applications">
-                    <span class="nav-icon">📦</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5l3.5 3.5-3.5 3.5z" />
+                        </svg>
+                    </span>
                     <span>Apps</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/dashboard" class="sidebar-nav-link" data-tooltip="Activity">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                        </svg>
+                    </span>
                     <span>Activity</span>
                 </a>
             </div>
             <div class="sidebar-nav-item">
                 <a href="/account" class="sidebar-nav-link" data-tooltip="Account">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                        </svg>
+                    </span>
                     <span>Account</span>
                 </a>
             </div>
-            <% if (typeof member === 'undefined' || !member || member.role === 'admin' || member.role === 'owner') { %>
             <div class="sidebar-nav-item">
-                <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
-                    <span class="nav-icon">🧑‍🤝‍🧑</span>
-                    <span>Team</span>
+                <a href="/headless-connect" class="sidebar-nav-link" data-tooltip="Automated Logins">
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z" />
+                        </svg>
+                    </span>
+                    <span>Automated Logins</span>
                 </a>
             </div>
-            <% } %>
-            <% if (typeof account !== 'undefined' && account && (account.isSuperAdmin || account.platformAdmin) && (typeof member === 'undefined' || !member)) { %>
-            <div class="sidebar-nav-item">
-                <a href="/dev" class="sidebar-nav-link" data-tooltip="Dev Tools">
-                    <span class="nav-icon">🛠️</span>
-                    <span>Dev</span>
-                </a>
-            </div>
-            <div class="sidebar-nav-item">
-                <a href="/admin" class="sidebar-nav-link" data-tooltip="Platform Admin">
-                    <span class="nav-icon">👑</span>
-                    <span>Platform Admin</span>
-                </a>
-            </div>
-            <% } %>
+            <% if (typeof member==='undefined' || !member || member.role==='admin' || member.role==='owner' ) { %>
+
+                <div class="sidebar-nav-item">
+                    <a href="/members" class="sidebar-nav-link" data-tooltip="Team">
+                        <span class="nav-icon">
+                            <svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M16.5 13c-1.2 0-3.07.34-4.5 1-1.43-.67-3.3-1-4.5-1C5.33 13 1 14.08 1 16.25V19h15v-2.75c0-2.17-4.33-3.25-6.5-3.25zm-9-2c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm10 2c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm3 3.25c0-2.17-4.33-3.25-6.5-3.25-.33 0-.71.02-1.1.06 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.75z" />
+                            </svg>
+                        </span>
+                        <span>Team</span>
+                    </a>
+                </div>
+                <% } %>
         </nav>
-        
+
         <div class="sidebar-footer">
             <div class="sidebar-footer-actions">
                 <a href="/logout" class="sidebar-footer-link">
-                    <span class="nav-icon">🚪</span>
+                    <span class="nav-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                        </svg>
+                    </span>
                     <span>Logout</span>
                 </a>
-                <button class="sidebar-footer-link" onclick="toggleTheme()" style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;" title="Toggle theme">
-                    <span class="nav-icon" id="theme-icon">☀️</span>
+                <button class="sidebar-footer-link" onclick="toggleTheme()"
+                    style="border: none; background: transparent; width: 100%; text-align: left; cursor: pointer;"
+                    title="Toggle theme">
+                    <span class="nav-icon" id="theme-icon">
+                        <svg class="svg-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41zm-12.37 12.37c-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06c.39-.39.39-1.03 0-1.41z" />
+                        </svg>
+                    </span>
                     <span>Theme</span>
                 </button>
             </div>
@@ -101,99 +175,186 @@
             <nav class="mobile-nav">
                 <div class="mobile-nav-item">
                     <a href="/" class="mobile-nav-link">
-                        <span>📅</span>
+                        <span>
+                            <svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z" />
+                            </svg>
+                        </span>
                         <span>Renewals</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/users" class="mobile-nav-link active">
-                        <span>👥</span>
+                        <span>
+                            <svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                            </svg>
+                        </span>
                         <span>Users</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/licenses" class="mobile-nav-link">
-                        <span>📜</span>
+                        <span>
+                            <svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                            </svg>
+                        </span>
                         <span>Licenses</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/apps" class="mobile-nav-link">
-                        <span>📦</span>
+                        <span>
+                            <svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5l3.5 3.5-3.5 3.5z" />
+                            </svg>
+                        </span>
                         <span>Apps</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/dashboard" class="mobile-nav-link">
-                        <span>📊</span>
+                        <span>
+                            <svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                            </svg>
+                        </span>
                         <span>Activity</span>
                     </a>
                 </div>
                 <div class="mobile-nav-item">
                     <a href="/account" class="mobile-nav-link">
-                        <span>⚙️</span>
+                        <span>
+                            <svg class="svg-icon" viewBox="0 0 24 24">
+                                <path
+                                    d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                            </svg>
+                        </span>
                         <span>Account</span>
                     </a>
                 </div>
-                <% if (typeof account !== 'undefined' && account && account.isSuperAdmin) { %>
-                <div class="mobile-nav-item">
-                    <a href="/dev" class="mobile-nav-link">
-                        <span>🛠️</span>
-                        <span>Dev</span>
-                    </a>
-                </div>
-                <% } %>
+                <% if (typeof account !=='undefined' && account && account.isSuperAdmin) { %>
+                    <div class="mobile-nav-item">
+                        <a href="/dev" class="mobile-nav-link">
+                            <span>
+                                <svg class="svg-icon" viewBox="0 0 24 24">
+                                    <path
+                                        d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.5 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z" />
+                                </svg>
+                            </span>
+                            <span>Dev</span>
+                        </a>
+                    </div>
+                    <% } %>
             </nav>
 
             <header>
                 <div class="header-content">
                     <h1>
-                        <span class="header-icon" aria-hidden="true">👥</span>
+                        <span class="header-icon" aria-hidden="true">
+                            <svg class="svg-icon" style="width: 28px; height: 28px;" viewBox="0 0 24 24">
+                                <path
+                                    d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                            </svg>
+                        </span>
                         <span class="header-title-text">Users</span>
-                        <span class="user-count-badge">(<span id="header-user-count"><%= users ? users.length : 0 %></span>)</span>
+                        <span class="user-count-badge">(<span id="header-user-count">
+                                <%= users ? users.length : 0 %>
+                            </span>)</span>
                     </h1>
                 </div>
                 <!-- Action Buttons -->
                 <div class="action-buttons-container">
                     <% if (!azureSyncEnabled) { %>
                         <div class="dropdown-wrapper">
-                            <button class="btn btn-primary dropdown-btn" onclick="toggleDropdown('connectors-dropdown')">
-                                🔌 Connectors <span class="dropdown-arrow">▼</span>
+                            <button class="btn btn-primary dropdown-btn"
+                                onclick="toggleDropdown('connectors-dropdown')">
+                                <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                    viewBox="0 0 24 24">
+                                    <path
+                                        d="M16 7V3h-2v4h-4V3H8v4H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2h-2zM6 19V9h12v10H6z" />
+                                </svg>
+                                Connectors <span class="dropdown-arrow">▼</span>
                             </button>
                             <div class="dropdown-menu" id="connectors-dropdown">
                                 <a href="/integrations/entra/connect" class="dropdown-item">
-                                    ☁️ Microsoft Entra
+                                    <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 8px;"
+                                        viewBox="0 0 24 24">
+                                        <path
+                                            d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+                                    </svg>
+                                    Microsoft Entra
                                 </a>
                             </div>
                         </div>
-                    <% } %>
-                    
-                    <button class="btn btn-secondary" onclick="toggleImportSection('licenses')">
-                        📋 Licenses
-                    </button>
-                    
-                    <button class="btn btn-secondary" onclick="toggleImportSection('users')">
-                        👥 Users
-                    </button>
-                    
-                    <div class="dropdown-wrapper">
-                        <button class="btn btn-secondary dropdown-btn" onclick="toggleDropdown('import-dropdown')">
-                            📥 Import <span class="dropdown-arrow">▼</span>
-                        </button>
-                        <div class="dropdown-menu" id="import-dropdown">
-                            <a href="#" class="dropdown-item" onclick="event.preventDefault(); toggleImportSection('adobe'); return false;">
-                                📁 Adobe
-                            </a>
-                        </div>
-                    </div>
+                        <% } %>
+
+                            <button class="btn btn-secondary" onclick="toggleImportSection('licenses')">
+                                <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                    viewBox="0 0 24 24">
+                                    <path
+                                        d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                                </svg>
+                                Licenses
+                            </button>
+
+                            <button class="btn btn-secondary" onclick="toggleImportSection('users')">
+                                <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                    viewBox="0 0 24 24">
+                                    <path
+                                        d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                                </svg>
+                                Users
+                            </button>
+
+                            <button class="btn btn-warning" onclick="toggleImportSection('inactive')">
+                                <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                    viewBox="0 0 24 24">
+                                    <path
+                                        d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+                                </svg>
+                                Inactive
+                            </button>
+
+                            <div class="dropdown-wrapper">
+                                <button class="btn btn-secondary dropdown-btn"
+                                    onclick="toggleDropdown('import-dropdown')">
+                                    📥 Import <span class="dropdown-arrow">▼</span>
+                                </button>
+                                <div class="dropdown-menu" id="import-dropdown">
+                                    <a href="#" class="dropdown-item"
+                                        onclick="event.preventDefault(); toggleImportSection('adobe'); return false;">
+                                        <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 8px;"
+                                            viewBox="0 0 24 24">
+                                            <path
+                                                d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+                                        </svg>
+                                        Adobe
+                                    </a>
+                                </div>
+                            </div>
                 </div>
             </header>
 
             <!-- Licenses Management Section (collapsible) -->
             <div class="import-section" id="licenses-import-section" style="display: none;">
                 <div class="upload-card">
-                    <div class="upload-header" style="display: flex !important; flex-direction: row !important; justify-content: center !important; align-items: center !important; gap: 1rem;">
-                        <h2 style="margin: 0;">📋 Manage Licenses</h2>
+                    <div class="upload-header"
+                        style="display: flex !important; flex-direction: row !important; justify-content: center !important; align-items: center !important; gap: 1rem;">
+                        <h2 style="margin: 0;">
+                            <svg class="svg-icon" style="width: 24px; height: 24px; margin-right: 4px;"
+                                viewBox="0 0 24 24">
+                                <path
+                                    d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                            </svg>
+                            Manage Licenses
+                        </h2>
                         <button class="btn btn-primary" onclick="closeLicensesSection()">
                             Close
                         </button>
@@ -212,41 +373,60 @@
                     <div class="upload-header">
                         <div class="upload-info">
                             <h2>
-                                <span style="white-space: nowrap;">📁 Import Adobe User List</span>
-                                <% if (users && users.length > 0) { %>
+                                <span style="white-space: nowrap;">
+                                    <svg class="svg-icon" style="width: 24px; height: 24px; margin-right: 4px;"
+                                        viewBox="0 0 24 24">
+                                        <path
+                                            d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+                                    </svg>
+                                    Import Adobe User List
+                                </span>
+                                <% if (users && users.length> 0) { %>
                                     <div class="upload-status-inline">
                                         <span class="status-badge status-success">✓ Imported</span>
-                                        <span class="upload-count"><strong><%= users.length %></strong> users loaded</span>
+                                        <span class="upload-count"><strong>
+                                                <%= users.length %>
+                                            </strong> users loaded</span>
                                     </div>
-                                <% } %>
+                                    <% } %>
                             </h2>
-                            <% if (!users || users.length === 0) { %>
-                                <p style="margin-top: 0.25rem; font-size: 0.875rem; color: var(--text-secondary);">Upload your Adobe Admin Console user export to begin tracking license usage.</p>
+                            <% if (!users || users.length===0) { %>
+                                <p style="margin-top: 0.25rem; font-size: 0.875rem; color: var(--text-secondary);">
+                                    Upload your Adobe Admin Console user export to begin tracking license usage.</p>
+                                <% } %>
+                        </div>
+                        <% if (users && users.length> 0) { %>
+                            <div class="upload-actions">
+                                <button class="btn btn-secondary"
+                                    onclick="document.getElementById('csv-upload-form').style.display='block'">
+                                    <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                        viewBox="0 0 24 24">
+                                        <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
+                                    </svg>
+                                    Upload New CSV
+                                </button>
+                            </div>
                             <% } %>
-                        </div>
-                        <% if (users && users.length > 0) { %>
-                        <div class="upload-actions">
-                            <button class="btn btn-secondary" onclick="document.getElementById('csv-upload-form').style.display='block'">
-                                📤 Upload New CSV
-                            </button>
-                        </div>
-                        <% } %>
-                        
-                        <% if (users && users.length > 0 && unmappedUsernames && unmappedUsernames.length > 0) { %>
-                        <div class="unmapped-info-notice">
-                            <span class="info-icon-small">ℹ️</span>
-                            <span>We detected Windows usernames sending activity that aren't linked to any imported user. Map them to ensure activity is attributed correctly.</span>
-                        </div>
-                        <% } %>
+
+                                <% if (users && users.length> 0 && unmappedUsernames && unmappedUsernames.length > 0) {
+                                    %>
+                                    <div class="unmapped-info-notice">
+                                        <span class="info-icon-small">ℹ️</span>
+                                        <span>We detected Windows usernames sending activity that aren't linked to any
+                                            imported user. Map them to ensure activity is attributed correctly.</span>
+                                    </div>
+                                    <% } %>
                     </div>
-                    
-                    <form id="csv-upload-form" style="<%= users && users.length > 0 ? 'display:none' : '' %>" enctype="multipart/form-data">
+
+                    <form id="csv-upload-form" class="<%= (users && users.length > 0) ? 'hidden-initial' : '' %>"
+                        enctype="multipart/form-data">
                         <div class="upload-dropzone" id="upload-dropzone">
                             <input type="file" id="csv-file-input" name="csvFile" accept=".csv" style="display:none">
                             <div class="upload-prompt">
                                 <span class="upload-icon">📄</span>
                                 <p>Drag and drop CSV file here or click to browse</p>
-                                <small>Expected format: Email, First Name, Last Name, Admin Roles, User Groups, Team Products</small>
+                                <small>Expected format: Email, First Name, Last Name, Admin Roles, User Groups, Team
+                                    Products</small>
                             </div>
                         </div>
                         <div id="upload-progress" style="display:none">
@@ -259,231 +439,409 @@
                 </div>
             </div>
 
-        <% if (azureSyncEnabled) { %>
-        <!-- Azure Sync Section -->
-        <div class="azure-sync-section">
-            <div class="sync-header">
-                <h2>☁️ Azure Security Group Sync</h2>
-                <div class="sync-status" id="sync-status">
-                    <span class="status-indicator"></span>
-                    <span id="connection-status" class="status-text">Checking connection...</span>
-                </div>
-            </div>
+            <% if (azureSyncEnabled) { %>
+                <!-- Azure Sync Section -->
+                <div class="azure-sync-section">
+                    <div class="sync-header">
+                        <h2>
+                            <svg class="svg-icon" style="width: 24px; height: 24px; margin-right: 4px;"
+                                viewBox="0 0 24 24">
+                                <path
+                                    d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+                            </svg>
+                            Azure Security Group Sync
+                        </h2>
+                        <div class="sync-status" id="sync-status">
+                            <span class="status-indicator"></span>
+                            <span id="connection-status" class="status-text">Checking connection...</span>
+                        </div>
+                    </div>
 
-            <!-- Configuration -->
-            <div class="sync-config-card">
-                <h3>⚙️ Configuration</h3>
-                <div class="config-form">
-                    <div class="form-group">
-                        <label for="inactive-threshold">
-                            Inactive Threshold (days):
-                            <span class="label-hint">Users with no activity for this many days are considered inactive</span>
-                        </label>
-                        <input type="number" id="inactive-threshold" value="90" min="30" max="365" class="form-input">
+                    <!-- Configuration -->
+                    <div class="sync-config-card">
+                        <h3>
+                            <svg class="svg-icon" style="width: 20px; height: 20px; margin-right: 4px;"
+                                viewBox="0 0 24 24">
+                                <path
+                                    d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                            </svg>
+                            Configuration
+                        </h3>
+                        <div class="config-form">
+                            <div class="form-group">
+                                <label for="inactive-threshold">
+                                    Inactive Threshold (days):
+                                    <span class="label-hint">Users with no activity for this many days are considered
+                                        inactive</span>
+                                </label>
+                                <input type="number" id="inactive-threshold" value="90" min="30" max="365"
+                                    class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="auto-sync-enabled">
+                                    <span>Enable automatic weekly sync</span>
+                                    <span class="label-hint">Automatically move inactive users every Sunday at
+                                        midnight</span>
+                                </label>
+                            </div>
+                            <button class="btn btn-primary" onclick="saveAzureConfig()">
+                                <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                    viewBox="0 0 24 24">
+                                    <path
+                                        d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+                                </svg>
+                                Save Settings
+                            </button>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="auto-sync-enabled">
-                            <span>Enable automatic weekly sync</span>
-                            <span class="label-hint">Automatically move inactive users every Sunday at midnight</span>
-                        </label>
-                    </div>
-                    <button class="btn btn-primary" onclick="saveAzureConfig()">💾 Save Settings</button>
-                </div>
-            </div>
 
-            <!-- Group Management -->
-            <div class="sync-actions">
-                <div class="sync-card">
-                    <div class="sync-card-header">
-                        <h3>1️⃣ Create Active Users Group</h3>
-                        <span id="active-group-status"></span>
-                    </div>
-                    <p class="sync-card-description">Creates security group in Azure and adds all imported users with Adobe licenses</p>
-                    <input type="text" id="active-group-name" placeholder="Adobe-Active-Users" class="form-input">
-                    <button class="btn btn-success" onclick="createActiveGroup()">
-                        ➕ Create Active Group
-                    </button>
-                </div>
-                
-                <div class="sync-card">
-                    <div class="sync-card-header">
-                        <h3>2️⃣ Create Inactive Users Group</h3>
-                        <span id="inactive-group-status"></span>
-                    </div>
-                    <p class="sync-card-description">Creates empty security group for users to be removed from monitoring</p>
-                    <input type="text" id="inactive-group-name" placeholder="Adobe-Inactive-Users" class="form-input">
-                    <button class="btn btn-success" onclick="createInactiveGroup()">
-                        ➕ Create Inactive Group
-                    </button>
-                </div>
-                
-                <div class="sync-card">
-                    <div class="sync-card-header">
-                        <h3>3️⃣ Move Inactive Users</h3>
-                    </div>
-                    <p class="sync-card-description" id="inactive-preview">Loading preview...</p>
-                    <div class="sync-card-actions">
-                        <button class="btn btn-warning" onclick="previewInactive()">
-                            👁️ Preview Inactive Users
-                        </button>
-                        <button class="btn btn-primary" onclick="moveInactive()">
-                            ↗️ Move to Inactive Group
-                        </button>
-                    </div>
-                </div>
-            </div>
+                    <!-- Group Management -->
+                    <div class="sync-actions">
+                        <div class="sync-card">
+                            <div class="sync-card-header">
+                                <h3>1. Create Active Users Group</h3>
+                                <span id="active-group-status"></span>
+                            </div>
+                            <p class="sync-card-description">Creates security group in Azure and adds all imported users
+                                with Adobe licenses</p>
+                            <input type="text" id="active-group-name" placeholder="Adobe-Active-Users"
+                                class="form-input">
+                            <button class="btn btn-success" onclick="createActiveGroup()">
+                                <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                    viewBox="0 0 24 24">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                                </svg>
+                                Create Active Group
+                            </button>
+                        </div>
 
-            <!-- Sync History -->
-            <div class="sync-history">
-                <h3>📋 Last Sync Results</h3>
-                <div id="sync-results">
-                    <p class="no-sync-history">No sync history yet</p>
-                </div>
-            </div>
-        </div>
-        <% } %>
+                        <div class="sync-card">
+                            <div class="sync-card-header">
+                                <h3>2. Create Inactive Users Group</h3>
+                                <span id="inactive-group-status"></span>
+                            </div>
+                            <p class="sync-card-description">Creates empty security group for users to be removed from
+                                monitoring</p>
+                            <input type="text" id="inactive-group-name" placeholder="Adobe-Inactive-Users"
+                                class="form-input">
+                            <button class="btn btn-success" onclick="createInactiveGroup()">
+                                <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                    viewBox="0 0 24 24">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                                </svg>
+                                Create Inactive Group
+                            </button>
+                        </div>
 
-        <!-- Unmapped Usernames Section -->
-        <% if (unmappedUsernames && unmappedUsernames.length > 0) { %>
-        <div class="unmapped-section" id="unmapped-section">
-            <h2>
-                🔗 Map Unmapped Usernames
-                <span class="status-badge status-warning" style="margin-left: 0.75rem;"><strong><%= unmappedUsernames.length %></strong> to map</span>
-            </h2>
-            <table class="unmapped-table">
-                <thead>
-                    <tr>
-                        <th>Windows Username</th>
-                        <th>Activity</th>
-                        <th>First Seen</th>
-                        <th>Map to User</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% unmappedUsernames.forEach(unmapped => { %>
-                    <tr data-username="<%= unmapped.username %>">
-                        <td><strong><%= unmapped.username %></strong></td>
-                        <td><%= unmapped.activityCount || 0 %></td>
-                        <td><%= new Date(unmapped.firstSeen).toLocaleString() %></td>
-                        <td>
-                            <select class="user-select" data-username="<%= unmapped.username %>">
-                                <option value="">Select user...</option>
-                                <% users.forEach(user => { %>
-                                <option value="<%= user.email %>"><%= user.firstName %> <%= user.lastName %> (<%= user.email %>)</option>
-                                <% }); %>
-                            </select>
-                        </td>
-                        <td>
-                            <button class="btn btn-primary btn-sm" onclick="mapUsername('<%= unmapped.username %>')">Map</button>
-                        </td>
-                    </tr>
-                    <% }); %>
-                </tbody>
-            </table>
-        </div>
-        <% } %>
-
-        <!-- Users Management Modal (collapsible) -->
-        <div class="import-section" id="users-import-section" style="display: none;">
-            <div class="upload-card">
-                <div class="upload-header" style="display: flex !important; flex-direction: row !important; justify-content: center !important; align-items: center !important; gap: 1rem;">
-                    <h2 style="margin: 0;">👥 Manage Users</h2>
-                    <button class="btn btn-primary" onclick="closeUsersSection()">
-                        Close
-                    </button>
-                </div>
-                <div id="users-list" style="margin-top: 1.5rem;">
-                    <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                        Loading users...
+                        <div class="sync-card">
+                            <div class="sync-card-header">
+                                <h3>3. Move Inactive Users</h3>
+                            </div>
+                            <p class="sync-card-description" id="inactive-preview">Loading preview...</p>
+                            <div class="sync-card-actions">
+                                <button class="btn btn-warning" onclick="previewInactive()">
+                                    <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                        viewBox="0 0 24 24">
+                                        <path
+                                            d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+                                    </svg>
+                                    Preview Inactive Users
+                                </button>
+                                <button class="btn btn-primary" onclick="moveInactive()">
+                                    <svg class="svg-icon" style="width: 16px; height: 16px; margin-right: 4px;"
+                                        viewBox="0 0 24 24">
+                                        <path d="M5 4v2h14V4H5zm10 12h-3V10h-2v6H7l5 7 5-7z"
+                                            transform="rotate(270 12 12)" />
+                                    </svg>
+                                    Move to Inactive Group
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Users Table Section -->
-        <div class="users-section">
-            <div class="users-header">
-                <div class="users-controls">
-                    <input type="text" id="search-input" placeholder="Search by name or email..." class="search-box">
-                    <select id="license-filter" class="filter-select">
-                        <option value="">All Licenses</option>
-                        <option value="Adobe Acrobat Pro">Adobe Acrobat Pro</option>
-                        <option value="Creative Cloud Pro">Creative Cloud Pro</option>
-                        <option value="no-license">No License</option>
-                    </select>
-                    <select id="status-filter" class="filter-select">
-                        <option value="">All Entra Status</option>
-                        <option value="active">Enabled (Entra)</option>
-                        <option value="inactive">Disabled (Entra)</option>
-                        <option value="unknown">Pending Sync</option>
-                    </select>
-                </div>
-                <% if (azureSyncEnabled || (users && users.length > 0)) { %>
-                <div class="users-header-right">
-                    <% if (azureSyncEnabled) { %>
-                    <button class="btn btn-primary" id="entra-sync-btn" onclick="syncEntraUsers(event)">
-                        🔄 Sync
-                    </button>
-                    <% } %>
-                    <% if (users && users.length > 0) { %>
-                    <button class="btn btn-danger" id="delete-all-btn" onclick="deleteAllUsers()">
-                        🗑️ Delete All
-                    </button>
-                    <div id="selected-actions" style="display: none; gap: 0.5rem; align-items: center;">
-                        <button class="btn btn-primary" onclick="mergeSelectedUsers()">
-                            🔀 Merge Selected
-                        </button>
-                        <button class="btn btn-danger" onclick="deleteSelectedUsers()">
-                            🗑️ Delete Selected
-                        </button>
+                    <!-- Sync History -->
+                    <div class="sync-history">
+                        <h3>
+                            <svg class="svg-icon" style="width: 20px; height: 20px; margin-right: 4px;"
+                                viewBox="0 0 24 24">
+                                <path
+                                    d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8h-1.5z" />
+                            </svg>
+                            Last Sync Results
+                        </h3>
+                        <div id="sync-results">
+                            <p class="no-sync-history">No sync history yet</p>
+                        </div>
                     </div>
-                    <% } %>
                 </div>
                 <% } %>
-                </div>
 
-                <% if (!users || users.length === 0) { %>
-                    <div class="empty-state">
-                        <div class="empty-icon">📋</div>
-                        <h3>No Users Imported</h3>
-                        <p>Upload your Adobe Admin Console user export CSV to get started.</p>
-                    </div>
-                <% } else { %>
-                    <div class="users-table-container">
-                        <table class="users-table" id="users-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 40px;">
-                                        <input type="checkbox" id="select-all-checkbox" title="Select all users">
-                                    </th>
-                                    <th onclick="sortTable('name')">Name <span class="sort-icon">↕</span></th>
-                                    <th onclick="sortTable('email')">Email <span class="sort-icon">↕</span></th>
-                                    <th onclick="sortTable('licenses')">Licenses <span class="sort-icon">↕</span></th>
-                                    <th onclick="sortTable('lastActivity')">Last Activity <span class="sort-icon">↕</span></th>
-                                    <th onclick="sortTable('activityCount')">Activity <span class="sort-icon">↕</span></th>
-                                    <th>Entra Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="users-table-body">
-                                <!-- Will be populated by JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                <% } %>
-            </div>
+                    <!-- Unmapped Usernames Section -->
+                    <% if (unmappedUsernames && unmappedUsernames.length> 0) { %>
+                        <div class="unmapped-section" id="unmapped-section">
+                            <h2>
+                                <svg class="svg-icon" style="width: 24px; height: 24px; margin-right: 4px;"
+                                    viewBox="0 0 24 24">
+                                    <path
+                                        d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" />
+                                </svg>
+                                Map Unmapped Usernames
+                                <span class="status-badge status-warning" style="margin-left: 0.75rem;"><strong>
+                                        <%= unmappedUsernames.length %>
+                                    </strong> to map</span>
+                            </h2>
+                            <table class="unmapped-table">
+                                <thead>
+                                    <tr>
+                                        <th>Windows Username</th>
+                                        <th>Activity</th>
+                                        <th>First Seen</th>
+                                        <th>Map to User</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% unmappedUsernames.forEach(unmapped=> { %>
+                                        <tr data-username="<%= unmapped.username %>">
+                                            <td><strong>
+                                                    <%= unmapped.username %>
+                                                </strong></td>
+                                            <td>
+                                                <%= unmapped.activityCount || 0 %>
+                                            </td>
+                                            <td>
+                                                <%= new Date(unmapped.firstSeen).toLocaleString() %>
+                                            </td>
+                                            <td>
+                                                <select class="user-select" data-username="<%= unmapped.username %>">
+                                                    <option value="">Select user...</option>
+                                                    <% users.forEach(user=> { %>
+                                                        <option value="<%= user.email %>">
+                                                            <%= user.firstName %>
+                                                                <%= user.lastName %> (<%= user.email %>)
+                                                        </option>
+                                                        <% }); %>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-primary btn-sm"
+                                                    onclick="mapUsername('<%= unmapped.username %>')">Map</button>
+                                            </td>
+                                        </tr>
+                                        <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                        <% } %>
+
+                            <!-- Users Management Modal (collapsible) -->
+                            <div class="import-section" id="users-import-section" style="display: none;">
+                                <div class="upload-card">
+                                    <div class="upload-header"
+                                        style="display: flex !important; flex-direction: row !important; justify-content: center !important; align-items: center !important; gap: 1rem;">
+                                        <h2 style="margin: 0;">
+                                            <svg class="svg-icon" style="width: 24px; height: 24px; margin-right: 4px;"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                                            </svg>
+                                            Manage Users
+                                        </h2>
+                                        <button class="btn btn-primary" onclick="closeUsersSection()">
+                                            Close
+                                        </button>
+                                    </div>
+                                    <div id="users-list" style="margin-top: 1.5rem;">
+                                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                            Loading users...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Inactive Users Widget (collapsible) -->
+                            <div class="import-section" id="inactive-import-section" style="display: none;">
+                                <div class="upload-card">
+                                    <div class="upload-header"
+                                        style="display: flex !important; flex-direction: row !important; justify-content: space-between !important; align-items: center !important; gap: 1rem;">
+                                        <div style="display: flex; align-items: center; gap: 1rem;">
+                                            <h2 style="margin: 0;">
+                                                <svg class="svg-icon"
+                                                    style="width: 24px; height: 24px; margin-right: 4px;"
+                                                    viewBox="0 0 24 24">
+                                                    <path
+                                                        d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+                                                </svg>
+                                                Inactive Users
+                                            </h2>
+                                            <span class="status-badge status-warning" id="inactive-count-badge"
+                                                style="display: none;">
+                                                <span id="inactive-count">0</span> users
+                                            </span>
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                            <label
+                                                style="font-size: 0.875rem; color: var(--text-secondary); margin: 0;">Inactive
+                                                for:</label>
+                                            <select id="inactive-days-select" class="filter-select"
+                                                style="min-width: 100px;" onchange="loadInactiveUsers()">
+                                                <option value="7">7 days</option>
+                                                <option value="14">14 days</option>
+                                                <option value="30" selected>30 days</option>
+                                                <option value="60">60 days</option>
+                                                <option value="90">90 days</option>
+                                            </select>
+                                            <button class="btn btn-secondary" onclick="closeInactiveSection()">
+                                                Close
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p
+                                        style="margin: 0.5rem 0 1rem; font-size: 0.875rem; color: var(--text-secondary);">
+                                        Users with no recorded activity. Consider reviewing licenses for cost
+                                        optimization.
+                                    </p>
+                                    <div id="inactive-users-list" style="margin-top: 1rem;">
+                                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                            Loading inactive users...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Users Table Section -->
+                            <div class="users-section">
+                                <div class="users-header">
+                                    <div class="users-controls">
+                                        <input type="text" id="search-input" placeholder="Search by name or email..."
+                                            class="search-box">
+                                        <select id="license-filter" class="filter-select">
+                                            <option value="">All Licenses</option>
+                                            <option value="Adobe Acrobat Pro">Adobe Acrobat Pro</option>
+                                            <option value="Creative Cloud Pro">Creative Cloud Pro</option>
+                                            <option value="no-license">No License</option>
+                                        </select>
+                                        <select id="status-filter" class="filter-select">
+                                            <option value="">All Entra Status</option>
+                                            <option value="active">Enabled (Entra)</option>
+                                            <option value="inactive">Disabled (Entra)</option>
+                                            <option value="unknown">Pending Sync</option>
+                                        </select>
+                                    </div>
+                                    <% if (azureSyncEnabled || (users && users.length> 0)) { %>
+                                        <div class="users-header-right">
+                                            <% if (azureSyncEnabled) { %>
+                                                <button class="btn btn-primary" id="entra-sync-btn"
+                                                    onclick="syncEntraUsers(event)">
+                                                    <svg class="svg-icon"
+                                                        style="width: 16px; height: 16px; margin-right: 4px;"
+                                                        viewBox="0 0 24 24">
+                                                        <path
+                                                            d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm-6 8c0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3c-3.31 0-6-2.69-6-6z" />
+                                                    </svg>
+                                                    Sync
+                                                </button>
+                                                <% } %>
+                                                    <% if (users && users.length> 0) { %>
+                                                        <button class="btn btn-danger" id="delete-all-btn"
+                                                            onclick="deleteAllUsers()">
+                                                            <svg class="svg-icon"
+                                                                style="width: 16px; height: 16px; margin-right: 4px;"
+                                                                viewBox="0 0 24 24">
+                                                                <path
+                                                                    d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                                                            </svg>
+                                                            Delete All
+                                                        </button>
+                                                        <div id="selected-actions"
+                                                            style="display: none; gap: 0.5rem; align-items: center;">
+                                                            <button class="btn btn-primary"
+                                                                onclick="mergeSelectedUsers()">
+                                                                <svg class="svg-icon"
+                                                                    style="width: 16px; height: 16px; margin-right: 4px;"
+                                                                    viewBox="0 0 24 24">
+                                                                    <path
+                                                                        d="M7.5 7.5L9 9v3H6L4.5 10.5M16.5 16.5L15 15v-3h3l1.5 1.5M18 4l2 2-2 2M6 20l-2-2 2-2" />
+                                                                    <path
+                                                                        d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.17 3.18L20 18v-5.5h-5.5l2.04 2.04-1.71 1.87z" />
+                                                                </svg>
+                                                                Merge Selected
+                                                            </button>
+                                                            <button class="btn btn-danger"
+                                                                onclick="deleteSelectedUsers()">
+                                                                <svg class="svg-icon"
+                                                                    style="width: 16px; height: 16px; margin-right: 4px;"
+                                                                    viewBox="0 0 24 24">
+                                                                    <path
+                                                                        d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                                                                </svg>
+                                                                Delete Selected
+                                                            </button>
+                                                        </div>
+                                                        <% } %>
+                                        </div>
+                                        <% } %>
+                                </div>
+
+                                <% if (!users || users.length===0) { %>
+                                    <div class="empty-state">
+                                        <div class="empty-icon">
+                                            <svg class="svg-icon" style="width: 48px; height: 48px;"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+                                            </svg>
+                                        </div>
+                                        <h3>No Users Imported</h3>
+                                        <p>Upload your Adobe Admin Console user export CSV to get started.</p>
+                                    </div>
+                                    <% } else { %>
+                                        <div class="users-table-container">
+                                            <table class="users-table" id="users-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="width: 40px;">
+                                                            <input type="checkbox" id="select-all-checkbox"
+                                                                title="Select all users">
+                                                        </th>
+                                                        <th onclick="sortTable('name')">Name <span
+                                                                class="sort-icon">↕</span></th>
+                                                        <th onclick="sortTable('email')">Email <span
+                                                                class="sort-icon">↕</span></th>
+                                                        <th onclick="sortTable('licenses')">Licenses <span
+                                                                class="sort-icon">↕</span></th>
+                                                        <th onclick="sortTable('lastActivity')">Last Activity <span
+                                                                class="sort-icon">↕</span></th>
+                                                        <th onclick="sortTable('activityCount')">Activity <span
+                                                                class="sort-icon">↕</span></th>
+                                                        <th>Entra Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="users-table-body">
+                                                    <!-- Will be populated by JavaScript -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <% } %>
+                            </div>
         </div>
     </main>
 
-    <script src="/js/theme.js"></script>
-    <script src="/js/ui-components.js"></script>
+    <script src="/js/theme.js" defer></script>
+    <script src="/js/ui-components.js" defer></script>
+    <!-- Data transfer for JS -->
+    <div id="server-data" data-users='<%- JSON.stringify(users || []) %>'
+        data-entra-sync='<%- JSON.stringify(entraSync || {}) %>' data-azure-enabled="<%= azureSyncEnabled %>"
+        style="display: none;"></div>
+
     <script>
         // Pass server data to JavaScript
-        const usersData = <%- JSON.stringify(users || []) %>;
-        const entraSyncMeta = <%- JSON.stringify(entraSync || {}) %>;
-        const entraSyncEnabled = <%= azureSyncEnabled ? 'true' : 'false' %>;
-        
+        const dataEl = document.getElementById('server-data');
+        const usersData = JSON.parse(dataEl.dataset.users || '[]');
+        const entraSyncMeta = JSON.parse(dataEl.dataset.entraSync || '{}');
+        const entraSyncEnabled = dataEl.dataset.azureEnabled === 'true';
+
         // Trigger a manual Microsoft 365 user sync
         async function syncEntraUsers(event) {
             const button = event?.currentTarget || event?.target;
@@ -537,62 +895,67 @@
         function toggleDropdown(dropdownId) {
             const dropdown = document.getElementById(dropdownId);
             const allDropdowns = document.querySelectorAll('.dropdown-menu');
-            
+
             // Close all other dropdowns
             allDropdowns.forEach(d => {
                 if (d.id !== dropdownId) {
                     d.classList.remove('active');
                 }
             });
-            
+
             // Toggle current dropdown
             dropdown.classList.toggle('active');
         }
-        
+
         // Toggle import sections
         function toggleImportSection(sectionName) {
             const section = document.getElementById(`${sectionName}-import-section`);
             if (section) {
                 const isVisible = section.style.display !== 'none';
                 section.style.display = isVisible ? 'none' : 'block';
-                
+
                 // Close dropdown after selection (only for import)
-                if (sectionName !== 'licenses') {
+                if (sectionName !== 'licenses' && sectionName !== 'users' && sectionName !== 'inactive') {
                     const dropdown = document.getElementById('import-dropdown');
                     if (dropdown) {
                         dropdown.classList.remove('active');
                     }
                 }
-                
+
                 // Load licenses when section is opened
                 if (sectionName === 'licenses' && !isVisible) {
                     loadLicenses();
                 }
-                
+
                 // Load users when section is opened
                 if (sectionName === 'users' && !isVisible) {
                     loadUsers();
                 }
+
+                // Load inactive users when section is opened
+                if (sectionName === 'inactive' && !isVisible) {
+                    loadInactiveUsers();
+                }
             }
         }
-        
+
         // Load and display licenses
         async function loadLicenses() {
             const licensesList = document.getElementById('licenses-list');
             if (!licensesList) return;
-            
+
             licensesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading licenses...</div>';
-            
+
             try {
                 const response = await fetch('/api/licenses');
                 const data = await response.json();
-                
+
                 if (data.success && data.licenses) {
                     if (data.licenses.length === 0) {
                         licensesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No licenses detected yet. Import users or connect Microsoft 365 to see licenses.</div>';
                         return;
                     }
-                    
+
                     const licensesHtml = data.licenses.map(license => {
                         const badgeClass = license.hidden ? 'status-neutral' : 'status-success';
                         const buttonText = license.hidden ? 'Show' : 'Hide';
@@ -609,16 +972,16 @@
                             </div>
                         `;
                     }).join('');
-                    
+
                     licensesList.innerHTML = `
                         <div style="background: var(--bg-secondary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
                             ${licensesHtml}
                         </div>
                     `;
-                    
+
                     // Attach event listeners to buttons
                     licensesList.querySelectorAll('.license-toggle-btn').forEach(btn => {
-                        btn.addEventListener('click', function() {
+                        btn.addEventListener('click', function () {
                             const licenseName = this.getAttribute('data-license');
                             const isHidden = this.getAttribute('data-hidden') === 'true';
                             toggleLicenseVisibility(licenseName, isHidden);
@@ -632,9 +995,9 @@
                 licensesList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--danger);">Error loading licenses.</div>';
             }
         }
-        
+
         // Toggle license visibility (make it globally accessible)
-        window.toggleLicenseVisibility = async function(licenseName, currentlyHidden) {
+        window.toggleLicenseVisibility = async function (licenseName, currentlyHidden) {
             console.log('Toggling license:', licenseName, 'currentlyHidden:', currentlyHidden);
             try {
                 const endpoint = currentlyHidden ? '/api/licenses/show' : '/api/licenses/hide';
@@ -644,11 +1007,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ license: licenseName })
                 });
-                
+
                 console.log('Response status:', response.status);
                 const data = await response.json();
                 console.log('Response data:', data);
-                
+
                 if (data.success) {
                     if (typeof Toast !== 'undefined') {
                         Toast.success(`License ${currentlyHidden ? 'shown' : 'hidden'} successfully`);
@@ -669,9 +1032,9 @@
                 }
             }
         };
-        
+
         // Close licenses section and reload page to show changes
-        window.closeLicensesSection = function() {
+        window.closeLicensesSection = function () {
             const section = document.getElementById('licenses-import-section');
             if (section) {
                 section.style.display = 'none';
@@ -679,32 +1042,125 @@
             // Reload page to show updated license visibility in user list
             window.location.reload();
         };
-        
+
         // Close users section
-        window.closeUsersSection = function() {
+        window.closeUsersSection = function () {
             const section = document.getElementById('users-import-section');
             if (section) {
                 section.style.display = 'none';
             }
         };
-        
+
+        // Close inactive section
+        window.closeInactiveSection = function () {
+            const section = document.getElementById('inactive-import-section');
+            if (section) {
+                section.style.display = 'none';
+            }
+        };
+
+        // Load and display inactive users
+        window.loadInactiveUsers = async function () {
+            const inactiveList = document.getElementById('inactive-users-list');
+            const countBadge = document.getElementById('inactive-count-badge');
+            const countSpan = document.getElementById('inactive-count');
+            const daysSelect = document.getElementById('inactive-days-select');
+            const days = daysSelect ? daysSelect.value : 30;
+
+            if (!inactiveList) return;
+
+            inactiveList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading inactive users...</div>';
+
+            try {
+                const response = await fetch(`/api/users/inactive?days=${days}`);
+                const data = await response.json();
+
+                if (data.users && Array.isArray(data.users)) {
+                    // Update count badge
+                    if (countBadge && countSpan) {
+                        countSpan.textContent = data.count || data.users.length;
+                        countBadge.style.display = 'inline-flex';
+                    }
+
+                    if (data.users.length === 0) {
+                        inactiveList.innerHTML = `
+                            <div style="text-align: center; padding: 2rem; color: var(--success);">
+                                <div style="font-size: 2rem; margin-bottom: 0.5rem;">✅</div>
+                                <strong>No inactive users!</strong>
+                                <p style="margin: 0.5rem 0 0; color: var(--text-secondary);">All users have been active within the last ${days} days.</p>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    const usersHtml = data.users.map(user => {
+                        const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+                        const licenses = user.licenses && user.licenses.length > 0
+                            ? user.licenses.slice(0, 2).join(', ') + (user.licenses.length > 2 ? ` +${user.licenses.length - 2}` : '')
+                            : 'No License';
+
+                        let activityText;
+                        if (user.daysSinceActivity === null) {
+                            activityText = '<span class="activity-never" style="color: var(--danger);">Never active</span>';
+                        } else {
+                            activityText = `<span class="activity-old">${user.daysSinceActivity} days ago</span>`;
+                        }
+
+                        return `
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color);">
+                                <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1;">
+                                    <span style="font-weight: 500; color: var(--text-primary);">${fullName}</span>
+                                    <div style="font-size: 0.875rem; color: var(--text-secondary);">${user.email}</div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; min-width: 120px;">
+                                    <span style="font-size: 0.75rem; color: var(--text-secondary);">${licenses}</span>
+                                    ${activityText}
+                                </div>
+                                <div style="margin-left: 1rem;">
+                                    <a href="/user/${encodeURIComponent(user.email)}/activity" class="btn btn-secondary btn-xs" title="View activity">
+                                        📊 Activity
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    inactiveList.innerHTML = `
+                        <div style="background: var(--bg-secondary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); max-height: 400px; overflow-y: auto;">
+                            ${usersHtml}
+                        </div>
+                        <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.875rem; color: var(--text-secondary);">
+                                💡 Consider reviewing licenses for these ${data.count} inactive user(s) to optimize costs.
+                            </span>
+                        </div>
+                    `;
+                } else {
+                    inactiveList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--danger);">Failed to load inactive users.</div>';
+                }
+            } catch (error) {
+                console.error('Error loading inactive users:', error);
+                inactiveList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--danger);">Error loading inactive users: ' + error.message + '</div>';
+            }
+        };
+
         // Load and display users in the modal
         async function loadUsers() {
             const usersList = document.getElementById('users-list');
             if (!usersList) return;
-            
+
             usersList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading users...</div>';
-            
+
             try {
                 const response = await fetch('/api/users');
                 const data = await response.json();
-                
+
                 if (data.users && Array.isArray(data.users)) {
                     if (data.users.length === 0) {
                         usersList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No users imported yet. Import users to see them here.</div>';
                         return;
                     }
-                    
+
                     // Get hidden users list
                     const hiddenUsers = (() => {
                         try {
@@ -714,7 +1170,7 @@
                             return [];
                         }
                     })();
-                    
+
                     const usersHtml = data.users.map(user => {
                         const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
                         const licenseCount = user.licenses ? (Array.isArray(user.licenses) ? user.licenses.length : 0) : 0;
@@ -722,7 +1178,7 @@
                         const badgeClass = isHidden ? 'status-neutral' : 'status-success';
                         const showButtonStyle = isHidden ? '' : 'display: none;';
                         const hideButtonStyle = isHidden ? 'display: none;' : '';
-                        
+
                         return `
                             <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color);">
                                 <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
@@ -744,7 +1200,7 @@
                             </div>
                         `;
                     }).join('');
-                    
+
                     usersList.innerHTML = `
                         <div style="background: var(--bg-secondary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
                             ${usersHtml}
@@ -755,18 +1211,18 @@
                             </p>
                         </div>
                     `;
-                    
+
                     // Attach event listeners to buttons
                     usersList.querySelectorAll('.user-show-btn').forEach(btn => {
-                        btn.addEventListener('click', function() {
+                        btn.addEventListener('click', function () {
                             const userId = this.getAttribute('data-user-id');
                             const email = this.getAttribute('data-email');
                             toggleUserVisibility(userId, email, false);
                         });
                     });
-                    
+
                     usersList.querySelectorAll('.user-hide-btn').forEach(btn => {
-                        btn.addEventListener('click', function() {
+                        btn.addEventListener('click', function () {
                             const userId = this.getAttribute('data-user-id');
                             const email = this.getAttribute('data-email');
                             toggleUserVisibility(userId, email, true);
@@ -780,7 +1236,7 @@
                 usersList.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--danger);">Error loading users: ' + error.message + '</div>';
             }
         }
-        
+
         // Get hidden users from localStorage
         function getHiddenUsers() {
             try {
@@ -790,7 +1246,7 @@
                 return [];
             }
         }
-        
+
         // Save hidden users to localStorage
         function setHiddenUsers(hiddenUsers) {
             try {
@@ -799,12 +1255,12 @@
                 console.error('Failed to save hidden users:', error);
             }
         }
-        
+
         // Toggle user visibility
         async function toggleUserVisibility(userId, email, hide) {
             try {
                 const hiddenUsers = getHiddenUsers();
-                
+
                 if (hide) {
                     // Add to hidden list if not already there
                     if (!hiddenUsers.includes(email)) {
@@ -819,20 +1275,20 @@
                         setHiddenUsers(hiddenUsers);
                     }
                 }
-                
+
                 // Update the users table if it exists
                 if (typeof window.applyUserFilters === 'function') {
                     window.applyUserFilters();
                 } else if (typeof window.renderUsersTable === 'function') {
                     window.renderUsersTable();
                 }
-                
+
                 if (typeof Toast !== 'undefined') {
                     Toast.success(`User ${hide ? 'hidden' : 'shown'}: ${email}`);
                 } else {
                     alert(`User ${hide ? 'hidden' : 'shown'}: ${email}`);
                 }
-                
+
                 // Reload users list in modal to update the UI
                 await loadUsers();
             } catch (error) {
@@ -844,16 +1300,16 @@
                 }
             }
         }
-        
+
         // Close dropdowns when clicking outside
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             if (!event.target.closest('.dropdown-wrapper')) {
                 document.querySelectorAll('.dropdown-menu').forEach(dropdown => {
                     dropdown.classList.remove('active');
                 });
             }
         });
-        
+
         // Check for success message from URL
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('success') === 'entra_connected') {
@@ -864,12 +1320,12 @@
             window.history.replaceState({}, document.title, window.location.pathname);
         }
     </script>
-    <script src="/js/users.js"></script>
+    <script src="/js/users.js" defer></script>
     <% if (azureSyncEnabled) { %>
-    <script src="/js/azure-sync.js"></script>
-    <% } %>
+        <script src="/js/azure-sync.js" defer></script>
+        <% } %>
 
-    <%- include('_survey-widget') %>
+            <%- include('_survey-widget') %>
 </body>
-</html>
 
+</html>
