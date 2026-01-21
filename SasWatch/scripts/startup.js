@@ -34,7 +34,14 @@ async function main() {
         runCommand('node check-session-secret.js', 'Checking session secret');
         
         // Step 2: Run Prisma migrations
-        runCommand('npx prisma migrate deploy', 'Running Prisma migrations', true);
+        // In production, we MUST not continue if migrations fail, otherwise Prisma will
+        // crash at runtime with missing columns/tables (e.g. after schema changes).
+        const isProduction = process.env.NODE_ENV === 'production';
+        runCommand(
+            'npx prisma migrate deploy',
+            'Running Prisma migrations',
+            !isProduction // only continue on error outside production
+        );
         
         // Step 3: Start server
         console.log('[Startup] ============================================');
