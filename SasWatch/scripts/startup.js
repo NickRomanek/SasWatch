@@ -58,7 +58,7 @@ async function main() {
                     console.warn('[Startup] Note: error did not match P3005; still attempting db push to unblock startup.');
                 }
                 runCommand(
-                    'npx prisma db push --skip-generate',
+                    'npx prisma db push --skip-generate --accept-data-loss',
                     'Running Prisma db push (baseline fallback)'
                 );
             } else {
