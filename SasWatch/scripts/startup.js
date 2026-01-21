@@ -46,10 +46,17 @@ async function main() {
                 !isProduction // only continue on error outside production
             );
         } catch (err) {
-            const msg = err?.message || '';
+            const msg = [
+                err?.message || '',
+                err?.stderr?.toString?.() || '',
+                err?.stdout?.toString?.() || ''
+            ].join('\n');
             const isBaselineError = msg.includes('P3005') || msg.includes('database schema is not empty');
-            if (isProduction && isBaselineError) {
-                console.warn('[Startup] ⚠️ migrate deploy failed with baseline error (P3005). Falling back to prisma db push...');
+            if (isProduction) {
+                console.warn('[Startup] ⚠️ migrate deploy failed. Attempting fallback prisma db push (baseline-safe).');
+                if (!isBaselineError) {
+                    console.warn('[Startup] Note: error did not match P3005; still attempting db push to unblock startup.');
+                }
                 runCommand(
                     'npx prisma db push --skip-generate',
                     'Running Prisma db push (baseline fallback)'
