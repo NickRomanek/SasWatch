@@ -36,12 +36,28 @@ async function main() {
         // Step 2: Run Prisma migrations
         // In production, we MUST not continue if migrations fail, otherwise Prisma will
         // crash at runtime with missing columns/tables (e.g. after schema changes).
+        // If migrate deploy fails with baseline errors (P3005), fall back to a safe
+        // prisma db push (additive-only) to align schema.
         const isProduction = process.env.NODE_ENV === 'production';
-        runCommand(
-            'npx prisma migrate deploy',
-            'Running Prisma migrations',
-            !isProduction // only continue on error outside production
-        );
+        try {
+            runCommand(
+                'npx prisma migrate deploy',
+                'Running Prisma migrations',
+                !isProduction // only continue on error outside production
+            );
+        } catch (err) {
+            const msg = err?.message || '';
+            const isBaselineError = msg.includes('P3005') || msg.includes('database schema is not empty');
+            if (isProduction && isBaselineError) {
+                console.warn('[Startup] ⚠️ migrate deploy failed with baseline error (P3005). Falling back to prisma db push...');
+                runCommand(
+                    'npx prisma db push --skip-generate',
+                    'Running Prisma db push (baseline fallback)'
+                );
+            } else {
+                throw err;
+            }
+        }
         
         // Step 3: Start server
         console.log('[Startup] ============================================');
